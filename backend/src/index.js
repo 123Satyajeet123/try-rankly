@@ -91,6 +91,7 @@ app.get('/api', (req, res) => {
       personas: '/api/personas/*',
       prompts: '/api/prompts/*',
       cleanup: '/api/cleanup/*',
+      metrics: '/api/metrics/*',
       analytics: '/api/analytics/*'
     },
     status: 'Development - Ready for implementation'
@@ -105,6 +106,8 @@ const topicRoutes = require('./routes/topics');
 const personaRoutes = require('./routes/personas');
 const promptRoutes = require('./routes/prompts');
 const cleanupRoutes = require('./routes/cleanup');
+const metricsRoutes = require('./routes/metrics');
+const analyticsRoutes = require('./routes/analytics');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -114,6 +117,8 @@ app.use('/api/topics', topicRoutes);
 app.use('/api/personas', personaRoutes);
 app.use('/api/prompts', promptRoutes);
 app.use('/api/cleanup', cleanupRoutes);
+app.use('/api/metrics', metricsRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

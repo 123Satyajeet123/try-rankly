@@ -403,6 +403,27 @@ router.get('/latest-analysis', authenticateToken, async (req, res) => {
   }
 });
 
+// Check if user has done URL analysis before
+router.get('/has-analysis', authenticateToken, async (req, res) => {
+  try {
+    const analysisCount = await UrlAnalysis.countDocuments({ userId: req.userId });
+
+    res.json({
+      success: true,
+      data: {
+        hasAnalysis: analysisCount > 0,
+        analysisCount: analysisCount
+      }
+    });
+  } catch (error) {
+    console.error('Check analysis error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check analysis status'
+    });
+  }
+});
+
 // Update selections for competitors, topics, and personas
 router.post('/update-selections', authenticateToken, async (req, res) => {
   try {

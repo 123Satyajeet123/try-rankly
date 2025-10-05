@@ -1,0 +1,48 @@
+[1m
+╔══════════════════════════════════════════════════════════════════════════════╗[0m
+[1m║                         END-TO-END TEST SUITE                                ║[0m
+[1m╚══════════════════════════════════════════════════════════════════════════════╝[0m
+[34mℹ️  API Base URL: http://localhost:5000/api[0m
+[34mℹ️  Test Website: https://www.fibr.ai[0m
+[34mℹ️  Test User: test-1759661483781@example.com[0m
+
+================================================================================
+[1m[36mSTEP 1: User Registration[0m
+================================================================================
+[32m✅ User registered: test-1759661483781@example.com[0m
+[34mℹ️  User ID: 68e24dab8d95053106682836[0m
+[34mℹ️  Auth Token: eyJhbGciOiJIUzI1NiIs...[0m
+
+================================================================================
+[1m[36mSTEP 2: Website Analysis[0m
+================================================================================
+[34mℹ️  Analyzing website: https://www.fibr.ai[0m
+[33m⚠️  This step may take 30-60 seconds...[0m
+[31m❌ Website analysis failed: Website analysis failed[0m
+[31m❌ 
+Test suite aborted: Website analysis failed - cannot continue[0m
+
+================================================================================
+[1m[36mFINAL RESULTS[0m
+================================================================================
+
+⏱️  Total Duration: 41.61s
+📊 Tests: 9
+[32m✅ Passed: 1/9[0m
+[31m❌ Failed: 1/9[0m
+
+🎯 Success Rate: 11.1%
+[31m
+❌ TESTS FAILED - Critical issues need to be fixed[0m
+
+================================================================================
+
+📋 Test Data Summary:
+  User ID: 68e24dab8d95053106682836
+  Auth Token: Generated
+  Competitors Selected: 0
+  Topics Selected: 0
+  Personas Selected: 0
+  Prompts Generated: 0
+
+

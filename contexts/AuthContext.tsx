@@ -79,8 +79,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         apiService.setToken(existingToken)
         try {
           await refreshUser()
-        } catch (err) {
-          console.error('Failed to refresh user:', err)
+        } catch (err: any) {
+          // Token is invalid or expired - clear it silently
+          console.log('ℹ️ Stored token is invalid, clearing...')
           logout()
         }
       }

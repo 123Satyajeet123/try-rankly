@@ -3,6 +3,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { OnboardingProvider } from "@/contexts/OnboardingContext";
+import { AnalyticsProvider } from "@/contexts/AnalyticsContext";
 
 export const metadata: Metadata = {
   title: "Rankly - Get more traffic from LLMs",
@@ -25,7 +26,9 @@ export default function RootLayout({
         >
           <AuthProvider>
             <OnboardingProvider>
-              {children}
+              <AnalyticsProvider>
+                {children}
+              </AnalyticsProvider>
             </OnboardingProvider>
           </AuthProvider>
         </ThemeProvider>

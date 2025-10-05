@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Filter, Globe, ChevronDown, Users } from 'lucide-react'
+import { Filter, Globe, ChevronDown, Users, Plus } from 'lucide-react'
 
 interface TopNavProps {
   activeTab: string
@@ -14,9 +15,20 @@ interface TopNavProps {
 }
 
 export function TopNav({ activeTab, onTabChange }: TopNavProps) {
+  const router = useRouter()
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['All Platforms'])
   const [selectedTopics, setSelectedTopics] = useState<string[]>(['All Topics'])
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>(['All Personas'])
+  const [isMounted, setIsMounted] = useState(false)
+
+  // Prevent hydration mismatch by only rendering after mount
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  const handleStartNewAnalysis = () => {
+    router.push('/onboarding')
+  }
   
   const tabs = [
     { id: 'visibility', label: 'Visibility' },
@@ -153,6 +165,33 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
     return `${selectedPlatforms.length} selected`
   }
 
+  // Prevent hydration mismatch by not rendering until mounted
+  if (!isMounted) {
+    return (
+      <div className="relative">
+        <div className="pl-4 pt-4 flex justify-between items-center">
+          <div className="flex space-x-0">
+            {tabs.map((tab) => (
+              <div 
+                key={tab.id} 
+                className="relative px-4 py-2 body-text rounded-none border-0 bg-transparent text-gray-600"
+              >
+                {tab.label}
+              </div>
+            ))}
+          </div>
+          <div className="flex space-x-3 pr-4">
+            <div className="px-3 py-1 text-sm border rounded">New Analysis</div>
+            <div className="px-3 py-1 text-sm border rounded"># Topics</div>
+            <div className="px-3 py-1 text-sm border rounded">User Personas</div>
+            <div className="px-3 py-1 text-sm border rounded">All Platforms</div>
+          </div>
+        </div>
+        <div className="border-b border-gray-200 mt-2"></div>
+      </div>
+    )
+  }
+
   return (
     <div className="relative">
       {/* Navigation Tabs and Filter Controls - Same row */}
@@ -171,8 +210,18 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
           </TabsList>
         </Tabs>
 
-        {/* Filter controls - Top right */}
+        {/* Filter controls and New Analysis button - Top right */}
         <div className="flex space-x-3 pr-4">
+          <Button
+            variant="default"
+            size="sm"
+            className="body-text"
+            onClick={handleStartNewAnalysis}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            New Analysis
+          </Button>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="body-text">

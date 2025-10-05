@@ -57,16 +57,41 @@ class ApiService {
       console.log(`✅ [API] Response received in ${duration}ms (status: ${response.status})`)
 
       const data = await response.json()
-      console.log(`📦 [API] Response data:`, data)
 
       if (!response.ok) {
-        console.error(`❌ [API] Request failed:`, data.message || 'Unknown error')
+        // Check if this is an expected error that shouldn't be logged as red error
+        const isExpectedError =
+          response.status === 404 ||
+          response.status === 401 || // Unauthorized (invalid token)
+          data.message?.includes('No metrics') ||
+          data.message?.includes('not found') ||
+          data.message?.includes('Please run prompt tests first') ||
+          data.message?.includes('Invalid token') ||
+          data.message?.includes('Token expired') ||
+          data.message?.includes('Unauthorized')
+
+        if (isExpectedError) {
+          // Don't log error for expected scenarios (no data, invalid token, etc.)
+          console.log(`ℹ️ [API] Expected response (${response.status}): ${data.message || 'Not found'}`)
+        } else {
+          // Log actual errors
+          console.error(`❌ [API] Request failed:`, data.message || 'Unknown error')
+        }
+
         throw new Error(data.message || 'API request failed')
       }
 
+      console.log(`📦 [API] Response data:`, data)
       return data
     } catch (error) {
-      console.error('❌ [API ERROR]:', error)
+      // Only log if it's not an expected error
+      if (error instanceof Error &&
+          !error.message.includes('No metrics') &&
+          !error.message.includes('not found') &&
+          !error.message.includes('Invalid token') &&
+          !error.message.includes('Unauthorized')) {
+        console.error('❌ [API ERROR]:', error)
+      }
       throw error
     }
   }
@@ -148,6 +173,11 @@ class ApiService {
     return this.request('/onboarding/latest-analysis')
   }
 
+  // Check if user has done URL analysis
+  async hasAnalysis() {
+    return this.request('/onboarding/has-analysis')
+  }
+
   // Generate prompts based on selected topics and personas
   async generatePrompts() {
     return this.request('/prompts/generate', {
@@ -187,6 +217,95 @@ class ApiService {
   async getPrompts(options: Record<string, any> = {}) {
     const params = new URLSearchParams(options).toString()
     return this.request(`/prompts${params ? `?${params}` : ''}`)
+  }
+
+  // Analytics endpoints
+  async getAnalyticsSummary(dateFrom?: string, dateTo?: string) {
+    const params = new URLSearchParams()
+    if (dateFrom) params.append('dateFrom', dateFrom)
+    if (dateTo) params.append('dateTo', dateTo)
+    return this.request(`/analytics/summary${params.toString() ? `?${params.toString()}` : ''}`)
+  }
+
+  async getAnalyticsVisibility(dateFrom?: string, dateTo?: string) {
+    const params = new URLSearchParams()
+    if (dateFrom) params.append('dateFrom', dateFrom)
+    if (dateTo) params.append('dateTo', dateTo)
+    return this.request(`/analytics/visibility${params.toString() ? `?${params.toString()}` : ''}`)
+  }
+
+  async getAnalyticsPrompts(dateFrom?: string, dateTo?: string) {
+    const params = new URLSearchParams()
+    if (dateFrom) params.append('dateFrom', dateFrom)
+    if (dateTo) params.append('dateTo', dateTo)
+    return this.request(`/analytics/prompts${params.toString() ? `?${params.toString()}` : ''}`)
+  }
+
+  async getAnalyticsSentiment(dateFrom?: string, dateTo?: string) {
+    const params = new URLSearchParams()
+    if (dateFrom) params.append('dateFrom', dateFrom)
+    if (dateTo) params.append('dateTo', dateTo)
+    return this.request(`/analytics/sentiment${params.toString() ? `?${params.toString()}` : ''}`)
+  }
+
+  async getAnalyticsCitations(dateFrom?: string, dateTo?: string) {
+    const params = new URLSearchParams()
+    if (dateFrom) params.append('dateFrom', dateFrom)
+    if (dateTo) params.append('dateTo', dateTo)
+    return this.request(`/analytics/citations${params.toString() ? `?${params.toString()}` : ''}`)
+  }
+
+  async getAnalyticsCompetitors(dateFrom?: string, dateTo?: string) {
+    const params = new URLSearchParams()
+    if (dateFrom) params.append('dateFrom', dateFrom)
+    if (dateTo) params.append('dateTo', dateTo)
+    return this.request(`/analytics/competitors${params.toString() ? `?${params.toString()}` : ''}`)
+  }
+
+  // New analytics endpoints for dashboard integration
+  async getAnalyticsFilters() {
+    return this.request('/analytics/filters')
+  }
+
+  async getAnalyticsDashboard(options: {
+    dateFrom?: string
+    dateTo?: string
+    platforms?: string[]
+    topics?: string[]
+    personas?: string[]
+    comparisonDateFrom?: string
+    comparisonDateTo?: string
+  } = {}) {
+    const params = new URLSearchParams()
+    if (options.dateFrom) params.append('dateFrom', options.dateFrom)
+    if (options.dateTo) params.append('dateTo', options.dateTo)
+    if (options.platforms) {
+      options.platforms.forEach(p => params.append('platforms', p))
+    }
+    if (options.topics) {
+      options.topics.forEach(t => params.append('topics', t))
+    }
+    if (options.personas) {
+      options.personas.forEach(p => params.append('personas', p))
+    }
+    if (options.comparisonDateFrom) params.append('comparisonDateFrom', options.comparisonDateFrom)
+    if (options.comparisonDateTo) params.append('comparisonDateTo', options.comparisonDateTo)
+    
+    return this.request(`/analytics/dashboard${params.toString() ? `?${params.toString()}` : ''}`)
+  }
+
+  // Metrics endpoints
+  async calculateMetrics() {
+    return this.request('/metrics/calculate', {
+      method: 'POST',
+    })
+  }
+
+  async getMetricsDashboard(dateFrom?: string, dateTo?: string) {
+    const params = new URLSearchParams()
+    if (dateFrom) params.append('dateFrom', dateFrom)
+    if (dateTo) params.append('dateTo', dateTo)
+    return this.request(`/metrics/dashboard${params.toString() ? `?${params.toString()}` : ''}`)
   }
 }
 

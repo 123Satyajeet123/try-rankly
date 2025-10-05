@@ -1,20 +1,26 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { Sun, Moon, BarChart3, MessageSquare, Globe, HelpCircle } from 'lucide-react'
+import { Sun, Moon, BarChart3, MessageSquare, Globe, HelpCircle, Plus } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
+import apiService from '@/services/api'
 
 export function Sidebar() {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
 
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  const handleNewAnalysis = () => {
+    router.push('/onboarding')
+  }
 
   const navItems = [
     {
@@ -44,12 +50,23 @@ export function Sidebar() {
         <h1 className="brand text-2xl tracking-tight">Rankly</h1>
       </div>
 
+      {/* New Analysis Button */}
+      <div className="px-4 pb-2">
+        <Button
+          onClick={handleNewAnalysis}
+          className="w-full justify-center gap-2 bg-foreground text-background hover:bg-foreground/90"
+        >
+          <Plus className="h-4 w-4" />
+          New Analysis
+        </Button>
+      </div>
+
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-4">
         <div className="space-y-1">
           {navItems.map((item, index) => (
             <Link key={index} href={item.link}>
-              <Button 
+              <Button
                 variant="ghost"
                 className={`w-full justify-start h-10 px-3 body-text hover:bg-accent hover:text-accent-foreground ${
                   item.isActive ? 'bg-accent text-accent-foreground' : ''
