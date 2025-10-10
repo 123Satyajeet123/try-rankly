@@ -1,0 +1,3101 @@
+🔑 OpenRouter API Key loaded: YES
+📋 [LLM MODELS] Configured: {
+  openai: 'openai/gpt-4o',
+  gemini: 'google/gemini-2.5-flash',
+  claude: 'anthropic/claude-3.5-sonnet',
+  perplexity: 'perplexity/sonar-pro'
+}
+🧪 PromptTestingService initialized (deterministic scoring)
+📊 MetricsAggregationService initialized
+🧠 InsightsGenerationService initialized
+
+================================================================================
+🚀 COMPLETE BACKEND FLOW TEST - NEW METRICS SYSTEM
+================================================================================
+
+✅ Connected to MongoDB
+
+📋 SETUP: Test User
+
+────────────────────────────────────────────────────────────────────────────────
+
+✅ Using test user: satyajeetdas225@gmail.com
+🧹 Cleaning up old test data...
+✅ Cleanup complete
+
+User ID: 68e7ef58da34c5124ad5fb1c
+
+────────────────────────────────────────────────────────────────────────────────
+
+📊 STEP 1: URL ANALYSIS
+
+================================================================================
+
+Analyzing: https://stripe.com
+Using: Perplexity AI (perplexity/sonar-pro)
+
+🔍 Starting website analysis for: https://stripe.com
+📄 Scraping website: https://stripe.com
+❌ Scraping failed: page.waitForTimeout is not a function
+🔄 Attempting fallback scraping method...
+✅ Fallback scraping successful
+🤖 Starting AI analysis...
+✅ Successfully parsed competitors analysis
+   Raw data keys: competitors
+   Normalized keys: competitors
+   Competitors count: 6
+✅ Successfully parsed personas analysis
+   Raw data keys: personas
+   Normalized keys: personas
+   Personas count: 4
+✅ Successfully parsed brandContext analysis
+   Raw data keys: companyName, industry, businessModel, targetMarket, valueProposition, keyServices, brandTone, marketPosition
+   Normalized keys: companyName, industry, businessModel, targetMarket, valueProposition, keyServices, brandTone, marketPosition
+✅ Successfully parsed topics analysis
+   Raw data keys: topics
+   Normalized keys: topics
+   Topics count: 8
+✅ Website analysis completed successfully
+✅ Analysis Complete!
+
+✅ Saved UrlAnalysis to database
+✅ Saved 6 competitors
+✅ Saved 8 topics
+✅ Saved 4 personas
+
+📊 Analysis Summary:
+Brand: Stripe
+Description: undefined...
+Competitors: 6
+Topics: 8
+Personas: 4
+
+Analysis ID: 68e8e7fdc6ceda2315a81447
+
+────────────────────────────────────────────────────────────────────────────────
+
+📊 STEP 2: USER SELECTIONS
+
+================================================================================
+
+Found 3 competitors to select
+✅ Selected competitor: PayPal
+✅ Selected competitor: Square
+✅ Selected competitor: 2Checkout
+Found 2 topics to select
+✅ Selected topic: Global Payments and Multi-Currency Solutions
+✅ Selected topic: Revenue and Finance Automation
+Found 2 personas to select
+✅ Selected persona: E-commerce Business Owner
+✅ Selected persona: Financial Manager
+
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+
+📊 STEP 3: PROMPT GENERATION
+
+================================================================================
+
+Generating prompts for 2 topics × 2 personas = 4 combinations...
+
+🎯 Starting prompt generation...
+Topics: 2, Personas: 2
+Generating prompts for: Global Payments and Multi-Currency Solutions × E-commerce Business Owner
+🔍 Topic object: {
+  id: '68e8e7fdc6ceda2315a81467',
+  _id: new ObjectId('68e8e7fdc6ceda2315a81467'),
+  name: 'Global Payments and Multi-Currency Solutions'
+}
+🔍 Persona object: {
+  id: '68e8e7fdc6ceda2315a81477',
+  _id: new ObjectId('68e8e7fdc6ceda2315a81477'),
+  type: 'E-commerce Business Owner'
+}
+🔍 Prompt generation context for Global Payments and Multi-Currency Solutions × E-commerce Business Owner:
+   Brand: Stripe
+   URL: https://stripe.com
+🔍 Generated prompts for topic-persona combination: {
+  topicId: new ObjectId('68e8e7fdc6ceda2315a81467'),
+  topicName: 'Global Payments and Multi-Currency Solutions',
+  personaId: new ObjectId('68e8e7fdc6ceda2315a81477'),
+  personaType: 'E-commerce Business Owner',
+  promptCount: 5
+}
+Generating prompts for: Global Payments and Multi-Currency Solutions × Financial Manager
+🔍 Topic object: {
+  id: '68e8e7fdc6ceda2315a81467',
+  _id: new ObjectId('68e8e7fdc6ceda2315a81467'),
+  name: 'Global Payments and Multi-Currency Solutions'
+}
+🔍 Persona object: {
+  id: '68e8e7fdc6ceda2315a81478',
+  _id: new ObjectId('68e8e7fdc6ceda2315a81478'),
+  type: 'Financial Manager'
+}
+🔍 Prompt generation context for Global Payments and Multi-Currency Solutions × Financial Manager:
+   Brand: Stripe
+   URL: https://stripe.com
+🔍 Generated prompts for topic-persona combination: {
+  topicId: new ObjectId('68e8e7fdc6ceda2315a81467'),
+  topicName: 'Global Payments and Multi-Currency Solutions',
+  personaId: new ObjectId('68e8e7fdc6ceda2315a81478'),
+  personaType: 'Financial Manager',
+  promptCount: 5
+}
+Generating prompts for: Revenue and Finance Automation × E-commerce Business Owner
+🔍 Topic object: {
+  id: '68e8e7fdc6ceda2315a81468',
+  _id: new ObjectId('68e8e7fdc6ceda2315a81468'),
+  name: 'Revenue and Finance Automation'
+}
+🔍 Persona object: {
+  id: '68e8e7fdc6ceda2315a81477',
+  _id: new ObjectId('68e8e7fdc6ceda2315a81477'),
+  type: 'E-commerce Business Owner'
+}
+🔍 Prompt generation context for Revenue and Finance Automation × E-commerce Business Owner:
+   Brand: Stripe
+   URL: https://stripe.com
+🔍 Generated prompts for topic-persona combination: {
+  topicId: new ObjectId('68e8e7fdc6ceda2315a81468'),
+  topicName: 'Revenue and Finance Automation',
+  personaId: new ObjectId('68e8e7fdc6ceda2315a81477'),
+  personaType: 'E-commerce Business Owner',
+  promptCount: 5
+}
+Generating prompts for: Revenue and Finance Automation × Financial Manager
+🔍 Topic object: {
+  id: '68e8e7fdc6ceda2315a81468',
+  _id: new ObjectId('68e8e7fdc6ceda2315a81468'),
+  name: 'Revenue and Finance Automation'
+}
+🔍 Persona object: {
+  id: '68e8e7fdc6ceda2315a81478',
+  _id: new ObjectId('68e8e7fdc6ceda2315a81478'),
+  type: 'Financial Manager'
+}
+🔍 Prompt generation context for Revenue and Finance Automation × Financial Manager:
+   Brand: Stripe
+   URL: https://stripe.com
+🔍 Generated prompts for topic-persona combination: {
+  topicId: new ObjectId('68e8e7fdc6ceda2315a81468'),
+  topicName: 'Revenue and Finance Automation',
+  personaId: new ObjectId('68e8e7fdc6ceda2315a81478'),
+  personaType: 'Financial Manager',
+  promptCount: 5
+}
+✅ Generated 20 prompts successfully
+✅ Generated 20 prompts
+
+Sample prompt data: {
+  "topicId": "68e8e7fdc6ceda2315a81467",
+  "topicName": "Global Payments and Multi-Currency Solutions",
+  "personaId": "68e8e7fdc6ceda2315a81477",
+  "personaType": "E-commerce Business Owner",
+  "promptText": "Can someone explain what Stripe does?",
+  "promptIndex": 1,
+  "queryType": "Navigational"
+}
+✅ Saved 20 prompts to database
+
+Sample prompts:
+
+1. Can someone explain what Stripe does?...
+   Query Type: Navigational
+
+2. What are the best global payment solutions for e-commerce in 2025?...
+   Query Type: Commercial Investigation
+
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+
+📊 STEP 4: LLM TESTING (WITH NEW METRICS)
+
+================================================================================
+
+Testing prompts across 4 LLM platforms:
+  - OpenAI (GPT-4)
+  - Google (Gemini)
+  - Anthropic (Claude)
+  - Perplexity
+
+Metrics being calculated:
+  ✓ Brand Mentions (count, position)
+  ✓ Sentiment Analysis (score, breakdown, drivers)
+  ✓ Citations (brand, earned, social)
+  ✓ Sentence-level data (for depth calculation)
+  ✓ Response metadata (total sentences, words)
+
+
+============================================================
+🎯 [TEST START] Starting prompt testing for user: 68e7ef58da34c5124ad5fb1c
+📅 Timestamp: 2025-10-10T11:03:39.722Z
+============================================================
+
+🔍 [QUERY] Fetching active prompts for user 68e7ef58da34c5124ad5fb1c...
+🔍 [FILTER] Only fetching prompts with topicId, personaId, and queryType
+⚠️  [TESTING MODE] Limited to 2 prompts to save API costs
+✅ [QUERY] Found 20 prompts in database
+📊 [INFO] Prompts breakdown:
+   1. Can someone explain what Stripe does?...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81467'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Global Payments and Multi-Currency Solutions',
+  selected: true,
+  description: 'Businesses need to accept and optimize payments worldwide, support multiple currencies, and reduce cross-border friction to maximize conversion and revenue.',
+  keywords: [
+    'global payments',
+    'multi-currency',
+    'cross-border',
+    'local payment methods',
+    'international expansion'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.486Z,
+  updatedAt: 2025-10-10T11:03:26.883Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81477'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'E-commerce Business Owner',
+  description: 'Responsible for managing online stores, ensuring smooth payment processing, and optimizing revenue streams. They face challenges in integrating payment systems, managing subscriptions, and preventing fraud.',
+  selected: true,
+  painPoints: [
+    'Complex payment integration',
+    'Subscription management',
+    'Fraud prevention'
+  ],
+  goals: [
+    'Streamline payment processing',
+    'Increase revenue',
+    'Enhance customer experience'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.961Z,
+  __v: 0
+}
+      Topic: Global Payments and Multi-Currency Solutions (ID: 68e8e7fdc6ceda2315a81467)
+      Persona: E-commerce Business Owner (ID: 68e8e7fdc6ceda2315a81477)
+      QueryType: Navigational
+   2. What are the best global payment solutions for e-c...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81467'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Global Payments and Multi-Currency Solutions',
+  selected: true,
+  description: 'Businesses need to accept and optimize payments worldwide, support multiple currencies, and reduce cross-border friction to maximize conversion and revenue.',
+  keywords: [
+    'global payments',
+    'multi-currency',
+    'cross-border',
+    'local payment methods',
+    'international expansion'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.486Z,
+  updatedAt: 2025-10-10T11:03:26.883Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81477'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'E-commerce Business Owner',
+  description: 'Responsible for managing online stores, ensuring smooth payment processing, and optimizing revenue streams. They face challenges in integrating payment systems, managing subscriptions, and preventing fraud.',
+  selected: true,
+  painPoints: [
+    'Complex payment integration',
+    'Subscription management',
+    'Fraud prevention'
+  ],
+  goals: [
+    'Streamline payment processing',
+    'Increase revenue',
+    'Enhance customer experience'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.961Z,
+  __v: 0
+}
+      Topic: Global Payments and Multi-Currency Solutions (ID: 68e8e7fdc6ceda2315a81467)
+      Persona: E-commerce Business Owner (ID: 68e8e7fdc6ceda2315a81477)
+      QueryType: Commercial Investigation
+   3. Where can I sign up for a multi-currency payment g...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81467'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Global Payments and Multi-Currency Solutions',
+  selected: true,
+  description: 'Businesses need to accept and optimize payments worldwide, support multiple currencies, and reduce cross-border friction to maximize conversion and revenue.',
+  keywords: [
+    'global payments',
+    'multi-currency',
+    'cross-border',
+    'local payment methods',
+    'international expansion'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.486Z,
+  updatedAt: 2025-10-10T11:03:26.883Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81477'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'E-commerce Business Owner',
+  description: 'Responsible for managing online stores, ensuring smooth payment processing, and optimizing revenue streams. They face challenges in integrating payment systems, managing subscriptions, and preventing fraud.',
+  selected: true,
+  painPoints: [
+    'Complex payment integration',
+    'Subscription management',
+    'Fraud prevention'
+  ],
+  goals: [
+    'Streamline payment processing',
+    'Increase revenue',
+    'Enhance customer experience'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.961Z,
+  __v: 0
+}
+      Topic: Global Payments and Multi-Currency Solutions (ID: 68e8e7fdc6ceda2315a81467)
+      Persona: E-commerce Business Owner (ID: 68e8e7fdc6ceda2315a81477)
+      QueryType: Transactional
+   4. How does Stripe compare to PayPal for handling int...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81467'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Global Payments and Multi-Currency Solutions',
+  selected: true,
+  description: 'Businesses need to accept and optimize payments worldwide, support multiple currencies, and reduce cross-border friction to maximize conversion and revenue.',
+  keywords: [
+    'global payments',
+    'multi-currency',
+    'cross-border',
+    'local payment methods',
+    'international expansion'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.486Z,
+  updatedAt: 2025-10-10T11:03:26.883Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81477'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'E-commerce Business Owner',
+  description: 'Responsible for managing online stores, ensuring smooth payment processing, and optimizing revenue streams. They face challenges in integrating payment systems, managing subscriptions, and preventing fraud.',
+  selected: true,
+  painPoints: [
+    'Complex payment integration',
+    'Subscription management',
+    'Fraud prevention'
+  ],
+  goals: [
+    'Streamline payment processing',
+    'Increase revenue',
+    'Enhance customer experience'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.961Z,
+  __v: 0
+}
+      Topic: Global Payments and Multi-Currency Solutions (ID: 68e8e7fdc6ceda2315a81467)
+      Persona: E-commerce Business Owner (ID: 68e8e7fdc6ceda2315a81477)
+      QueryType: Comparative
+   5. Are there any recent reviews about Stripe's paymen...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81467'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Global Payments and Multi-Currency Solutions',
+  selected: true,
+  description: 'Businesses need to accept and optimize payments worldwide, support multiple currencies, and reduce cross-border friction to maximize conversion and revenue.',
+  keywords: [
+    'global payments',
+    'multi-currency',
+    'cross-border',
+    'local payment methods',
+    'international expansion'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.486Z,
+  updatedAt: 2025-10-10T11:03:26.883Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81477'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'E-commerce Business Owner',
+  description: 'Responsible for managing online stores, ensuring smooth payment processing, and optimizing revenue streams. They face challenges in integrating payment systems, managing subscriptions, and preventing fraud.',
+  selected: true,
+  painPoints: [
+    'Complex payment integration',
+    'Subscription management',
+    'Fraud prevention'
+  ],
+  goals: [
+    'Streamline payment processing',
+    'Increase revenue',
+    'Enhance customer experience'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.961Z,
+  __v: 0
+}
+      Topic: Global Payments and Multi-Currency Solutions (ID: 68e8e7fdc6ceda2315a81467)
+      Persona: E-commerce Business Owner (ID: 68e8e7fdc6ceda2315a81477)
+      QueryType: Reputational
+   6. What is Stripe's role in improving financial infra...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81467'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Global Payments and Multi-Currency Solutions',
+  selected: true,
+  description: 'Businesses need to accept and optimize payments worldwide, support multiple currencies, and reduce cross-border friction to maximize conversion and revenue.',
+  keywords: [
+    'global payments',
+    'multi-currency',
+    'cross-border',
+    'local payment methods',
+    'international expansion'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.486Z,
+  updatedAt: 2025-10-10T11:03:26.883Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81478'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'Financial Manager',
+  description: 'Oversees financial operations, including managing cash flow, tracking expenses, and ensuring compliance with financial regulations. They struggle with financial reporting, compliance, and optimizing financial infrastructure.',
+  selected: true,
+  painPoints: [
+    'Financial reporting complexity',
+    'Compliance issues',
+    'Optimizing financial infrastructure'
+  ],
+  goals: [
+    'Improve financial visibility',
+    'Ensure compliance',
+    'Optimize financial operations'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.988Z,
+  __v: 0
+}
+      Topic: Global Payments and Multi-Currency Solutions (ID: 68e8e7fdc6ceda2315a81467)
+      Persona: Financial Manager (ID: 68e8e7fdc6ceda2315a81478)
+      QueryType: Navigational
+   7. What are the best platforms for managing global pa...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81467'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Global Payments and Multi-Currency Solutions',
+  selected: true,
+  description: 'Businesses need to accept and optimize payments worldwide, support multiple currencies, and reduce cross-border friction to maximize conversion and revenue.',
+  keywords: [
+    'global payments',
+    'multi-currency',
+    'cross-border',
+    'local payment methods',
+    'international expansion'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.486Z,
+  updatedAt: 2025-10-10T11:03:26.883Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81478'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'Financial Manager',
+  description: 'Oversees financial operations, including managing cash flow, tracking expenses, and ensuring compliance with financial regulations. They struggle with financial reporting, compliance, and optimizing financial infrastructure.',
+  selected: true,
+  painPoints: [
+    'Financial reporting complexity',
+    'Compliance issues',
+    'Optimizing financial infrastructure'
+  ],
+  goals: [
+    'Improve financial visibility',
+    'Ensure compliance',
+    'Optimize financial operations'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.988Z,
+  __v: 0
+}
+      Topic: Global Payments and Multi-Currency Solutions (ID: 68e8e7fdc6ceda2315a81467)
+      Persona: Financial Manager (ID: 68e8e7fdc6ceda2315a81478)
+      QueryType: Commercial Investigation
+   8. Where can I find the best pricing and sign-up opti...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81467'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Global Payments and Multi-Currency Solutions',
+  selected: true,
+  description: 'Businesses need to accept and optimize payments worldwide, support multiple currencies, and reduce cross-border friction to maximize conversion and revenue.',
+  keywords: [
+    'global payments',
+    'multi-currency',
+    'cross-border',
+    'local payment methods',
+    'international expansion'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.486Z,
+  updatedAt: 2025-10-10T11:03:26.883Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81478'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'Financial Manager',
+  description: 'Oversees financial operations, including managing cash flow, tracking expenses, and ensuring compliance with financial regulations. They struggle with financial reporting, compliance, and optimizing financial infrastructure.',
+  selected: true,
+  painPoints: [
+    'Financial reporting complexity',
+    'Compliance issues',
+    'Optimizing financial infrastructure'
+  ],
+  goals: [
+    'Improve financial visibility',
+    'Ensure compliance',
+    'Optimize financial operations'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.988Z,
+  __v: 0
+}
+      Topic: Global Payments and Multi-Currency Solutions (ID: 68e8e7fdc6ceda2315a81467)
+      Persona: Financial Manager (ID: 68e8e7fdc6ceda2315a81478)
+      QueryType: Transactional
+   9. How does Stripe compare to PayPal for internationa...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81467'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Global Payments and Multi-Currency Solutions',
+  selected: true,
+  description: 'Businesses need to accept and optimize payments worldwide, support multiple currencies, and reduce cross-border friction to maximize conversion and revenue.',
+  keywords: [
+    'global payments',
+    'multi-currency',
+    'cross-border',
+    'local payment methods',
+    'international expansion'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.486Z,
+  updatedAt: 2025-10-10T11:03:26.883Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81478'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'Financial Manager',
+  description: 'Oversees financial operations, including managing cash flow, tracking expenses, and ensuring compliance with financial regulations. They struggle with financial reporting, compliance, and optimizing financial infrastructure.',
+  selected: true,
+  painPoints: [
+    'Financial reporting complexity',
+    'Compliance issues',
+    'Optimizing financial infrastructure'
+  ],
+  goals: [
+    'Improve financial visibility',
+    'Ensure compliance',
+    'Optimize financial operations'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.988Z,
+  __v: 0
+}
+      Topic: Global Payments and Multi-Currency Solutions (ID: 68e8e7fdc6ceda2315a81467)
+      Persona: Financial Manager (ID: 68e8e7fdc6ceda2315a81478)
+      QueryType: Comparative
+   10. Are there any recent reviews from financial manage...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81467'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Global Payments and Multi-Currency Solutions',
+  selected: true,
+  description: 'Businesses need to accept and optimize payments worldwide, support multiple currencies, and reduce cross-border friction to maximize conversion and revenue.',
+  keywords: [
+    'global payments',
+    'multi-currency',
+    'cross-border',
+    'local payment methods',
+    'international expansion'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.486Z,
+  updatedAt: 2025-10-10T11:03:26.883Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81478'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'Financial Manager',
+  description: 'Oversees financial operations, including managing cash flow, tracking expenses, and ensuring compliance with financial regulations. They struggle with financial reporting, compliance, and optimizing financial infrastructure.',
+  selected: true,
+  painPoints: [
+    'Financial reporting complexity',
+    'Compliance issues',
+    'Optimizing financial infrastructure'
+  ],
+  goals: [
+    'Improve financial visibility',
+    'Ensure compliance',
+    'Optimize financial operations'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.988Z,
+  __v: 0
+}
+      Topic: Global Payments and Multi-Currency Solutions (ID: 68e8e7fdc6ceda2315a81467)
+      Persona: Financial Manager (ID: 68e8e7fdc6ceda2315a81478)
+      QueryType: Reputational
+   11. What is Stripe and how can it help my e-commerce b...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81468'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Revenue and Finance Automation',
+  selected: true,
+  description: 'Automating billing, invoicing, tax, revenue recognition, and financial operations reduces manual work, minimizes errors, and helps businesses scale efficiently.',
+  keywords: [
+    'revenue automation',
+    'billing automation',
+    'tax automation',
+    'finance operations',
+    'revenue recognition'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.487Z,
+  updatedAt: 2025-10-10T11:03:26.909Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81477'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'E-commerce Business Owner',
+  description: 'Responsible for managing online stores, ensuring smooth payment processing, and optimizing revenue streams. They face challenges in integrating payment systems, managing subscriptions, and preventing fraud.',
+  selected: true,
+  painPoints: [
+    'Complex payment integration',
+    'Subscription management',
+    'Fraud prevention'
+  ],
+  goals: [
+    'Streamline payment processing',
+    'Increase revenue',
+    'Enhance customer experience'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.961Z,
+  __v: 0
+}
+      Topic: Revenue and Finance Automation (ID: 68e8e7fdc6ceda2315a81468)
+      Persona: E-commerce Business Owner (ID: 68e8e7fdc6ceda2315a81477)
+      QueryType: Navigational
+   12. What are the best revenue automation tools for 202...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81468'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Revenue and Finance Automation',
+  selected: true,
+  description: 'Automating billing, invoicing, tax, revenue recognition, and financial operations reduces manual work, minimizes errors, and helps businesses scale efficiently.',
+  keywords: [
+    'revenue automation',
+    'billing automation',
+    'tax automation',
+    'finance operations',
+    'revenue recognition'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.487Z,
+  updatedAt: 2025-10-10T11:03:26.909Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81477'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'E-commerce Business Owner',
+  description: 'Responsible for managing online stores, ensuring smooth payment processing, and optimizing revenue streams. They face challenges in integrating payment systems, managing subscriptions, and preventing fraud.',
+  selected: true,
+  painPoints: [
+    'Complex payment integration',
+    'Subscription management',
+    'Fraud prevention'
+  ],
+  goals: [
+    'Streamline payment processing',
+    'Increase revenue',
+    'Enhance customer experience'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.961Z,
+  __v: 0
+}
+      Topic: Revenue and Finance Automation (ID: 68e8e7fdc6ceda2315a81468)
+      Persona: E-commerce Business Owner (ID: 68e8e7fdc6ceda2315a81477)
+      QueryType: Commercial Investigation
+   13. Where can I find a reliable platform for automatin...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81468'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Revenue and Finance Automation',
+  selected: true,
+  description: 'Automating billing, invoicing, tax, revenue recognition, and financial operations reduces manual work, minimizes errors, and helps businesses scale efficiently.',
+  keywords: [
+    'revenue automation',
+    'billing automation',
+    'tax automation',
+    'finance operations',
+    'revenue recognition'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.487Z,
+  updatedAt: 2025-10-10T11:03:26.909Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81477'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'E-commerce Business Owner',
+  description: 'Responsible for managing online stores, ensuring smooth payment processing, and optimizing revenue streams. They face challenges in integrating payment systems, managing subscriptions, and preventing fraud.',
+  selected: true,
+  painPoints: [
+    'Complex payment integration',
+    'Subscription management',
+    'Fraud prevention'
+  ],
+  goals: [
+    'Streamline payment processing',
+    'Increase revenue',
+    'Enhance customer experience'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.961Z,
+  __v: 0
+}
+      Topic: Revenue and Finance Automation (ID: 68e8e7fdc6ceda2315a81468)
+      Persona: E-commerce Business Owner (ID: 68e8e7fdc6ceda2315a81477)
+      QueryType: Transactional
+   14. How does Stripe compare to PayPal for managing sub...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81468'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Revenue and Finance Automation',
+  selected: true,
+  description: 'Automating billing, invoicing, tax, revenue recognition, and financial operations reduces manual work, minimizes errors, and helps businesses scale efficiently.',
+  keywords: [
+    'revenue automation',
+    'billing automation',
+    'tax automation',
+    'finance operations',
+    'revenue recognition'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.487Z,
+  updatedAt: 2025-10-10T11:03:26.909Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81477'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'E-commerce Business Owner',
+  description: 'Responsible for managing online stores, ensuring smooth payment processing, and optimizing revenue streams. They face challenges in integrating payment systems, managing subscriptions, and preventing fraud.',
+  selected: true,
+  painPoints: [
+    'Complex payment integration',
+    'Subscription management',
+    'Fraud prevention'
+  ],
+  goals: [
+    'Streamline payment processing',
+    'Increase revenue',
+    'Enhance customer experience'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.961Z,
+  __v: 0
+}
+      Topic: Revenue and Finance Automation (ID: 68e8e7fdc6ceda2315a81468)
+      Persona: E-commerce Business Owner (ID: 68e8e7fdc6ceda2315a81477)
+      QueryType: Comparative
+   15. Are there any recent user reviews on Stripe's perf...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81468'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Revenue and Finance Automation',
+  selected: true,
+  description: 'Automating billing, invoicing, tax, revenue recognition, and financial operations reduces manual work, minimizes errors, and helps businesses scale efficiently.',
+  keywords: [
+    'revenue automation',
+    'billing automation',
+    'tax automation',
+    'finance operations',
+    'revenue recognition'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.487Z,
+  updatedAt: 2025-10-10T11:03:26.909Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81477'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'E-commerce Business Owner',
+  description: 'Responsible for managing online stores, ensuring smooth payment processing, and optimizing revenue streams. They face challenges in integrating payment systems, managing subscriptions, and preventing fraud.',
+  selected: true,
+  painPoints: [
+    'Complex payment integration',
+    'Subscription management',
+    'Fraud prevention'
+  ],
+  goals: [
+    'Streamline payment processing',
+    'Increase revenue',
+    'Enhance customer experience'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.961Z,
+  __v: 0
+}
+      Topic: Revenue and Finance Automation (ID: 68e8e7fdc6ceda2315a81468)
+      Persona: E-commerce Business Owner (ID: 68e8e7fdc6ceda2315a81477)
+      QueryType: Reputational
+   16. What is Stripe's approach to automating financial ...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81468'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Revenue and Finance Automation',
+  selected: true,
+  description: 'Automating billing, invoicing, tax, revenue recognition, and financial operations reduces manual work, minimizes errors, and helps businesses scale efficiently.',
+  keywords: [
+    'revenue automation',
+    'billing automation',
+    'tax automation',
+    'finance operations',
+    'revenue recognition'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.487Z,
+  updatedAt: 2025-10-10T11:03:26.909Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81478'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'Financial Manager',
+  description: 'Oversees financial operations, including managing cash flow, tracking expenses, and ensuring compliance with financial regulations. They struggle with financial reporting, compliance, and optimizing financial infrastructure.',
+  selected: true,
+  painPoints: [
+    'Financial reporting complexity',
+    'Compliance issues',
+    'Optimizing financial infrastructure'
+  ],
+  goals: [
+    'Improve financial visibility',
+    'Ensure compliance',
+    'Optimize financial operations'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.988Z,
+  __v: 0
+}
+      Topic: Revenue and Finance Automation (ID: 68e8e7fdc6ceda2315a81468)
+      Persona: Financial Manager (ID: 68e8e7fdc6ceda2315a81478)
+      QueryType: Navigational
+   17. What are the leading revenue and finance automatio...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81468'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Revenue and Finance Automation',
+  selected: true,
+  description: 'Automating billing, invoicing, tax, revenue recognition, and financial operations reduces manual work, minimizes errors, and helps businesses scale efficiently.',
+  keywords: [
+    'revenue automation',
+    'billing automation',
+    'tax automation',
+    'finance operations',
+    'revenue recognition'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.487Z,
+  updatedAt: 2025-10-10T11:03:26.909Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81478'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'Financial Manager',
+  description: 'Oversees financial operations, including managing cash flow, tracking expenses, and ensuring compliance with financial regulations. They struggle with financial reporting, compliance, and optimizing financial infrastructure.',
+  selected: true,
+  painPoints: [
+    'Financial reporting complexity',
+    'Compliance issues',
+    'Optimizing financial infrastructure'
+  ],
+  goals: [
+    'Improve financial visibility',
+    'Ensure compliance',
+    'Optimize financial operations'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.988Z,
+  __v: 0
+}
+      Topic: Revenue and Finance Automation (ID: 68e8e7fdc6ceda2315a81468)
+      Persona: Financial Manager (ID: 68e8e7fdc6ceda2315a81478)
+      QueryType: Commercial Investigation
+   18. Where can I sign up for a demo of Stripe's finance...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81468'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Revenue and Finance Automation',
+  selected: true,
+  description: 'Automating billing, invoicing, tax, revenue recognition, and financial operations reduces manual work, minimizes errors, and helps businesses scale efficiently.',
+  keywords: [
+    'revenue automation',
+    'billing automation',
+    'tax automation',
+    'finance operations',
+    'revenue recognition'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.487Z,
+  updatedAt: 2025-10-10T11:03:26.909Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81478'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'Financial Manager',
+  description: 'Oversees financial operations, including managing cash flow, tracking expenses, and ensuring compliance with financial regulations. They struggle with financial reporting, compliance, and optimizing financial infrastructure.',
+  selected: true,
+  painPoints: [
+    'Financial reporting complexity',
+    'Compliance issues',
+    'Optimizing financial infrastructure'
+  ],
+  goals: [
+    'Improve financial visibility',
+    'Ensure compliance',
+    'Optimize financial operations'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.988Z,
+  __v: 0
+}
+      Topic: Revenue and Finance Automation (ID: 68e8e7fdc6ceda2315a81468)
+      Persona: Financial Manager (ID: 68e8e7fdc6ceda2315a81478)
+      QueryType: Transactional
+   19. How does Stripe compare to PayPal for revenue auto...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81468'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Revenue and Finance Automation',
+  selected: true,
+  description: 'Automating billing, invoicing, tax, revenue recognition, and financial operations reduces manual work, minimizes errors, and helps businesses scale efficiently.',
+  keywords: [
+    'revenue automation',
+    'billing automation',
+    'tax automation',
+    'finance operations',
+    'revenue recognition'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.487Z,
+  updatedAt: 2025-10-10T11:03:26.909Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81478'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'Financial Manager',
+  description: 'Oversees financial operations, including managing cash flow, tracking expenses, and ensuring compliance with financial regulations. They struggle with financial reporting, compliance, and optimizing financial infrastructure.',
+  selected: true,
+  painPoints: [
+    'Financial reporting complexity',
+    'Compliance issues',
+    'Optimizing financial infrastructure'
+  ],
+  goals: [
+    'Improve financial visibility',
+    'Ensure compliance',
+    'Optimize financial operations'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.988Z,
+  __v: 0
+}
+      Topic: Revenue and Finance Automation (ID: 68e8e7fdc6ceda2315a81468)
+      Persona: Financial Manager (ID: 68e8e7fdc6ceda2315a81478)
+      QueryType: Comparative
+   20. Are there any user reviews about Stripe's reliabil...
+      Raw topicId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81468'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  name: 'Revenue and Finance Automation',
+  selected: true,
+  description: 'Automating billing, invoicing, tax, revenue recognition, and financial operations reduces manual work, minimizes errors, and helps businesses scale efficiently.',
+  keywords: [
+    'revenue automation',
+    'billing automation',
+    'tax automation',
+    'finance operations',
+    'revenue recognition'
+  ],
+  priority: 'High',
+  source: 'ai',
+  promptCount: 0,
+  createdAt: 2025-10-10T11:03:25.487Z,
+  updatedAt: 2025-10-10T11:03:26.909Z,
+  __v: 0
+}
+      Raw personaId type: object, value: {
+  _id: new ObjectId('68e8e7fdc6ceda2315a81478'),
+  userId: new ObjectId('68e7ef58da34c5124ad5fb1c'),
+  urlAnalysisId: new ObjectId('68e8e7fdc6ceda2315a81447'),
+  type: 'Financial Manager',
+  description: 'Oversees financial operations, including managing cash flow, tracking expenses, and ensuring compliance with financial regulations. They struggle with financial reporting, compliance, and optimizing financial infrastructure.',
+  selected: true,
+  painPoints: [
+    'Financial reporting complexity',
+    'Compliance issues',
+    'Optimizing financial infrastructure'
+  ],
+  goals: [
+    'Improve financial visibility',
+    'Ensure compliance',
+    'Optimize financial operations'
+  ],
+  relevance: 'High',
+  source: 'ai',
+  createdAt: 2025-10-10T11:03:25.714Z,
+  updatedAt: 2025-10-10T11:03:26.988Z,
+  __v: 0
+}
+      Topic: Revenue and Finance Automation (ID: 68e8e7fdc6ceda2315a81468)
+      Persona: Financial Manager (ID: 68e8e7fdc6ceda2315a81478)
+      QueryType: Reputational
+
+🔗 [URL] Fetching latest URL analysis...
+✅ [URL] Found URL analysis: https://stripe.com (ID: 68e8e7fdc6ceda2315a81447)
+
+🏢 [CONTEXT] Fetching brand context for scoring...
+✅ [CONTEXT] Brand: Stripe, Competitors: 3
+
+🔄 [BATCHING] Processing 20 prompts in 4 batches (size: 5)
+
+────────────────────────────────────────────────────────────
+📦 [BATCH 1/4] Processing 5 prompts
+────────────────────────────────────────────────────────────
+
+🔬 [PROMPT] Testing: "Can someone explain what Stripe does?..."
+   Prompt ID: 68e8e80bc6ceda2315a8148c
+   Query Type: Navigational
+   Topic ID: 68e8e7fdc6ceda2315a81467
+   Persona ID: 68e8e7fdc6ceda2315a81477
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+
+🔬 [PROMPT] Testing: "What are the best global payment solutions for e-commerce in..."
+   Prompt ID: 68e8e80bc6ceda2315a8148e
+   Query Type: Commercial Investigation
+   Topic ID: 68e8e7fdc6ceda2315a81467
+   Persona ID: 68e8e7fdc6ceda2315a81477
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+
+🔬 [PROMPT] Testing: "Where can I sign up for a multi-currency payment gateway?..."
+   Prompt ID: 68e8e80bc6ceda2315a81490
+   Query Type: Transactional
+   Topic ID: 68e8e7fdc6ceda2315a81467
+   Persona ID: 68e8e7fdc6ceda2315a81477
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+
+🔬 [PROMPT] Testing: "How does Stripe compare to PayPal for handling international..."
+   Prompt ID: 68e8e80bc6ceda2315a81492
+   Query Type: Comparative
+   Topic ID: 68e8e7fdc6ceda2315a81467
+   Persona ID: 68e8e7fdc6ceda2315a81477
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+
+🔬 [PROMPT] Testing: "Are there any recent reviews about Stripe's payment processi..."
+   Prompt ID: 68e8e80bc6ceda2315a81494
+   Query Type: Reputational
+   Topic ID: 68e8e7fdc6ceda2315a81467
+   Persona ID: 68e8e7fdc6ceda2315a81477
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+      📎 [CITATIONS] Extracted 23 citations from perplexity
+      ✅ [API] perplexity responded in 4262ms (618 tokens, 1949 chars, 23 citations)
+      📎 [CITATIONS] Extracted 12 citations from gemini
+      ✅ [API] gemini responded in 5850ms (1184 tokens, 4616 chars, 12 citations)
+      📎 [CITATIONS] Extracted 2 citations from openai
+      ✅ [API] openai responded in 5984ms (548 tokens, 2131 chars, 2 citations)
+      📎 [CITATIONS] Extracted 14 citations from gemini
+      ✅ [API] gemini responded in 6458ms (1172 tokens, 4505 chars, 14 citations)
+      📎 [CITATIONS] Extracted 3 citations from gemini
+      ✅ [API] gemini responded in 6639ms (1166 tokens, 4939 chars, 3 citations)
+      📎 [CITATIONS] Extracted 26 citations from gemini
+      ✅ [API] gemini responded in 6665ms (1187 tokens, 4552 chars, 26 citations)
+      📎 [CITATIONS] Extracted 14 citations from perplexity
+      ✅ [API] perplexity responded in 6965ms (1080 tokens, 3872 chars, 14 citations)
+      📎 [CITATIONS] Extracted 25 citations from gemini
+      ✅ [API] gemini responded in 7464ms (1175 tokens, 4615 chars, 25 citations)
+      📎 [CITATIONS] Extracted 6 citations from openai
+      ✅ [API] openai responded in 7866ms (620 tokens, 2251 chars, 6 citations)
+      📎 [CITATIONS] Extracted 14 citations from openai
+      ✅ [API] openai responded in 8155ms (651 tokens, 2319 chars, 14 citations)
+      📎 [CITATIONS] Extracted 12 citations from claude
+      ✅ [API] claude responded in 8294ms (635 tokens, 1774 chars, 12 citations)
+   ✅ [STEP 1] LLM calls complete in 8.30s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (8155ms, 651 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 3, Position: 8
+         Citations - Brand: 2, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.00)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Transactional
+      📊 [SAVE] Extracted 4 brand entries with complete metrics
+   📝 [GEMINI] Response received (5850ms, 1184 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 3, Position: 3
+         Citations - Brand: 2, Earned: 0, Social: 0
+         Sentiment: positive (Score: 0.45)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Transactional
+      📊 [SAVE] Extracted 3 brand entries with complete metrics
+   📝 [CLAUDE] Response received (8294ms, 635 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 5, Position: 3
+         Citations - Brand: 4, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.00)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Transactional
+      📊 [SAVE] Extracted 3 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (4262ms, 618 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 3, Position: 3
+         Citations - Brand: 3, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.15)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Transactional
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 4 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e814c6ceda2315a814ba)
+      ✅ [SAVE] Test result saved successfully with 3 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e814c6ceda2315a814e3)
+      ✅ [SAVE] Test result saved successfully with 3 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e814c6ceda2315a814cf)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e814c6ceda2315a814f5)
+   ✅ [STEP 2] Scoring complete in 0.06s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+      📎 [CITATIONS] Extracted 10 citations from openai
+      ✅ [API] openai responded in 10963ms (863 tokens, 3612 chars, 10 citations)
+      📎 [CITATIONS] Extracted 4 citations from openai
+      ✅ [API] openai responded in 11404ms (884 tokens, 3590 chars, 4 citations)
+      📎 [CITATIONS] Extracted 10 citations from claude
+      ✅ [API] claude responded in 11978ms (619 tokens, 1796 chars, 10 citations)
+      📎 [CITATIONS] Extracted 11 citations from perplexity
+      ✅ [API] perplexity responded in 13360ms (883 tokens, 3323 chars, 11 citations)
+      📎 [CITATIONS] Extracted 12 citations from claude
+      ✅ [API] claude responded in 14134ms (635 tokens, 1692 chars, 12 citations)
+      📎 [CITATIONS] Extracted 12 citations from claude
+      ✅ [API] claude responded in 14146ms (738 tokens, 2117 chars, 12 citations)
+   ✅ [STEP 1] LLM calls complete in 14.15s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (10963ms, 863 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 4, Position: 10
+         Citations - Brand: 2, Earned: 0, Social: 0
+         Sentiment: positive (Score: 0.40)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Commercial Investigation
+      📊 [SAVE] Extracted 3 brand entries with complete metrics
+   📝 [GEMINI] Response received (6665ms, 1187 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 4, Position: 7
+         Citations - Brand: 2, Earned: 0, Social: 0
+         Sentiment: positive (Score: 0.30)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Commercial Investigation
+      📊 [SAVE] Extracted 3 brand entries with complete metrics
+   📝 [CLAUDE] Response received (14146ms, 738 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 2, Position: 2
+         Citations - Brand: 2, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.00)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Commercial Investigation
+      📊 [SAVE] Extracted 3 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (6965ms, 1080 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 1, Position: 11
+         Citations - Brand: 0, Earned: 0, Social: 0
+         Sentiment: positive (Score: 0.60)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Commercial Investigation
+      📊 [SAVE] Extracted 3 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 3 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e81ac6ceda2315a81507)
+      ✅ [SAVE] Test result saved successfully with 3 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e81ac6ceda2315a8151c)
+      ✅ [SAVE] Test result saved successfully with 3 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e81ac6ceda2315a8152b)
+      ✅ [SAVE] Test result saved successfully with 3 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e81ac6ceda2315a81539)
+   ✅ [STEP 2] Scoring complete in 0.06s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+      📎 [CITATIONS] Extracted 14 citations from claude
+      ✅ [API] claude responded in 14858ms (804 tokens, 2271 chars, 14 citations)
+   ✅ [STEP 1] LLM calls complete in 14.86s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (11404ms, 884 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 15, Position: 1
+         Citations - Brand: 2, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.18)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Comparative
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [GEMINI] Response received (6458ms, 1172 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 16, Position: 1
+         Citations - Brand: 8, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.12)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Comparative
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [CLAUDE] Response received (14858ms, 804 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 16, Position: 1
+         Citations - Brand: 8, Earned: 2, Social: 0
+         Sentiment: neutral (Score: 0.13)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Comparative
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (13360ms, 883 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 9, Position: 1
+         Citations - Brand: 0, Earned: 10, Social: 0
+         Sentiment: neutral (Score: 0.17)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Comparative
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e81ac6ceda2315a8159b)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e81ac6ceda2315a8156f)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e81ac6ceda2315a815c0)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e81ac6ceda2315a81548)
+   ✅ [STEP 2] Scoring complete in 0.09s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+      📎 [CITATIONS] Extracted 18 citations from perplexity
+      ✅ [API] perplexity responded in 18965ms (927 tokens, 3740 chars, 18 citations)
+   ✅ [STEP 1] LLM calls complete in 18.97s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (7866ms, 620 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 15, Position: 2
+         Citations - Brand: 2, Earned: 4, Social: 0
+         Sentiment: neutral (Score: 0.07)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Reputational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [GEMINI] Response received (7464ms, 1175 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 38, Position: 1
+         Citations - Brand: 19, Earned: 6, Social: 0
+         Sentiment: neutral (Score: 0.04)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Reputational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [CLAUDE] Response received (14134ms, 635 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 12, Position: 1
+         Citations - Brand: 8, Earned: 4, Social: 0
+         Sentiment: neutral (Score: 0.03)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Reputational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (18965ms, 927 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 14, Position: 1
+         Citations - Brand: 2, Earned: 15, Social: 0
+         Sentiment: mixed (Score: 0.05)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Reputational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e81ec6ceda2315a815f6)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e81ec6ceda2315a8163c)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e81ec6ceda2315a81653)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e81ec6ceda2315a8160b)
+   ✅ [STEP 2] Scoring complete in 0.08s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+      📎 [CITATIONS] Extracted 20 citations from perplexity
+      ✅ [API] perplexity responded in 29977ms (1174 tokens, 4411 chars, 20 citations)
+   ✅ [STEP 1] LLM calls complete in 29.98s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (5984ms, 548 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 15, Position: 1
+         Citations - Brand: 2, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.05)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Navigational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [GEMINI] Response received (6639ms, 1166 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 29, Position: 1
+         Citations - Brand: 3, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.07)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Navigational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [CLAUDE] Response received (11978ms, 619 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 19, Position: 1
+         Citations - Brand: 10, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.00)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Navigational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (29977ms, 1174 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 34, Position: 1
+         Citations - Brand: 13, Earned: 6, Social: 0
+         Sentiment: neutral (Score: 0.06)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81477, queryType: Navigational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e829c6ceda2315a816ac)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e829c6ceda2315a81679)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e829c6ceda2315a8168b)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e829c6ceda2315a816c2)
+   ✅ [STEP 2] Scoring complete in 0.09s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+✅ [BATCH 1] Complete in 30.07s - Success: 20, Failed: 0
+
+────────────────────────────────────────────────────────────
+📦 [BATCH 2/4] Processing 5 prompts
+────────────────────────────────────────────────────────────
+
+🔬 [PROMPT] Testing: "What is Stripe's role in improving financial infrastructure ..."
+   Prompt ID: 68e8e80bc6ceda2315a81496
+   Query Type: Navigational
+   Topic ID: 68e8e7fdc6ceda2315a81467
+   Persona ID: 68e8e7fdc6ceda2315a81478
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+
+🔬 [PROMPT] Testing: "What are the best platforms for managing global payments and..."
+   Prompt ID: 68e8e80bc6ceda2315a81498
+   Query Type: Commercial Investigation
+   Topic ID: 68e8e7fdc6ceda2315a81467
+   Persona ID: 68e8e7fdc6ceda2315a81478
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+
+🔬 [PROMPT] Testing: "Where can I find the best pricing and sign-up options for mu..."
+   Prompt ID: 68e8e80bc6ceda2315a8149a
+   Query Type: Transactional
+   Topic ID: 68e8e7fdc6ceda2315a81467
+   Persona ID: 68e8e7fdc6ceda2315a81478
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+
+🔬 [PROMPT] Testing: "How does Stripe compare to PayPal for international payment ..."
+   Prompt ID: 68e8e80bc6ceda2315a8149c
+   Query Type: Comparative
+   Topic ID: 68e8e7fdc6ceda2315a81467
+   Persona ID: 68e8e7fdc6ceda2315a81478
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+
+🔬 [PROMPT] Testing: "Are there any recent reviews from financial managers about S..."
+   Prompt ID: 68e8e80bc6ceda2315a8149e
+   Query Type: Reputational
+   Topic ID: 68e8e7fdc6ceda2315a81467
+   Persona ID: 68e8e7fdc6ceda2315a81478
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+      📎 [CITATIONS] Extracted 2 citations from openai
+      ✅ [API] openai responded in 5106ms (505 tokens, 1789 chars, 2 citations)
+      📎 [CITATIONS] Extracted 2 citations from openai
+      ✅ [API] openai responded in 6435ms (611 tokens, 2573 chars, 2 citations)
+      📎 [CITATIONS] Extracted 12 citations from gemini
+      ✅ [API] gemini responded in 7051ms (1171 tokens, 4299 chars, 12 citations)
+      📎 [CITATIONS] Extracted 20 citations from openai
+      ✅ [API] openai responded in 7136ms (751 tokens, 2548 chars, 20 citations)
+      📎 [CITATIONS] Extracted 18 citations from gemini
+      ✅ [API] gemini responded in 7338ms (1181 tokens, 4685 chars, 18 citations)
+      📎 [CITATIONS] Extracted 20 citations from gemini
+      ✅ [API] gemini responded in 7663ms (1185 tokens, 4773 chars, 20 citations)
+      📎 [CITATIONS] Extracted 22 citations from gemini
+      ✅ [API] gemini responded in 7765ms (1172 tokens, 5134 chars, 22 citations)
+      📎 [CITATIONS] Extracted 16 citations from gemini
+      ✅ [API] gemini responded in 8088ms (1193 tokens, 4457 chars, 16 citations)
+      📎 [CITATIONS] Extracted 14 citations from openai
+      ✅ [API] openai responded in 8965ms (874 tokens, 3277 chars, 14 citations)
+      📎 [CITATIONS] Extracted 8 citations from claude
+      ✅ [API] claude responded in 10143ms (547 tokens, 1537 chars, 8 citations)
+      📎 [CITATIONS] Extracted 12 citations from openai
+      ✅ [API] openai responded in 11370ms (952 tokens, 3880 chars, 12 citations)
+      📎 [CITATIONS] Extracted 18 citations from claude
+      ✅ [API] claude responded in 11906ms (654 tokens, 1730 chars, 18 citations)
+      📎 [CITATIONS] Extracted 15 citations from perplexity
+      ✅ [API] perplexity responded in 12526ms (829 tokens, 3277 chars, 15 citations)
+      📎 [CITATIONS] Extracted 20 citations from perplexity
+      ✅ [API] perplexity responded in 13040ms (691 tokens, 2611 chars, 20 citations)
+      📎 [CITATIONS] Extracted 24 citations from claude
+      ✅ [API] claude responded in 15623ms (960 tokens, 2712 chars, 24 citations)
+   ✅ [STEP 1] LLM calls complete in 15.62s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (11370ms, 952 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 22, Position: 1
+         Citations - Brand: 6, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.13)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Comparative
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [GEMINI] Response received (7051ms, 1171 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 14, Position: 1
+         Citations - Brand: 6, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.03)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Comparative
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [CLAUDE] Response received (15623ms, 960 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 16, Position: 1
+         Citations - Brand: 12, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.07)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Comparative
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (12526ms, 829 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 15, Position: 1
+         Citations - Brand: 2, Earned: 10, Social: 0
+         Sentiment: neutral (Score: 0.17)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Comparative
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e839c6ceda2315a81727)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e839c6ceda2315a816f0)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e839c6ceda2315a81775)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e839c6ceda2315a8174b)
+   ✅ [STEP 2] Scoring complete in 0.08s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+      📎 [CITATIONS] Extracted 14 citations from claude
+      ✅ [API] claude responded in 17085ms (823 tokens, 2758 chars, 14 citations)
+      📎 [CITATIONS] Extracted 22 citations from perplexity
+      ✅ [API] perplexity responded in 18671ms (932 tokens, 3597 chars, 22 citations)
+   ✅ [STEP 1] LLM calls complete in 18.67s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (5106ms, 505 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 9, Position: 1
+         Citations - Brand: 2, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.15)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Reputational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [GEMINI] Response received (7663ms, 1185 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 26, Position: 1
+         Citations - Brand: 14, Earned: 6, Social: 0
+         Sentiment: neutral (Score: 0.01)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Reputational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [CLAUDE] Response received (10143ms, 547 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 8, Position: 1
+         Citations - Brand: 2, Earned: 2, Social: 0
+         Sentiment: neutral (Score: 0.10)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Reputational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (18671ms, 932 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 15, Position: 1
+         Citations - Brand: 3, Earned: 15, Social: 0
+         Sentiment: neutral (Score: 0.06)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Reputational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e83cc6ceda2315a817b2)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e83cc6ceda2315a817ea)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e83cc6ceda2315a817f6)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e83cc6ceda2315a817c2)
+   ✅ [STEP 2] Scoring complete in 0.09s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+      📎 [CITATIONS] Extracted 39 citations from perplexity
+      ✅ [API] perplexity responded in 19045ms (1122 tokens, 3901 chars, 39 citations)
+   ✅ [STEP 1] LLM calls complete in 19.05s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (7136ms, 751 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 6, Position: 11
+         Citations - Brand: 4, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.00)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Transactional
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [GEMINI] Response received (8088ms, 1193 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 6, Position: 9
+         Citations - Brand: 4, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.07)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Transactional
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [CLAUDE] Response received (11906ms, 654 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 3, Position: 2
+         Citations - Brand: 4, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.00)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Transactional
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (19045ms, 1122 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 8, Position: 1
+         Citations - Brand: 4, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.15)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Transactional
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e83cc6ceda2315a8181f)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e83cc6ceda2315a81830)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e83cc6ceda2315a81845)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e83cc6ceda2315a81852)
+   ✅ [STEP 2] Scoring complete in 0.04s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+      📎 [CITATIONS] Extracted 22 citations from claude
+      ✅ [API] claude responded in 19391ms (851 tokens, 2846 chars, 22 citations)
+   ✅ [STEP 1] LLM calls complete in 19.39s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (6435ms, 611 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 15, Position: 1
+         Citations - Brand: 2, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.19)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Navigational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [GEMINI] Response received (7765ms, 1172 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 36, Position: 1
+         Citations - Brand: 22, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.07)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Navigational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [CLAUDE] Response received (19391ms, 851 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 29, Position: 1
+         Citations - Brand: 22, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.06)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Navigational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (13040ms, 691 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 14, Position: 1
+         Citations - Brand: 12, Earned: 8, Social: 0
+         Sentiment: neutral (Score: 0.08)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Navigational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e83dc6ceda2315a81870)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e83dc6ceda2315a818b6)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e83dc6ceda2315a818dd)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e83dc6ceda2315a81884)
+   ✅ [STEP 2] Scoring complete in 0.07s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+      📎 [CITATIONS] Extracted 15 citations from perplexity
+      ✅ [API] perplexity responded in 20427ms (1006 tokens, 4623 chars, 15 citations)
+   ✅ [STEP 1] LLM calls complete in 20.43s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (8965ms, 874 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 4, Position: 9
+         Citations - Brand: 2, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.15)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Commercial Investigation
+      📊 [SAVE] Extracted 3 brand entries with complete metrics
+   📝 [GEMINI] Response received (7338ms, 1181 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 12, Position: 5
+         Citations - Brand: 8, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.18)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Commercial Investigation
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [CLAUDE] Response received (17085ms, 823 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 2, Position: 2
+         Citations - Brand: 2, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.00)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Commercial Investigation
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (20427ms, 1006 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 3, Position: 3
+         Citations - Brand: 0, Earned: 1, Social: 0
+         Sentiment: neutral (Score: 0.10)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81467, personaId: 68e8e7fdc6ceda2315a81478, queryType: Commercial Investigation
+      📊 [SAVE] Extracted 3 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e83ec6ceda2315a8192e)
+      ✅ [SAVE] Test result saved successfully with 3 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e83ec6ceda2315a81902)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e83ec6ceda2315a81914)
+      ✅ [SAVE] Test result saved successfully with 3 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e83ec6ceda2315a81937)
+   ✅ [STEP 2] Scoring complete in 0.05s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+✅ [BATCH 2] Complete in 20.48s - Success: 20, Failed: 0
+
+────────────────────────────────────────────────────────────
+📦 [BATCH 3/4] Processing 5 prompts
+────────────────────────────────────────────────────────────
+
+🔬 [PROMPT] Testing: "What is Stripe and how can it help my e-commerce business st..."
+   Prompt ID: 68e8e80bc6ceda2315a814a0
+   Query Type: Navigational
+   Topic ID: 68e8e7fdc6ceda2315a81468
+   Persona ID: 68e8e7fdc6ceda2315a81477
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+
+🔬 [PROMPT] Testing: "What are the best revenue automation tools for 2025 that can..."
+   Prompt ID: 68e8e80bc6ceda2315a814a2
+   Query Type: Commercial Investigation
+   Topic ID: 68e8e7fdc6ceda2315a81468
+   Persona ID: 68e8e7fdc6ceda2315a81477
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+
+🔬 [PROMPT] Testing: "Where can I find a reliable platform for automating billing ..."
+   Prompt ID: 68e8e80bc6ceda2315a814a4
+   Query Type: Transactional
+   Topic ID: 68e8e7fdc6ceda2315a81468
+   Persona ID: 68e8e7fdc6ceda2315a81477
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+
+🔬 [PROMPT] Testing: "How does Stripe compare to PayPal for managing subscriptions..."
+   Prompt ID: 68e8e80bc6ceda2315a814a6
+   Query Type: Comparative
+   Topic ID: 68e8e7fdc6ceda2315a81468
+   Persona ID: 68e8e7fdc6ceda2315a81477
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+
+🔬 [PROMPT] Testing: "Are there any recent user reviews on Stripe's performance fo..."
+   Prompt ID: 68e8e80bc6ceda2315a814a8
+   Query Type: Reputational
+   Topic ID: 68e8e7fdc6ceda2315a81468
+   Persona ID: 68e8e7fdc6ceda2315a81477
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+      📎 [CITATIONS] Extracted 17 citations from perplexity
+      ✅ [API] perplexity responded in 4470ms (587 tokens, 2053 chars, 17 citations)
+      📎 [CITATIONS] Extracted 15 citations from perplexity
+      ✅ [API] perplexity responded in 4823ms (674 tokens, 2591 chars, 15 citations)
+      📎 [CITATIONS] Extracted 6 citations from openai
+      ✅ [API] openai responded in 5068ms (499 tokens, 1529 chars, 6 citations)
+      📎 [CITATIONS] Extracted 16 citations from perplexity
+      ✅ [API] perplexity responded in 5476ms (808 tokens, 3410 chars, 16 citations)
+      📎 [CITATIONS] Extracted 12 citations from openai
+      ✅ [API] openai responded in 5598ms (652 tokens, 2368 chars, 12 citations)
+      📎 [CITATIONS] Extracted 26 citations from gemini
+      ✅ [API] gemini responded in 6135ms (1184 tokens, 4574 chars, 26 citations)
+      📎 [CITATIONS] Extracted 26 citations from gemini
+      ✅ [API] gemini responded in 6147ms (1191 tokens, 4703 chars, 26 citations)
+      📎 [CITATIONS] Extracted 14 citations from gemini
+      ✅ [API] gemini responded in 6177ms (1173 tokens, 4877 chars, 14 citations)
+      📎 [CITATIONS] Extracted 2 citations from openai
+      ✅ [API] openai responded in 6493ms (701 tokens, 2945 chars, 2 citations)
+      📎 [CITATIONS] Extracted 14 citations from gemini
+      ✅ [API] gemini responded in 6938ms (1168 tokens, 4865 chars, 14 citations)
+      📎 [CITATIONS] Extracted 22 citations from gemini
+      ✅ [API] gemini responded in 7355ms (1175 tokens, 4706 chars, 22 citations)
+      📎 [CITATIONS] Extracted 14 citations from openai
+      ✅ [API] openai responded in 8859ms (927 tokens, 3380 chars, 14 citations)
+      📎 [CITATIONS] Extracted 4 citations from openai
+      ✅ [API] openai responded in 9466ms (810 tokens, 3527 chars, 4 citations)
+      📎 [CITATIONS] Extracted 29 citations from perplexity
+      ✅ [API] perplexity responded in 11491ms (930 tokens, 3468 chars, 29 citations)
+      📎 [CITATIONS] Extracted 23 citations from perplexity
+      ✅ [API] perplexity responded in 12413ms (715 tokens, 2641 chars, 23 citations)
+      📎 [CITATIONS] Extracted 12 citations from claude
+      ✅ [API] claude responded in 13053ms (744 tokens, 2259 chars, 12 citations)
+   ✅ [STEP 1] LLM calls complete in 13.05s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (9466ms, 810 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 18, Position: 1
+         Citations - Brand: 2, Earned: 0, Social: 0
+         Sentiment: positive (Score: 0.25)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Comparative
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [GEMINI] Response received (6938ms, 1168 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 24, Position: 1
+         Citations - Brand: 12, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.09)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Comparative
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [CLAUDE] Response received (13053ms, 744 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 13, Position: 1
+         Citations - Brand: 6, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.15)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Comparative
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (5476ms, 808 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 18, Position: 1
+         Citations - Brand: 2, Earned: 12, Social: 0
+         Sentiment: neutral (Score: 0.18)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Comparative
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e84bc6ceda2315a8199e)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e84bc6ceda2315a81949)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e84bc6ceda2315a81972)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e84bc6ceda2315a819bc)
+   ✅ [STEP 2] Scoring complete in 0.09s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+      📎 [CITATIONS] Extracted 12 citations from claude
+      ✅ [API] claude responded in 13621ms (555 tokens, 1456 chars, 12 citations)
+   ✅ [STEP 1] LLM calls complete in 13.62s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (5068ms, 499 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 14, Position: 1
+         Citations - Brand: 2, Earned: 4, Social: 0
+         Sentiment: neutral (Score: 0.05)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Reputational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [GEMINI] Response received (7355ms, 1175 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 39, Position: 1
+         Citations - Brand: 18, Earned: 4, Social: 0
+         Sentiment: neutral (Score: 0.06)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Reputational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [CLAUDE] Response received (13621ms, 555 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 14, Position: 1
+         Citations - Brand: 10, Earned: 2, Social: 0
+         Sentiment: neutral (Score: 0.03)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Reputational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (4470ms, 587 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 12, Position: 1
+         Citations - Brand: 2, Earned: 13, Social: 0
+         Sentiment: neutral (Score: 0.16)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Reputational
+      📊 [SAVE] Extracted 3 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e84cc6ceda2315a81a02)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e84cc6ceda2315a81a47)
+      ✅ [SAVE] Test result saved successfully with 3 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e84cc6ceda2315a81a5a)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e84cc6ceda2315a81a15)
+   ✅ [STEP 2] Scoring complete in 0.07s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+      📎 [CITATIONS] Extracted 19 citations from claude
+      ✅ [API] claude responded in 13768ms (803 tokens, 2377 chars, 19 citations)
+   ✅ [STEP 1] LLM calls complete in 13.77s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (6493ms, 701 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 17, Position: 1
+         Citations - Brand: 2, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.11)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Navigational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [GEMINI] Response received (6177ms, 1173 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 30, Position: 1
+         Citations - Brand: 14, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.04)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Navigational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [CLAUDE] Response received (13768ms, 803 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 27, Position: 1
+         Citations - Brand: 19, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.02)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Navigational
+      📊 [SAVE] Extracted 3 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (12413ms, 715 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 18, Position: 1
+         Citations - Brand: 12, Earned: 10, Social: 0
+         Sentiment: neutral (Score: 0.14)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Navigational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e84cc6ceda2315a81a82)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e84cc6ceda2315a81a9a)
+      ✅ [SAVE] Test result saved successfully with 3 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e84cc6ceda2315a81ac1)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e84cc6ceda2315a81aea)
+   ✅ [STEP 2] Scoring complete in 0.06s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+      📎 [CITATIONS] Extracted 14 citations from claude
+      ✅ [API] claude responded in 14898ms (847 tokens, 2708 chars, 14 citations)
+   ✅ [STEP 1] LLM calls complete in 14.90s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (5598ms, 652 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 5, Position: 3
+         Citations - Brand: 2, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.20)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Transactional
+      📊 [SAVE] Extracted 3 brand entries with complete metrics
+   📝 [GEMINI] Response received (6147ms, 1191 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 8, Position: 5
+         Citations - Brand: 8, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.00)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Transactional
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [CLAUDE] Response received (14898ms, 847 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 6, Position: 2
+         Citations - Brand: 4, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.10)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Transactional
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (11491ms, 930 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 7, Position: 1
+         Citations - Brand: 3, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.12)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Transactional
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 3 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e84dc6ceda2315a81b14)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e84dc6ceda2315a81b3e)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e84dc6ceda2315a81b27)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e84dc6ceda2315a81b35)
+   ✅ [STEP 2] Scoring complete in 0.04s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+      📎 [CITATIONS] Extracted 16 citations from claude
+      ✅ [API] claude responded in 15893ms (936 tokens, 3053 chars, 16 citations)
+   ✅ [STEP 1] LLM calls complete in 15.89s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (8859ms, 927 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 4, Position: 3
+         Citations - Brand: 2, Earned: 0, Social: 0
+         Sentiment: positive (Score: 0.30)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Commercial Investigation
+      📊 [SAVE] Extracted 3 brand entries with complete metrics
+   📝 [GEMINI] Response received (6135ms, 1184 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 14, Position: 10
+         Citations - Brand: 10, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.05)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Commercial Investigation
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [CLAUDE] Response received (15893ms, 936 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 3, Position: 2
+         Citations - Brand: 4, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.00)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Commercial Investigation
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (4823ms, 674 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 2, Position: 3
+         Citations - Brand: 0, Earned: 0, Social: 0
+         Sentiment: positive (Score: 0.60)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81477, queryType: Commercial Investigation
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e84ec6ceda2315a81b74)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e84ec6ceda2315a81b7b)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e84ec6ceda2315a81b64)
+      ✅ [SAVE] Test result saved successfully with 3 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e84ec6ceda2315a81b4e)
+   ✅ [STEP 2] Scoring complete in 0.04s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+✅ [BATCH 3] Complete in 15.94s - Success: 20, Failed: 0
+
+────────────────────────────────────────────────────────────
+📦 [BATCH 4/4] Processing 5 prompts
+────────────────────────────────────────────────────────────
+
+🔬 [PROMPT] Testing: "What is Stripe's approach to automating financial operations..."
+   Prompt ID: 68e8e80bc6ceda2315a814aa
+   Query Type: Navigational
+   Topic ID: 68e8e7fdc6ceda2315a81468
+   Persona ID: 68e8e7fdc6ceda2315a81478
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+
+🔬 [PROMPT] Testing: "What are the leading revenue and finance automation tools in..."
+   Prompt ID: 68e8e80bc6ceda2315a814ac
+   Query Type: Commercial Investigation
+   Topic ID: 68e8e7fdc6ceda2315a81468
+   Persona ID: 68e8e7fdc6ceda2315a81478
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+
+🔬 [PROMPT] Testing: "Where can I sign up for a demo of Stripe's finance solutions..."
+   Prompt ID: 68e8e80bc6ceda2315a814ae
+   Query Type: Transactional
+   Topic ID: 68e8e7fdc6ceda2315a81468
+   Persona ID: 68e8e7fdc6ceda2315a81478
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+
+🔬 [PROMPT] Testing: "How does Stripe compare to PayPal for revenue automation?..."
+   Prompt ID: 68e8e80bc6ceda2315a814b0
+   Query Type: Comparative
+   Topic ID: 68e8e7fdc6ceda2315a81468
+   Persona ID: 68e8e7fdc6ceda2315a81478
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+
+🔬 [PROMPT] Testing: "Are there any user reviews about Stripe's reliability in fin..."
+   Prompt ID: 68e8e80bc6ceda2315a814b2
+   Query Type: Reputational
+   Topic ID: 68e8e7fdc6ceda2315a81468
+   Persona ID: 68e8e7fdc6ceda2315a81478
+   🚀 [STEP 1] Sending to 4 LLMs in parallel...
+      🌐 [API] Calling openai (openai/gpt-4o)...
+      🌐 [API] Calling gemini (google/gemini-2.5-flash)...
+      🌐 [API] Calling claude (anthropic/claude-3.5-sonnet)...
+      🌐 [API] Calling perplexity (perplexity/sonar-pro)...
+      📎 [CITATIONS] Extracted 16 citations from gemini
+      ✅ [API] gemini responded in 3874ms (813 tokens, 2923 chars, 16 citations)
+      📎 [CITATIONS] Extracted 17 citations from perplexity
+      ✅ [API] perplexity responded in 5475ms (714 tokens, 2743 chars, 17 citations)
+      📎 [CITATIONS] Extracted 3 citations from openai
+      ✅ [API] openai responded in 5547ms (463 tokens, 1274 chars, 3 citations)
+      📎 [CITATIONS] Extracted 20 citations from gemini
+      ✅ [API] gemini responded in 6064ms (1159 tokens, 5589 chars, 20 citations)
+      📎 [CITATIONS] Extracted 4 citations from openai
+      ✅ [API] openai responded in 6170ms (528 tokens, 1965 chars, 4 citations)
+      📎 [CITATIONS] Extracted 12 citations from gemini
+      ✅ [API] gemini responded in 6283ms (1188 tokens, 4661 chars, 12 citations)
+      📎 [CITATIONS] Extracted 16 citations from gemini
+      ✅ [API] gemini responded in 6711ms (1154 tokens, 5205 chars, 16 citations)
+      📎 [CITATIONS] Extracted 15 citations from claude
+      ✅ [API] claude responded in 8200ms (525 tokens, 1348 chars, 15 citations)
+      📎 [CITATIONS] Extracted 14 citations from openai
+      ✅ [API] openai responded in 9257ms (756 tokens, 2886 chars, 14 citations)
+      📎 [CITATIONS] Extracted 8 citations from claude
+      ✅ [API] claude responded in 9684ms (549 tokens, 1418 chars, 8 citations)
+      📎 [CITATIONS] Extracted 6 citations from openai
+      ✅ [API] openai responded in 10042ms (712 tokens, 3132 chars, 6 citations)
+      📎 [CITATIONS] Extracted 8 citations from openai
+      ✅ [API] openai responded in 10862ms (908 tokens, 3620 chars, 8 citations)
+      📎 [CITATIONS] Extracted 18 citations from claude
+      ✅ [API] claude responded in 11318ms (816 tokens, 2639 chars, 18 citations)
+      📎 [CITATIONS] Extracted 15 citations from perplexity
+      ✅ [API] perplexity responded in 11921ms (530 tokens, 1881 chars, 15 citations)
+   ✅ [STEP 1] LLM calls complete in 11.92s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (5547ms, 463 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 12, Position: 1
+         Citations - Brand: 3, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.03)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Transactional
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [GEMINI] Response received (3874ms, 813 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 28, Position: 1
+         Citations - Brand: 16, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.02)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Transactional
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [CLAUDE] Response received (8200ms, 525 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 19, Position: 1
+         Citations - Brand: 15, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.00)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Transactional
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (11921ms, 530 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 10, Position: 1
+         Citations - Brand: 7, Earned: 6, Social: 0
+         Sentiment: neutral (Score: 0.10)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Transactional
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e85ac6ceda2315a81b85)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e85ac6ceda2315a81bc4)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e85ac6ceda2315a81bad)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e85ac6ceda2315a81b93)
+   ✅ [STEP 2] Scoring complete in 0.04s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+      📎 [CITATIONS] Extracted 12 citations from claude
+      ✅ [API] claude responded in 12510ms (606 tokens, 1726 chars, 12 citations)
+   ✅ [STEP 1] LLM calls complete in 12.51s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (9257ms, 756 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: false, Count: 0, Position: null
+         Citations - Brand: 0, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.00)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Commercial Investigation
+      📊 [SAVE] Extracted 0 brand entries with complete metrics
+   📝 [GEMINI] Response received (6283ms, 1188 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: false, Count: 0, Position: null
+         Citations - Brand: 0, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.00)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Commercial Investigation
+      📊 [SAVE] Extracted 0 brand entries with complete metrics
+   📝 [CLAUDE] Response received (12510ms, 606 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 2, Position: 2
+         Citations - Brand: 2, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.00)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Commercial Investigation
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (5475ms, 714 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 2, Position: 11
+         Citations - Brand: 0, Earned: 0, Social: 0
+         Sentiment: positive (Score: 0.60)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Commercial Investigation
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 0 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e85ac6ceda2315a81bdf)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e85ac6ceda2315a81be0)
+      ✅ [SAVE] Test result saved successfully with 0 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e85ac6ceda2315a81bde)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e85ac6ceda2315a81be5)
+   ✅ [STEP 2] Scoring complete in 0.04s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+      📎 [CITATIONS] Extracted 14 citations from claude
+      ✅ [API] claude responded in 15212ms (743 tokens, 2268 chars, 14 citations)
+      📎 [CITATIONS] Extracted 12 citations from perplexity
+      ✅ [API] perplexity responded in 16273ms (688 tokens, 2719 chars, 12 citations)
+      📎 [CITATIONS] Extracted 13 citations from perplexity
+      ✅ [API] perplexity responded in 16476ms (1177 tokens, 4845 chars, 13 citations)
+   ✅ [STEP 1] LLM calls complete in 16.48s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (10862ms, 908 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 16, Position: 1
+         Citations - Brand: 4, Earned: 0, Social: 0
+         Sentiment: positive (Score: 0.21)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Comparative
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [GEMINI] Response received (6064ms, 1159 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 21, Position: 1
+         Citations - Brand: 12, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.04)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Comparative
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [CLAUDE] Response received (15212ms, 743 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 10, Position: 1
+         Citations - Brand: 7, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.20)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Comparative
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (16476ms, 1177 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 9, Position: 1
+         Citations - Brand: 0, Earned: 13, Social: 0
+         Sentiment: neutral (Score: 0.00)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Comparative
+      📊 [SAVE] Extracted 2 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e85ec6ceda2315a81c45)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e85ec6ceda2315a81bed)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e85ec6ceda2315a81c5d)
+      ✅ [SAVE] Test result saved successfully with 2 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e85ec6ceda2315a81c18)
+   ✅ [STEP 2] Scoring complete in 0.07s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+      📎 [CITATIONS] Extracted 12 citations from gemini
+      ✅ [API] gemini responded in 21875ms (1059 tokens, 4419 chars, 12 citations)
+   ✅ [STEP 1] LLM calls complete in 21.88s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (6170ms, 528 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 14, Position: 1
+         Citations - Brand: 2, Earned: 2, Social: 0
+         Sentiment: neutral (Score: 0.09)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Reputational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [GEMINI] Response received (21875ms, 1059 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 28, Position: 1
+         Citations - Brand: 6, Earned: 6, Social: 0
+         Sentiment: neutral (Score: 0.13)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Reputational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [CLAUDE] Response received (9684ms, 549 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 10, Position: 1
+         Citations - Brand: 6, Earned: 2, Social: 0
+         Sentiment: neutral (Score: 0.00)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Reputational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (16273ms, 688 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 7, Position: 1
+         Citations - Brand: 1, Earned: 10, Social: 0
+         Sentiment: neutral (Score: 0.04)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Reputational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e864c6ceda2315a81cd3)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e864c6ceda2315a81ce1)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e864c6ceda2315a81c95)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e864c6ceda2315a81cac)
+   ✅ [STEP 2] Scoring complete in 0.07s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+      📎 [CITATIONS] Extracted 14 citations from perplexity
+      ✅ [API] perplexity responded in 38241ms (1178 tokens, 5537 chars, 14 citations)
+   ✅ [STEP 1] LLM calls complete in 38.24s (4/4 successful)
+   🎯 [STEP 2] Scoring 4 responses...
+   📝 [OPENAI] Response received (10042ms, 712 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 16, Position: 1
+         Citations - Brand: 6, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.05)
+   ✅ [OPENAI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for openai
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Navigational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [GEMINI] Response received (6711ms, 1154 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 37, Position: 1
+         Citations - Brand: 16, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.06)
+   ✅ [GEMINI] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for gemini
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Navigational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [CLAUDE] Response received (11318ms, 816 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 20, Position: 1
+         Citations - Brand: 18, Earned: 0, Social: 0
+         Sentiment: neutral (Score: 0.02)
+   ✅ [CLAUDE] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for claude
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Navigational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+   📝 [PERPLEXITY] Response received (38241ms, 1178 tokens)
+      🎯 [SCORING] Creating simple scorecard for: Stripe
+      📊 [SCORECARD] Brand: Stripe
+         Mentioned: true, Count: 20, Position: 1
+         Citations - Brand: 6, Earned: 8, Social: 0
+         Sentiment: neutral (Score: 0.12)
+   ✅ [PERPLEXITY] Score calculated - Visibility: undefined/100, Overall: undefined/100
+      💾 [SAVE] Preparing to save test result for perplexity
+      📋 [SAVE] Extracted IDs - topicId: 68e8e7fdc6ceda2315a81468, personaId: 68e8e7fdc6ceda2315a81478, queryType: Navigational
+      📊 [SAVE] Extracted 1 brand entries with complete metrics
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [OPENAI] Saved to database (ID: 68e8e874c6ceda2315a81cfb)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [CLAUDE] Saved to database (ID: 68e8e874c6ceda2315a81d3c)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [GEMINI] Saved to database (ID: 68e8e874c6ceda2315a81d11)
+      ✅ [SAVE] Test result saved successfully with 1 brand metrics
+   💾 [PERPLEXITY] Saved to database (ID: 68e8e874c6ceda2315a81d5c)
+   ✅ [STEP 2] Scoring complete in 0.07s (4/4 successful)
+   ✨ [COMPLETE] Prompt testing finished
+
+✅ [BATCH 4] Complete in 38.32s - Success: 20, Failed: 0
+
+📊 [SUMMARY] Calculating aggregate statistics...
+   📊 [CALC] Valid results: 80, Completed: 80
+
+============================================================
+✅ [TEST COMPLETE] All testing finished
+📊 Total Tests: 80
+✅ Completed: 80
+❌ Failed: 0
+📈 Avg Visibility: NaN%
+🎯 Brand Mention Rate: 98%
+🏆 Best LLM: openai
+============================================================
+
+
+✅ Testing Complete!
+
+Total Tests Run: undefined
+Failed Tests: undefined
+
+
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+
+📊 STEP 5: METRICS AGGREGATION
+
+================================================================================
+
+Aggregating metrics at 3 levels:
+  1. Overall (all tests combined)
+  2. Platform (per LLM: OpenAI, Gemini, Claude, Perplexity)
+  3. Topic (per topic selected)
+  4. Persona (per persona type)
+
+📊 Starting metrics aggregation for user: new ObjectId('68e7ef58da34c5124ad5fb1c')
+✅ Found 80 tests to aggregate
+  → Aggregating OVERALL metrics
+  → Aggregating PLATFORM metrics
+  → Aggregating TOPIC metrics
+  → Aggregating PERSONA metrics
+✅ Metrics aggregation complete
+   Overall: saved
+   Platforms: 4 saved
+   Topics: 2 saved
+   Personas: 2 saved
+✅ Aggregation Complete!
+
+Overall Metrics: Saved
+Platform Metrics: 4 saved
+Topic Metrics: 2 saved
+Persona Metrics: 2 saved
+
+🏆 OVERALL BRAND RANKINGS:
+
+1. Stripe
+   Rank: #1
+   Mentions: 1094
+   Share of Voice: 75.34%
+   Avg Position: 2.19
+   Depth of Mention: 36.1348%
+   Citation Share: 96.15%
+   Sentiment: 0.12 (11.54% positive)
+
+2. PayPal
+   Rank: #2
+   Mentions: 319
+   Share of Voice: 21.97%
+   Avg Position: 4.51
+   Depth of Mention: 10.1392%
+   Citation Share: 94.59%
+   Sentiment: 0.07 (0% positive)
+
+3. Square
+   Rank: #3
+   Mentions: 37
+   Share of Voice: 2.55%
+   Avg Position: 13.77
+   Depth of Mention: 0.7184%
+   Citation Share: 92.31%
+   Sentiment: 0.01 (7.69% positive)
+
+4. 2Checkout
+   Rank: #4
+   Mentions: 2
+   Share of Voice: 0.14%
+   Avg Position: 18
+   Depth of Mention: 0.0402%
+   Citation Share: 100%
+   Sentiment: 0 (0% positive)
+
+────────────────────────────────────────────────────────────────────────────────
+
+📊 PLATFORM BREAKDOWN:
+
+OPENAI:
+  Tests: 20
+  Top Brand: Stripe (224 mentions)
+
+GEMINI:
+  Tests: 20
+  Top Brand: Stripe (413 mentions)
+
+CLAUDE:
+  Tests: 20
+  Top Brand: Stripe (236 mentions)
+
+PERPLEXITY:
+  Tests: 20
+  Top Brand: Stripe (221 mentions)
+
+────────────────────────────────────────────────────────────────────────────────
+
+📚 TOPIC BREAKDOWN:
+
+Revenue and Finance Automation:
+  Tests: 40
+  Top Brand: Stripe (81.3% voice)
+
+Global Payments and Multi-Currency Solutions:
+  Tests: 40
+  Top Brand: Stripe (69.71% voice)
+
+────────────────────────────────────────────────────────────────────────────────
+
+🧠 STEP 6: AI-POWERED PERFORMANCE INSIGHTS
+
+================================================================================
+
+Generating actionable insights using LLM analysis...
+Analyzing aggregated metrics to identify:
+  • What's Working - Positive trends and successes
+  • Needs Attention - Areas for improvement
+
+🧠 Starting AI-powered insights generation...
+✅ LLM generated 5 insights
+✅ Generated 5 insights
+✅ Insights Generated!
+
+Total Insights: 5
+What's Working: 4
+Needs Attention: 1
+High Impact: 2
+Overall Sentiment: positive
+
+🎯 SAMPLE INSIGHTS:
+
+1. Dominant Share of Voice
+   Category: ✅ What's Working
+   Impact: HIGH
+   Metric: Share of Voice
+   Change: +7.63%
+   Recommendation: Continue leveraging strategies that enhance brand visibility.
+
+2. High Citation Share
+   Category: ✅ What's Working
+   Impact: MEDIUM
+   Metric: Citation Share
+   Change: +1.21%
+   Recommendation: Utilize this recognition to enhance credibility in new markets.
+
+3. Positive Sentiment Among E-commerce Business Owners
+   Category: ✅ What's Working
+   Impact: MEDIUM
+   Metric: Sentiment Score
+   Change: +40%
+   Recommendation: Focus on targeted marketing to e-commerce sectors to capitalize on positive sentiment.
+
+❌ Insights generation failed: PerformanceInsights validation failed: insights.0.dataSource.aggregationLevel: Path `dataSource.aggregationLevel` is required., insights.0.dataSource.metricType: Path `dataSource.metricType` is required., insights.1.dataSource.aggregationLevel: Path `dataSource.aggregationLevel` is required., insights.1.dataSource.metricType: Path `dataSource.metricType` is required., insights.2.dataSource.aggregationLevel: Path `dataSource.aggregationLevel` is required., insights.2.dataSource.metricType: Path `dataSource.metricType` is required., insights.2.type: `persona` is not a valid enum value for path `type`., insights.3.dataSource.aggregationLevel: Path `dataSource.aggregationLevel` is required., insights.3.dataSource.metricType: Path `dataSource.metricType` is required., insights.4.dataSource.aggregationLevel: Path `dataSource.aggregationLevel` is required., insights.4.dataSource.metricType: Path `dataSource.metricType` is required.
+Continuing with flow...
+
+────────────────────────────────────────────────────────────────────────────────
+
+================================================================================
+✅ COMPLETE FLOW TEST SUCCESSFUL!
+================================================================================
+
+📊 FINAL STATISTICS:
+
+  URL Analyses: 1
+  Competitors: 6
+  Topics: 8
+  Personas: 4
+  Prompts: 20
+  Completed Tests: 80
+  Aggregated Metrics: 9
+  Performance Insights: 0
+
+────────────────────────────────────────────────────────────────────────────────
+
+✅ All 6 steps completed with new metrics system and AI insights:
+   ✓ Step 1: URL Analysis (Perplexity)
+   ✓ Step 2: User Selections
+   ✓ Step 3: Prompt Generation
+   ✓ Step 4: LLM Testing (Mentions, Sentiment, Citations, Depth)
+   ✓ Step 5: Metrics Aggregation (Overall, Platform, Topic, Persona)
+   ✓ Step 6: AI-Powered Performance Insights (What's Working vs Needs Attention)
+
+================================================================================
+
+Disconnected from MongoDB

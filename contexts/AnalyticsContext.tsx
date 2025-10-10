@@ -20,8 +20,10 @@ interface AnalyticsContextType {
   data: AnalyticsData
   refreshData: () => Promise<void>
   setDateRange: (from: string, to: string) => void
+  setUrlAnalysisId: (id: string) => void
   dateFrom: string
   dateTo: string
+  urlAnalysisId: string | null
 }
 
 const AnalyticsContext = createContext<AnalyticsContextType | undefined>(undefined)
@@ -29,6 +31,7 @@ const AnalyticsContext = createContext<AnalyticsContextType | undefined>(undefin
 export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const [dateFrom, setDateFrom] = useState<string>('')
   const [dateTo, setDateTo] = useState<string>('')
+  const [urlAnalysisId, setUrlAnalysisId] = useState<string | null>(null)
   const [data, setData] = useState<AnalyticsData>({
     summary: null,
     visibility: null,
@@ -48,12 +51,48 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    // Don't fetch if no URL analysis is selected
+    if (!urlAnalysisId) {
+      setData(prev => ({ ...prev, isLoading: false, error: null }))
+      return
+    }
+
     setData(prev => ({ ...prev, isLoading: true, error: null }))
 
     try {
-      console.log('📊 Fetching analytics data...')
+      console.log('📊 Fetching analytics data for URL:', urlAnalysisId)
 
-      // Try to fetch dashboard data first (new unified endpoint)
+      // Fetch URL-specific metrics
+      try {
+        const urlMetricsRes = await apiService.getUrlMetrics(urlAnalysisId)
+
+        if (urlMetricsRes.success && urlMetricsRes.data) {
+          const metricsData = urlMetricsRes.data
+
+          setData({
+            summary: {
+              hasData: true,
+              totalTests: metricsData.overall?.summary?.totalPrompts || 0,
+              lastUpdated: metricsData.lastUpdated || new Date()
+            },
+            visibility: metricsData.overall || null,
+            prompts: null, // Will be fetched separately if needed
+            sentiment: null, // Will be calculated from metrics
+            citations: null, // Will be calculated from metrics
+            competitors: metricsData.overall?.brandMetrics || null,
+            isLoading: false,
+            error: null,
+            lastUpdated: new Date()
+          })
+
+          console.log('✅ URL-specific analytics data fetched successfully')
+          return
+        }
+      } catch (urlError) {
+        console.log('⚠️ URL metrics endpoint failed, falling back...')
+      }
+
+      // Try to fetch dashboard data (legacy fallback)
       try {
         const dashboardRes = await apiService.getAnalyticsDashboard({
           dateFrom,
@@ -149,13 +188,13 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   }
 
   useEffect(() => {
-    if (apiService.token) {
+    if (apiService.token && urlAnalysisId) {
       fetchAllAnalytics()
     } else {
-      // No token - set loading to false
+      // No token or URL - set loading to false
       setData(prev => ({ ...prev, isLoading: false }))
     }
-  }, [dateFrom, dateTo])
+  }, [dateFrom, dateTo, urlAnalysisId])
 
   const setDateRange = (from: string, to: string) => {
     setDateFrom(from)
@@ -171,8 +210,10 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       data,
       refreshData,
       setDateRange,
+      setUrlAnalysisId,
       dateFrom,
-      dateTo
+      dateTo,
+      urlAnalysisId
     }}>
       {children}
     </AnalyticsContext.Provider>

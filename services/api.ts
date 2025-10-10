@@ -307,6 +307,19 @@ class ApiService {
     if (dateTo) params.append('dateTo', dateTo)
     return this.request(`/metrics/dashboard${params.toString() ? `?${params.toString()}` : ''}`)
   }
+
+  // URL Analysis endpoints
+  async getUrlAnalyses() {
+    return this.request('/url-analysis/list')
+  }
+
+  async getUrlAnalysis(id: string) {
+    return this.request(`/url-analysis/${id}`)
+  }
+
+  async getUrlMetrics(id: string) {
+    return this.request(`/url-analysis/${id}/metrics`)
+  }
 }
 
 export default new ApiService()

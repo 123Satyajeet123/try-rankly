@@ -237,19 +237,19 @@ router.post('/generate', authenticateToken, async (req, res) => {
     const selectedTopics = await Topic.find({ 
       userId, 
       selected: true 
-    }).limit(2);
+    });
 
     // Get selected personas (with selected: true)
     const selectedPersonas = await Persona.find({ 
       userId, 
       selected: true 
-    }).limit(2);
+    });
 
     // Get competitors for context
     const competitors = await Competitor.find({ 
       userId, 
       selected: true 
-    }).limit(4);
+    });
 
     if (selectedTopics.length === 0 || selectedPersonas.length === 0) {
       return res.status(400).json({
@@ -258,7 +258,8 @@ router.post('/generate', authenticateToken, async (req, res) => {
       });
     }
 
-    console.log(`📊 Selected: ${selectedTopics.length} topics, ${selectedPersonas.length} personas`);
+    console.log(`📊 Selected: ${selectedTopics.length} topics, ${selectedPersonas.length} personas, ${competitors.length} competitors`);
+    console.log(`📊 Brand context: ${latestAnalysis.brandContext.companyName || 'Unknown'}`);
 
     // Prepare data for prompt generation
     const topics = selectedTopics.map(t => ({

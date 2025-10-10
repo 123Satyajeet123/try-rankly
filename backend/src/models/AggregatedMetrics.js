@@ -4,17 +4,10 @@ const BrandMetricsSchema = new mongoose.Schema({
   brandId: { type: String, required: true },
   brandName: { type: String, required: true },
 
-  visibilityScore: { type: Number, required: true },
-  visibilityRank: { type: Number, required: true },
-  visibilityRankChange: { type: Number },
-
-  wordCount: { type: Number, required: true },
-  wordCountRank: { type: Number, required: true },
-  wordCountRankChange: { type: Number },
-
-  depthOfMention: { type: Number, required: true },
-  depthRank: { type: Number, required: true },
-  depthRankChange: { type: Number },
+  // Primary ranking metric
+  totalMentions: { type: Number, required: true },
+  mentionRank: { type: Number, required: true },
+  mentionRankChange: { type: Number },
 
   shareOfVoice: { type: Number, required: true },
   shareOfVoiceRank: { type: Number, required: true },
@@ -24,6 +17,29 @@ const BrandMetricsSchema = new mongoose.Schema({
   avgPositionRank: { type: Number, required: true },
   avgPositionRankChange: { type: Number },
 
+  // Depth of Mention (exponential decay formula)
+  depthOfMention: { type: Number, required: true }, // Percentage (0-100)
+  depthRank: { type: Number, required: true },
+  depthRankChange: { type: Number },
+
+  // Citation metrics
+  citationShare: { type: Number, required: true }, // % of tests where brand was cited
+  citationShareRank: { type: Number, required: true },
+  brandCitationsTotal: { type: Number, required: true },    // Total direct brand citations
+  earnedCitationsTotal: { type: Number, required: true },   // Total earned media citations
+  socialCitationsTotal: { type: Number, required: true },   // Total social citations
+  totalCitations: { type: Number, required: true },         // Sum of all citation types
+
+  // Sentiment metrics
+  sentimentScore: { type: Number, min: -1, max: 1, required: true }, // Average sentiment (-1 to +1)
+  sentimentBreakdown: {
+    positive: { type: Number, default: 0 },    // Count of positive mentions
+    neutral: { type: Number, default: 0 },     // Count of neutral mentions
+    negative: { type: Number, default: 0 },    // Count of negative mentions
+    mixed: { type: Number, default: 0 }        // Count of mixed sentiment
+  },
+  sentimentShare: { type: Number, required: true }, // % positive mentions
+
   count1st: { type: Number, required: true },
   count2nd: { type: Number, required: true },
   count3rd: { type: Number, required: true },
@@ -31,13 +47,16 @@ const BrandMetricsSchema = new mongoose.Schema({
   rank2nd: { type: Number, required: true },
   rank3rd: { type: Number, required: true },
 
-  totalAppearances: { type: Number, required: true },
-  totalMentions: { type: Number, required: true },
-  totalWordCountRaw: { type: Number, required: true }
+  totalAppearances: { type: Number, required: true }
 }, { _id: false });
 
 const AggregatedMetricsSchema = new mongoose.Schema({
   userId: { type: String, required: true, index: true },
+  urlAnalysisId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'UrlAnalysis',
+    index: true
+  },
 
   scope: {
     type: String,
@@ -60,7 +79,8 @@ const AggregatedMetricsSchema = new mongoose.Schema({
 });
 
 // Composite indexes for efficient querying
+AggregatedMetricsSchema.index({ userId: 1, urlAnalysisId: 1, scope: 1, scopeValue: 1, dateFrom: 1, dateTo: 1 });
+AggregatedMetricsSchema.index({ userId: 1, urlAnalysisId: 1, lastCalculated: -1 });
 AggregatedMetricsSchema.index({ userId: 1, scope: 1, scopeValue: 1, dateFrom: 1, dateTo: 1 });
-AggregatedMetricsSchema.index({ userId: 1, lastCalculated: -1 });
 
 module.exports = mongoose.model('AggregatedMetrics', AggregatedMetricsSchema);

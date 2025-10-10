@@ -1,0 +1,11 @@
+{
+  "userId": "68e7ef58da34c5124ad5fb1c",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2OGU3ZWY1OGRhMzRjNTEyNGFkNWZiMWMiLCJpYXQiOjE3NjAwMzM1NjIsImV4cCI6MTc2MDYzODM2Mn0.CIThzmhHCIOMFGVjVc23GMd312naWDCp8k9xOz_9gIk",
+  "testResults": {
+    "totalTests": 16,
+    "completedTests": 8,
+    "avgVisibilityScore": 97,
+    "brandMentionRate": 50
+  },
+  "timestamp": "2025-10-09T18:39:34.232Z"
+}

@@ -34,11 +34,17 @@ const authenticateToken = (req, res, next) => {
  */
 router.get('/visibility', authenticateToken, async (req, res) => {
   try {
-    const { dateFrom, dateTo, platforms, topics, personas } = req.query;
+    const { dateFrom, dateTo, platforms, topics, personas, urlAnalysisId } = req.query;
+
+    // Build query with optional urlAnalysisId
+    const baseQuery = { userId: req.userId };
+    if (urlAnalysisId) {
+      baseQuery.urlAnalysisId = urlAnalysisId;
+    }
 
     // Get overall metrics
     const overall = await AggregatedMetrics.findOne({
-      userId: req.userId,
+      ...baseQuery,
       scope: 'overall'
     }).sort({ lastCalculated: -1 }).lean();
 
@@ -51,21 +57,41 @@ router.get('/visibility', authenticateToken, async (req, res) => {
 
     // Get platform metrics
     const platformMetrics = await AggregatedMetrics.find({
-      userId: req.userId,
+      ...baseQuery,
       scope: 'platform'
     }).sort({ lastCalculated: -1 }).lean();
 
-    // Get topic metrics
-    const topicMetrics = await AggregatedMetrics.find({
-      userId: req.userId,
+    // Get topic metrics (deduplicated by scopeValue)
+    const allTopicMetrics = await AggregatedMetrics.find({
+      ...baseQuery,
       scope: 'topic'
     }).sort({ lastCalculated: -1 }).lean();
 
-    // Get persona metrics
-    const personaMetrics = await AggregatedMetrics.find({
-      userId: req.userId,
+    // Deduplicate topic metrics by scopeValue (keep most recent)
+    const topicMetricsMap = new Map();
+    allTopicMetrics.forEach(metric => {
+      if (!topicMetricsMap.has(metric.scopeValue) || 
+          metric.lastCalculated > topicMetricsMap.get(metric.scopeValue).lastCalculated) {
+        topicMetricsMap.set(metric.scopeValue, metric);
+      }
+    });
+    const topicMetrics = Array.from(topicMetricsMap.values());
+
+    // Get persona metrics (deduplicated by scopeValue)
+    const allPersonaMetrics = await AggregatedMetrics.find({
+      ...baseQuery,
       scope: 'persona'
     }).sort({ lastCalculated: -1 }).lean();
+
+    // Deduplicate persona metrics by scopeValue (keep most recent)
+    const personaMetricsMap = new Map();
+    allPersonaMetrics.forEach(metric => {
+      if (!personaMetricsMap.has(metric.scopeValue) || 
+          metric.lastCalculated > personaMetricsMap.get(metric.scopeValue).lastCalculated) {
+        personaMetricsMap.set(metric.scopeValue, metric);
+      }
+    });
+    const personaMetrics = Array.from(personaMetricsMap.values());
 
     res.json({
       success: true,

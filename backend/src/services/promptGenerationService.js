@@ -48,6 +48,8 @@ async function generatePrompts({
     for (const topic of topics) {
       for (const persona of personas) {
         console.log(`Generating prompts for: ${topic.name} × ${persona.type}`);
+    console.log('🔍 Topic object:', { id: topic.id, _id: topic._id, name: topic.name });
+    console.log('🔍 Persona object:', { id: persona.id, _id: persona._id, type: persona.type });
         
         const prompts = await generatePromptsForCombination({
           topic,
@@ -95,6 +97,10 @@ async function generatePromptsForCombination({
       brandContext,
       competitors
     });
+
+    console.log(`🔍 Prompt generation context for ${topic.name} × ${persona.type}:`);
+    console.log(`   Brand: ${brandContext?.companyName || 'Unknown'}`);
+    console.log(`   URL: ${websiteUrl}`);
 
     const response = await axios.post(
       OPENROUTER_API_URL,
@@ -266,15 +272,25 @@ function parsePromptsFromResponse(content, topic, persona) {
     ];
 
     // Create prompt objects with metadata
-    return promptTexts.map((text, index) => ({
-      topicId: topic.id,
+    const prompts = promptTexts.map((text, index) => ({
+      topicId: topic._id || topic.id, // Use _id if available, fallback to id
       topicName: topic.name,
-      personaId: persona.id,
+      personaId: persona._id || persona.id, // Use _id if available, fallback to id
       personaType: persona.type,
       promptText: text.trim(),
       promptIndex: index + 1,
       queryType: queryTypes[index] // Tag each prompt with its AEO query type
     }));
+
+    console.log('🔍 Generated prompts for topic-persona combination:', {
+      topicId: topic._id || topic.id,
+      topicName: topic.name,
+      personaId: persona._id || persona.id,
+      personaType: persona.type,
+      promptCount: prompts.length
+    });
+
+    return prompts;
 
   } catch (error) {
     console.error('Error parsing prompts:', error.message);

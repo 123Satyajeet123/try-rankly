@@ -1,0 +1,274 @@
+🔑 OpenRouter API Key loaded: YES
+📋 [LLM MODELS] Configured: {
+  openai: 'openai/gpt-4o',
+  gemini: 'google/gemini-2.5-flash',
+  claude: 'anthropic/claude-3.5-sonnet',
+  perplexity: 'perplexity/sonar-pro'
+}
+🧪 PromptTestingService initialized (deterministic scoring)
+📊 MetricsAggregationService initialized
+
+================================================================================
+🚀 COMPLETE BACKEND FLOW TEST - NEW METRICS SYSTEM
+================================================================================
+
+✅ Connected to MongoDB
+
+📋 SETUP: Test User
+
+────────────────────────────────────────────────────────────────────────────────
+
+✅ Using test user: satyajeetdas225@gmail.com
+🧹 Cleaning up old test data...
+✅ Cleanup complete
+
+User ID: 68e7ef58da34c5124ad5fb1c
+
+────────────────────────────────────────────────────────────────────────────────
+
+📊 STEP 1: URL ANALYSIS
+
+================================================================================
+
+Analyzing: https://stripe.com
+Using: Perplexity AI (perplexity/sonar-pro)
+
+🔍 Starting website analysis for: https://stripe.com
+📄 Scraping website: https://stripe.com
+❌ Scraping failed: page.waitForTimeout is not a function
+🔄 Attempting fallback scraping method...
+✅ Fallback scraping successful
+🤖 Starting AI analysis...
+✅ Successfully parsed competitors analysis
+   Raw data keys: competitors
+   Normalized keys: competitors
+   Competitors count: 6
+✅ Successfully parsed brandContext analysis
+   Raw data keys: companyName, industry, businessModel, targetMarket, valueProposition, keyServices, brandTone, marketPosition
+   Normalized keys: companyName, industry, businessModel, targetMarket, valueProposition, keyServices, brandTone, marketPosition
+✅ Successfully parsed personas analysis
+   Raw data keys: personas
+   Normalized keys: personas
+   Personas count: 4
+✅ Successfully parsed topics analysis
+   Raw data keys: topics
+   Normalized keys: topics
+   Topics count: 8
+✅ Website analysis completed successfully
+✅ Analysis Complete!
+
+✅ Saved UrlAnalysis to database
+✅ Saved 6 competitors
+✅ Saved 8 topics
+✅ Saved 4 personas
+
+📊 Analysis Summary:
+Brand: Stripe
+Description: undefined...
+Competitors: 6
+Topics: 8
+Personas: 4
+
+Analysis ID: 68e8e309d29b778ba0039972
+
+────────────────────────────────────────────────────────────────────────────────
+
+📊 STEP 2: USER SELECTIONS
+
+================================================================================
+
+Found 3 competitors to select
+✅ Selected competitor: PayPal
+✅ Selected competitor: Square
+✅ Selected competitor: 2Checkout (Verifone)
+Found 2 topics to select
+✅ Selected topic: Global Payment Processing
+✅ Selected topic: Revenue and Finance Automation
+Found 2 personas to select
+✅ Selected persona: Startup Founder / Small Business Owner
+✅ Selected persona: Developer / Technical Lead
+
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+
+📊 STEP 3: PROMPT GENERATION
+
+================================================================================
+
+Generating prompts for 2 topics × 2 personas = 4 combinations...
+
+🎯 Starting prompt generation...
+Topics: 2, Personas: 2
+Generating prompts for: Global Payment Processing × Startup Founder / Small Business Owner
+🔍 Topic object: {
+  id: '68e8e309d29b778ba0039992',
+  _id: new ObjectId('68e8e309d29b778ba0039992'),
+  name: 'Global Payment Processing'
+}
+🔍 Persona object: {
+  id: '68e8e309d29b778ba00399a2',
+  _id: new ObjectId('68e8e309d29b778ba00399a2'),
+  type: 'Startup Founder / Small Business Owner'
+}
+🔍 Prompt generation context for Global Payment Processing × Startup Founder / Small Business Owner:
+   Brand: Stripe
+   URL: https://stripe.com
+🔍 Generated prompts for topic-persona combination: {
+  topicId: new ObjectId('68e8e309d29b778ba0039992'),
+  topicName: 'Global Payment Processing',
+  personaId: new ObjectId('68e8e309d29b778ba00399a2'),
+  personaType: 'Startup Founder / Small Business Owner',
+  promptCount: 5
+}
+Generating prompts for: Global Payment Processing × Developer / Technical Lead
+🔍 Topic object: {
+  id: '68e8e309d29b778ba0039992',
+  _id: new ObjectId('68e8e309d29b778ba0039992'),
+  name: 'Global Payment Processing'
+}
+🔍 Persona object: {
+  id: '68e8e309d29b778ba00399a3',
+  _id: new ObjectId('68e8e309d29b778ba00399a3'),
+  type: 'Developer / Technical Lead'
+}
+🔍 Prompt generation context for Global Payment Processing × Developer / Technical Lead:
+   Brand: Stripe
+   URL: https://stripe.com
+🔍 Generated prompts for topic-persona combination: {
+  topicId: new ObjectId('68e8e309d29b778ba0039992'),
+  topicName: 'Global Payment Processing',
+  personaId: new ObjectId('68e8e309d29b778ba00399a3'),
+  personaType: 'Developer / Technical Lead',
+  promptCount: 5
+}
+Generating prompts for: Revenue and Finance Automation × Startup Founder / Small Business Owner
+🔍 Topic object: {
+  id: '68e8e309d29b778ba0039993',
+  _id: new ObjectId('68e8e309d29b778ba0039993'),
+  name: 'Revenue and Finance Automation'
+}
+🔍 Persona object: {
+  id: '68e8e309d29b778ba00399a2',
+  _id: new ObjectId('68e8e309d29b778ba00399a2'),
+  type: 'Startup Founder / Small Business Owner'
+}
+🔍 Prompt generation context for Revenue and Finance Automation × Startup Founder / Small Business Owner:
+   Brand: Stripe
+   URL: https://stripe.com
+🔍 Generated prompts for topic-persona combination: {
+  topicId: new ObjectId('68e8e309d29b778ba0039993'),
+  topicName: 'Revenue and Finance Automation',
+  personaId: new ObjectId('68e8e309d29b778ba00399a2'),
+  personaType: 'Startup Founder / Small Business Owner',
+  promptCount: 5
+}
+Generating prompts for: Revenue and Finance Automation × Developer / Technical Lead
+🔍 Topic object: {
+  id: '68e8e309d29b778ba0039993',
+  _id: new ObjectId('68e8e309d29b778ba0039993'),
+  name: 'Revenue and Finance Automation'
+}
+🔍 Persona object: {
+  id: '68e8e309d29b778ba00399a3',
+  _id: new ObjectId('68e8e309d29b778ba00399a3'),
+  type: 'Developer / Technical Lead'
+}
+🔍 Prompt generation context for Revenue and Finance Automation × Developer / Technical Lead:
+   Brand: Stripe
+   URL: https://stripe.com
+🔍 Generated prompts for topic-persona combination: {
+  topicId: new ObjectId('68e8e309d29b778ba0039993'),
+  topicName: 'Revenue and Finance Automation',
+  personaId: new ObjectId('68e8e309d29b778ba00399a3'),
+  personaType: 'Developer / Technical Lead',
+  promptCount: 5
+}
+✅ Generated 20 prompts successfully
+✅ Generated 20 prompts
+
+
+❌ ERROR: Prompt validation failed: title: Path `title` is required., text: Path `text` is required.
+ValidationError: Prompt validation failed: title: Path `title` is required., text: Path `text` is required.
+    at Document.invalidate (/home/jeet/rankly/tryrankly/backend/node_modules/mongoose/lib/document.js:3362:32)
+    at /home/jeet/rankly/tryrankly/backend/node_modules/mongoose/lib/document.js:3123:17
+    at /home/jeet/rankly/tryrankly/backend/node_modules/mongoose/lib/schemaType.js:1417:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:85:11)
+Disconnected from MongoDB

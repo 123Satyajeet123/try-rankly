@@ -211,21 +211,21 @@ class WebsiteAnalysisService {
   // Perform AI analysis using OpenRouter
   async performAIAnalysis(websiteData, originalUrl) {
     console.log('🤖 Starting AI analysis...');
-    
+
     const analysisTasks = [
       this.analyzeBrandContext(websiteData, originalUrl),
       this.findCompetitors(websiteData, originalUrl),
       this.extractTopics(websiteData),
       this.identifyUserPersonas(websiteData)
     ];
-    
+
     const results = await Promise.all(analysisTasks);
-    
+
     return {
       brandContext: results[0],
-      competitors: results[1],
-      topics: results[2],
-      personas: results[3],
+      competitors: results[1].competitors || [],
+      topics: results[2].topics || [],
+      personas: results[3].personas || [],
       analysisDate: new Date().toISOString()
     };
   }
@@ -258,7 +258,7 @@ Provide a structured analysis in JSON format:
 }
 `;
 
-    return await this.callOpenRouter(prompt, 'openai/gpt-4o', 'brandContext');
+    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'brandContext');
   }
 
   // Task 2: Find competitors
@@ -288,7 +288,7 @@ Use web search to find real competitors and return structured data:
 Search for actual competitors and provide real URLs.
 `;
 
-    return await this.callOpenRouter(prompt, 'openai/gpt-4o', 'competitors');
+    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'competitors');
   }
 
   // Task 3: Extract topics
@@ -316,7 +316,7 @@ Extract 6-8 main topics that this business should focus on for content marketing
 }
 `;
 
-    return await this.callOpenRouter(prompt, 'openai/gpt-4o', 'topics');
+    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'topics');
   }
 
   // Task 4: Identify user personas
@@ -346,11 +346,11 @@ Identify 3-4 primary user personas:
 }
 `;
 
-    return await this.callOpenRouter(prompt, 'openai/gpt-4o', 'personas');
+    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'personas');
   }
 
   // Call OpenRouter API with error handling
-  async callOpenRouter(prompt, model = 'openai/gpt-4o', analysisType = 'general') {
+  async callOpenRouter(prompt, model = 'perplexity/sonar-pro', analysisType = 'general') {
     try {
       const systemPrompt = SYSTEM_PROMPTS[analysisType] || SYSTEM_PROMPTS.brandContext;
       
@@ -367,8 +367,8 @@ Identify 3-4 primary user personas:
           }
         ],
         temperature: 0.1,
-        max_tokens: 2000,
-        response_format: { type: "json_object" }
+        max_tokens: 2000
+        // Note: Perplexity doesn't support response_format, relies on prompt instructions
       }, {
         headers: {
           'Authorization': `Bearer ${this.openRouterApiKey}`,
@@ -379,21 +379,32 @@ Identify 3-4 primary user personas:
         timeout: 60000 // 60 second timeout
       });
 
-      const content = response.data.choices[0].message.content;
+      let content = response.data.choices[0].message.content;
+      
+      // Remove markdown code blocks if present (Perplexity sometimes wraps JSON)
+      content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
       
       // Parse JSON response
       try {
         const parsed = JSON.parse(content);
         console.log(`✅ Successfully parsed ${analysisType} analysis`);
-        return this.validateAndNormalizeResponse(parsed, analysisType);
+        console.log(`   Raw data keys: ${Object.keys(parsed).join(', ')}`);
+        const normalized = this.validateAndNormalizeResponse(parsed, analysisType);
+        console.log(`   Normalized keys: ${Object.keys(normalized).join(', ')}`);
+        if (analysisType === 'competitors') console.log(`   Competitors count: ${normalized.competitors?.length || 0}`);
+        if (analysisType === 'topics') console.log(`   Topics count: ${normalized.topics?.length || 0}`);
+        if (analysisType === 'personas') console.log(`   Personas count: ${normalized.personas?.length || 0}`);
+        return normalized;
       } catch (parseError) {
         console.warn(`Failed to parse JSON for ${analysisType}:`, parseError.message);
+        console.warn(`   Content preview: ${content.substring(0, 100)}...`);
         
         // Try to extract JSON from response
         const jsonMatch = content.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           try {
             const extracted = JSON.parse(jsonMatch[0]);
+            console.log(`✅ Successfully extracted JSON from content`);
             return this.validateAndNormalizeResponse(extracted, analysisType);
           } catch (e) {
             console.error('Failed to parse extracted JSON:', e.message);
@@ -401,11 +412,18 @@ Identify 3-4 primary user personas:
         }
         
         // Return default response on parse failure
+        console.warn(`⚠️  Returning default response for ${analysisType}`);
         return this.getDefaultResponse(analysisType);
       }
       
     } catch (error) {
-      console.error(`OpenRouter API error (${model} - ${analysisType}):`, error.response?.data || error.message);
+      console.error(`❌ OpenRouter API error (${model} - ${analysisType}):`, error.response?.data || error.message);
+      console.error('   Full error:', error.message);
+      if (error.response) {
+        console.error('   Response status:', error.response.status);
+        console.error('   Response data:', JSON.stringify(error.response.data, null, 2));
+      }
+      console.warn(`⚠️  Returning default response for ${analysisType}`);
       return this.getDefaultResponse(analysisType);
     }
   }

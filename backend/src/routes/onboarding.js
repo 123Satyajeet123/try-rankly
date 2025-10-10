@@ -202,6 +202,36 @@ router.post('/analyze-website', authenticateToken, async (req, res) => {
 
     console.log(`🔍 Starting website analysis for user ${req.userId}: ${url}`);
 
+    // Import URL cleanup service
+    const urlCleanupService = require('../services/urlCleanupService');
+
+    // Check if this URL already exists for this user
+    const urlExists = await urlCleanupService.urlExists(req.userId, url);
+    
+    if (urlExists) {
+      console.log(`🔄 URL already exists, cleaning up previous analysis data...`);
+      
+      // Get cleanup stats before cleanup
+      const cleanupStats = await urlCleanupService.getCleanupStats(req.userId, url);
+      if (cleanupStats.success) {
+        console.log(`📊 Cleanup stats:`, cleanupStats.data);
+      }
+      
+      // Perform comprehensive cleanup
+      const cleanupResult = await urlCleanupService.cleanupUrlData(req.userId, url);
+      
+      if (!cleanupResult.success) {
+        console.error('❌ Cleanup failed:', cleanupResult.message);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to cleanup existing URL data',
+          error: cleanupResult.error
+        });
+      }
+      
+      console.log(`✅ Cleanup completed: ${cleanupResult.results.totalDeleted} items removed`);
+    }
+
     // Update user's website URL
     const user = await User.findById(req.userId);
     if (user) {
@@ -229,9 +259,9 @@ router.post('/analyze-website', authenticateToken, async (req, res) => {
       userId: req.userId,
       url: url,
       brandContext: analysisResults.brandContext,
-      competitors: analysisResults.competitors.competitors || [],
-      topics: analysisResults.topics.topics || [],
-      personas: analysisResults.personas.personas || [],
+      competitors: analysisResults.competitors || [],
+      topics: analysisResults.topics || [],
+      personas: analysisResults.personas || [],
       analysisDate: new Date(analysisResults.analysisDate),
       status: 'completed'
     });
@@ -239,38 +269,11 @@ router.post('/analyze-website', authenticateToken, async (req, res) => {
     await urlAnalysis.save();
     
     // Save individual items to respective collections for user selection
-    // IMPORTANT: Clear ALL existing data for this user to prevent orphaned references
-    // This ensures a clean slate for each new analysis and prevents data inconsistencies
-    console.log('🧹 [CLEANUP] Removing old analysis data for fresh start...');
-    
-    // Get IDs of items to be deleted (for cleaning up related prompts)
-    const oldTopicIds = await Topic.find({ userId: req.userId }).distinct('_id');
-    const oldPersonaIds = await Persona.find({ userId: req.userId }).distinct('_id');
-    
-    // Delete old prompts that reference topics/personas about to be deleted
-    // This prevents orphaned prompts with broken references
-    const Prompt = require('../models/Prompt');
-    if (oldTopicIds.length > 0 || oldPersonaIds.length > 0) {
-      const deleteResult = await Prompt.deleteMany({
-        userId: req.userId,
-        $or: [
-          { topicId: { $in: oldTopicIds } },
-          { personaId: { $in: oldPersonaIds } }
-        ]
-      });
-      console.log(`🗑️  [CLEANUP] Deleted ${deleteResult.deletedCount} old prompts`);
-    }
-    
-    // Now delete the old topics, personas, and competitors
-    await Competitor.deleteMany({ userId: req.userId });
-    await Topic.deleteMany({ userId: req.userId });
-    await Persona.deleteMany({ userId: req.userId });
-    
-    console.log('✅ [CLEANUP] Old data cleared, ready for fresh analysis');
+    // Note: Cleanup was already handled above by the URL cleanup service
     
     // Save competitors
-    if (analysisResults.competitors.competitors && analysisResults.competitors.competitors.length > 0) {
-      const competitorPromises = analysisResults.competitors.competitors.map(comp => {
+    if (analysisResults.competitors && analysisResults.competitors.length > 0) {
+      const competitorPromises = analysisResults.competitors.map(comp => {
         return new Competitor({
           userId: req.userId,
           name: comp.name,
@@ -285,8 +288,8 @@ router.post('/analyze-website', authenticateToken, async (req, res) => {
     }
     
     // Save topics
-    if (analysisResults.topics.topics && analysisResults.topics.topics.length > 0) {
-      const topicPromises = analysisResults.topics.topics.map(topic => {
+    if (analysisResults.topics && analysisResults.topics.length > 0) {
+      const topicPromises = analysisResults.topics.map(topic => {
         return new Topic({
           userId: req.userId,
           name: topic.name,
@@ -301,8 +304,8 @@ router.post('/analyze-website', authenticateToken, async (req, res) => {
     }
     
     // Save personas
-    if (analysisResults.personas.personas && analysisResults.personas.personas.length > 0) {
-      const personaPromises = analysisResults.personas.personas.map(persona => {
+    if (analysisResults.personas && analysisResults.personas.length > 0) {
+      const personaPromises = analysisResults.personas.map(persona => {
         return new Persona({
           userId: req.userId,
           type: persona.type,
@@ -326,9 +329,9 @@ router.post('/analyze-website', authenticateToken, async (req, res) => {
         analysis: {
           status: 'completed',
           brandContext: analysisResults.brandContext,
-          competitors: analysisResults.competitors.competitors || [],
-          topics: analysisResults.topics.topics || [],
-          personas: analysisResults.personas.personas || [],
+          competitors: analysisResults.competitors || [],
+          topics: analysisResults.topics || [],
+          personas: analysisResults.personas || [],
           analysisDate: analysisResults.analysisDate
         }
       }
@@ -424,6 +427,53 @@ router.get('/has-analysis', authenticateToken, async (req, res) => {
   }
 });
 
+// Cleanup URL data endpoint (for manual cleanup if needed)
+router.post('/cleanup-url', authenticateToken, async (req, res) => {
+  try {
+    const { url } = req.body;
+    
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        message: 'URL is required for cleanup'
+      });
+    }
+
+    console.log(`🧹 Manual cleanup requested for URL: ${url} (User: ${req.userId})`);
+
+    // Import URL cleanup service
+    const urlCleanupService = require('../services/urlCleanupService');
+    
+    // Perform cleanup
+    const cleanupResult = await urlCleanupService.cleanupUrlData(req.userId, url);
+    
+    if (cleanupResult.success) {
+      res.json({
+        success: true,
+        message: cleanupResult.message,
+        data: {
+          cleanupResults: cleanupResult.results,
+          totalDeleted: cleanupResult.results.totalDeleted
+        }
+      });
+    } else {
+      res.status(500).json({
+        success: false,
+        message: cleanupResult.message,
+        error: cleanupResult.error
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Manual cleanup error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to cleanup URL data',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Cleanup service temporarily unavailable'
+    });
+  }
+});
+
 // Update selections for competitors, topics, and personas
 router.post('/update-selections', authenticateToken, async (req, res) => {
   try {
@@ -446,28 +496,83 @@ router.post('/update-selections', authenticateToken, async (req, res) => {
 
     // Update competitors - match by URL (most reliable identifier)
     for (const compUrl of competitors) {
-      const result = await Competitor.updateOne(
+      // First try to find existing competitor
+      let result = await Competitor.updateOne(
         { userId, url: compUrl },
         { selected: true }
       );
+      
+      // If no existing competitor found, create a new one (for custom competitors)
+      if (result.matchedCount === 0) {
+        console.log(`📝 Creating new competitor for URL: ${compUrl}`);
+        const newCompetitor = new Competitor({
+          userId,
+          name: compUrl.replace(/^https?:\/\//, '').replace(/\/$/, ''), // Use domain as name
+          url: compUrl,
+          reason: 'User added manually',
+          similarity: 0,
+          source: 'user',
+          selected: true
+        });
+        await newCompetitor.save();
+        result = { modifiedCount: 1 };
+      }
+      
       if (result.modifiedCount > 0) competitorsUpdated++;
     }
 
     // Update topics - match by name
     for (const topicName of topics) {
-      const result = await Topic.updateOne(
+      // First try to find existing topic
+      let result = await Topic.updateOne(
         { userId, name: topicName },
         { selected: true }
       );
+      
+      // If no existing topic found, create a new one (for custom topics)
+      if (result.matchedCount === 0) {
+        console.log(`📝 Creating new topic: ${topicName}`);
+        const newTopic = new Topic({
+          userId,
+          name: topicName,
+          description: 'User added manually',
+          keywords: [],
+          priority: 1,
+          source: 'user',
+          selected: true
+        });
+        await newTopic.save();
+        result = { modifiedCount: 1 };
+      }
+      
       if (result.modifiedCount > 0) topicsUpdated++;
     }
 
     // Update personas - match by type
     for (const personaType of personas) {
-      const result = await Persona.updateOne(
+      // First try to find existing persona
+      let result = await Persona.updateOne(
         { userId, type: personaType },
         { selected: true }
       );
+      
+      // If no existing persona found, create a new one (for custom personas)
+      if (result.matchedCount === 0) {
+        console.log(`📝 Creating new persona: ${personaType}`);
+        const newPersona = new Persona({
+          userId,
+          type: personaType,
+          description: 'User added manually',
+          painPoints: [],
+          goals: [],
+          relevance: 1,
+          source: 'user',
+          selected: true
+        });
+        await newPersona.save();
+        result = { modifiedCount: 1 };
+      }
+      
       if (result.modifiedCount > 0) personasUpdated++;
     }
 
@@ -488,6 +593,168 @@ router.post('/update-selections', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to update selections'
+    });
+  }
+});
+
+// Generate prompts based on user selections
+router.post('/generate-prompts', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+    console.log('🎯 Starting prompt generation for user:', userId);
+
+    // Get user data
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Get selected data
+    const selectedCompetitors = await Competitor.find({ userId, selected: true });
+    const selectedTopics = await Topic.find({ userId, selected: true });
+    const selectedPersonas = await Persona.find({ userId, selected: true });
+
+    // Get latest analysis data
+    const latestAnalysis = await UrlAnalysis.findOne({ userId })
+      .sort({ analysisDate: -1 });
+
+    if (!latestAnalysis) {
+      return res.status(400).json({
+        success: false,
+        message: 'No website analysis found. Please analyze a website first.'
+      });
+    }
+
+    // Prepare data for prompt generation
+    const promptData = {
+      topics: selectedTopics.map(topic => ({
+        name: topic.name,
+        description: topic.description,
+        keywords: topic.keywords || []
+      })),
+      personas: selectedPersonas.map(persona => ({
+        type: persona.type,
+        description: persona.description,
+        painPoints: persona.painPoints || [],
+        goals: persona.goals || []
+      })),
+      region: user.preferences.region || 'Global',
+      language: user.preferences.language || 'English',
+      websiteUrl: user.websiteUrl,
+      brandContext: JSON.stringify(latestAnalysis.brandContext),
+      competitors: selectedCompetitors.map(comp => ({
+        name: comp.name,
+        url: comp.url,
+        reason: comp.reason
+      }))
+    };
+
+    console.log('📊 Prompt generation data:', {
+      topicsCount: promptData.topics.length,
+      personasCount: promptData.personas.length,
+      competitorsCount: promptData.competitors.length
+    });
+
+    console.log('🔍 Available topics:', selectedTopics.map(t => ({ id: t._id, name: t.name })));
+    console.log('🔍 Available personas:', selectedPersonas.map(p => ({ id: p._id, type: p.type })));
+
+    // Import prompt generation service
+    const promptGenerationService = require('../services/promptGenerationService');
+    
+    // Generate prompts
+    const generatedPrompts = await promptGenerationService.generatePrompts(promptData);
+
+    console.log(`✅ Generated ${generatedPrompts.length} prompts successfully`);
+    console.log('🔍 Generated prompts sample:', generatedPrompts.slice(0, 2));
+
+    // Save prompts to database (required for testing service)
+    const Prompt = require('../models/Prompt');
+    const savedPrompts = [];
+    
+    for (const promptData of generatedPrompts) {
+      console.log('🔍 Processing prompt:', {
+        topicName: promptData.topicName,
+        personaType: promptData.personaType,
+        queryType: promptData.queryType
+      });
+
+      // Find the topic and persona ObjectIds by name/type (not by the input IDs)
+      const topic = selectedTopics.find(t => t.name === promptData.topicName);
+      const persona = selectedPersonas.find(p => p.type === promptData.personaType);
+
+      console.log('🔍 Matching results:', {
+        topicFound: !!topic,
+        personaFound: !!persona,
+        topicMatch: topic ? { id: topic._id, name: topic.name } : null,
+        personaMatch: persona ? { id: persona._id, type: persona.type } : null
+      });
+
+      if (!topic || !persona) {
+        console.warn('❌ Skipping prompt - topic or persona not found:', {
+          promptData: {
+            topicName: promptData.topicName,
+            personaType: promptData.personaType,
+            queryType: promptData.queryType
+          },
+          availableTopics: selectedTopics.map(t => t.name),
+          availablePersonas: selectedPersonas.map(p => p.type)
+        });
+        continue;
+      }
+
+      const prompt = new Prompt({
+        userId,
+        topicId: topic._id,
+        personaId: persona._id,
+        title: `${topic.name} × ${persona.type} - ${promptData.queryType}`,
+        text: promptData.promptText,
+        queryType: promptData.queryType,
+        status: 'active', // Ensure status is active for testing
+        metadata: {
+          generatedBy: 'ai',
+          targetPersonas: [persona.type],
+          targetCompetitors: selectedCompetitors.map(c => c.name)
+        }
+      });
+
+      await prompt.save();
+      savedPrompts.push({
+        id: prompt._id,
+        topicName: topic.name,
+        personaType: persona.type,
+        promptText: prompt.text,
+        queryType: prompt.queryType
+      });
+    }
+
+    console.log(`💾 Saved ${savedPrompts.length} prompts to database`);
+
+    res.json({
+      success: true,
+      message: 'Prompts generated successfully',
+      data: {
+        prompts: savedPrompts,
+        totalPrompts: savedPrompts.length,
+        generationDate: new Date().toISOString(),
+        metadata: {
+          topicsUsed: promptData.topics.length,
+          personasUsed: promptData.personas.length,
+          competitorsUsed: promptData.competitors.length,
+          region: promptData.region,
+          language: promptData.language
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Prompt generation error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to generate prompts',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Prompt generation service temporarily unavailable'
     });
   }
 });

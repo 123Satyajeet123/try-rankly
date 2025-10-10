@@ -222,6 +222,16 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
   try {
     const { dateFrom, dateTo } = req.query;
 
+    // Get user's brand from URL analysis
+    const UrlAnalysis = require('../models/UrlAnalysis');
+    const urlAnalysis = await UrlAnalysis.findOne({
+      userId: req.userId
+    })
+    .sort({ analysisDate: -1 })
+    .lean();
+
+    const userBrandName = urlAnalysis?.brandContext?.companyName?.toLowerCase() || null;
+
     // Get overall metrics
     const overall = await AggregatedMetrics.findOne({
       userId: req.userId,
@@ -256,10 +266,10 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
 
     // Format for dashboard
     const dashboardData = {
-      overall: overall ? formatForDashboard(overall) : null,
-      platforms: platforms.map(p => formatForDashboard(p)),
-      topics: topics.map(t => formatForDashboard(t)),
-      personas: personas.map(p => formatForDashboard(p)),
+      overall: overall ? formatForDashboard(overall, userBrandName) : null,
+      platforms: platforms.map(p => formatForDashboard(p, userBrandName)),
+      topics: topics.map(t => formatForDashboard(t, userBrandName)),
+      personas: personas.map(p => formatForDashboard(p, userBrandName)),
       lastUpdated: overall?.lastCalculated || null
     };
 
@@ -280,11 +290,23 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
 /**
  * Helper: Format metrics for dashboard display
  */
-function formatForDashboard(metrics) {
+function formatForDashboard(metrics, userBrandName = null) {
   if (!metrics) return null;
 
-  // Find user's brand (rank 1 or specific brand)
-  const userBrand = metrics.brandMetrics.find(b => b.visibilityRank === 1) || metrics.brandMetrics[0];
+  // Find user's brand by matching the actual user brand name from URL analysis
+  let userBrand;
+  if (userBrandName) {
+    userBrand = metrics.brandMetrics.find(b => 
+      b.brandId === userBrandName || 
+      b.brandName.toLowerCase() === userBrandName
+    );
+  }
+  
+  // Fallback to highest ranked brand if user brand not found
+  if (!userBrand) {
+    userBrand = metrics.brandMetrics.find(b => b.visibilityRank === 1) || 
+               metrics.brandMetrics[0];
+  }
 
   return {
     scope: metrics.scope,

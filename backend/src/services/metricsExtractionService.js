@@ -4,11 +4,45 @@
  * Instead of asking an LLM to calculate metrics (which is probabilistic),
  * this service extracts structured data from LLM responses and calculates
  * metrics mathematically for consistent, accurate results.
+ *
+ * This service now performs COMPLETE extraction of all brand mentions,
+ * positions, word counts, and depth metrics from raw LLM responses.
  */
 
 class MetricsExtractionService {
   constructor() {
     console.log('📊 MetricsExtractionService initialized');
+  }
+
+  /**
+   * Extract COMPLETE metrics from a single prompt test response
+   * This is the main entry point for deterministic extraction
+   *
+   * @param {Object} promptTest - PromptTest document with rawResponse
+   * @param {Array} allBrandNames - All brands to track (user brand + competitors)
+   * @returns {Object} - Complete extracted metrics for all brands
+   */
+  extractFromPromptTest(promptTest, allBrandNames) {
+    const rawResponse = promptTest.rawResponse || '';
+
+    if (!rawResponse) {
+      console.warn('⚠️  No rawResponse found in prompt test');
+      return null;
+    }
+
+    // Extract metrics for all brands
+    const extraction = this.extractMetrics(rawResponse, allBrandNames);
+
+    // Calculate depth of mention for each brand
+    extraction.brandMetrics.forEach(brand => {
+      brand.depthOfMention = this.calculateDepthOfMention(
+        brand.sentences,
+        extraction.response.totalSentences,
+        extraction.response.totalWords
+      );
+    });
+
+    return extraction;
   }
 
   /**
@@ -81,24 +115,21 @@ class MetricsExtractionService {
    * Calculate all metrics for a brand based on extracted data
    * Used for aggregation across multiple prompts/responses
    */
-  calculateAggregatedMetrics(brandData, totalPrompts, allBrandMetrics) {
+  calculateAggregatedMetrics(brandData, totalPrompts, allBrandMetrics, responseText = '') {
     const brandName = brandData.brandName;
 
     // Visibility Score: % of prompts where brand appears
     const appearanceCount = brandData.totalAppearances || 0;
     const visibilityScore = (appearanceCount / totalPrompts) * 100;
 
-    // Share of Voice: % of total mentions
-    const totalMentionsAllBrands = allBrandMetrics.reduce((sum, b) => sum + (b.totalMentions || 0), 0);
-    const shareOfVoice = totalMentionsAllBrands > 0
-      ? (brandData.totalMentions / totalMentionsAllBrands) * 100
+    // Citation Share: % of hyperlinks that mention the brand
+    const brandHyperlinks = this.extractBrandHyperlinks(brandData, responseText);
+    const totalHyperlinks = this.extractTotalHyperlinks(allBrandMetrics, responseText);
+    const citationShare = totalHyperlinks > 0 
+      ? (brandHyperlinks / totalHyperlinks) * 100 
       : 0;
 
-    // Word Count: % of total words
-    const totalWordsAllBrands = allBrandMetrics.reduce((sum, b) => sum + (b.totalWordCount || 0), 0);
-    const wordCount = totalWordsAllBrands > 0
-      ? (brandData.totalWordCount / totalWordsAllBrands) * 100
-      : 0;
+    // Word Count: % of total words (not needed for dashboard - removed)
 
     // Average Position: average first-mention position
     const avgPosition = appearanceCount > 0
@@ -109,29 +140,144 @@ class MetricsExtractionService {
     // This is already calculated in the detailed extraction
     const depthOfMention = brandData.weightedWordCount || 0;
 
+    // Sentiment analysis
+    const sentimentData = this.analyzeSentiment(brandData, responseText);
+
     return {
       brandName,
       visibilityScore: parseFloat(visibilityScore.toFixed(2)),
-      shareOfVoice: parseFloat(shareOfVoice.toFixed(2)),
-      wordCount: parseFloat(wordCount.toFixed(2)),
+      citationShare: parseFloat(citationShare.toFixed(2)), // Citation share (hyperlinks)
       avgPosition: parseFloat(avgPosition.toFixed(2)),
       depthOfMention: parseFloat(depthOfMention.toFixed(4)),
+      
+      // Sentiment analysis
+      ...sentimentData,
 
-      // Raw counts
+      // Raw counts (for internal calculations)
       totalAppearances: appearanceCount,
       totalMentions: brandData.totalMentions || 0,
       totalWordCount: brandData.totalWordCount || 0,
-
-      // Position distribution
-      count1st: brandData.count1st || 0,
-      count2nd: brandData.count2nd || 0,
-      count3rd: brandData.count3rd || 0
+      totalCitations: brandHyperlinks
     };
+  }
+
+  /**
+   * Extract hyperlinks that mention a specific brand
+   * @param {object} brandData - Brand data object
+   * @param {string} response - LLM response text
+   * @returns {number} - Number of hyperlinks mentioning the brand
+   */
+  extractBrandHyperlinks(brandData, response) {
+    if (!response || !brandData) return 0;
+    
+    const brandName = brandData.brandName;
+    const hyperlinkRegex = /\[([^\]]*)\]\(https?:\/\/[^\)]+\)/g;
+    let brandHyperlinkCount = 0;
+    let match;
+    
+    // Find all hyperlinks in the response
+    while ((match = hyperlinkRegex.exec(response)) !== null) {
+      const linkText = match[1].toLowerCase();
+      const fullMatch = match[0];
+      
+      // Check if the link text or surrounding context mentions the brand
+      if (linkText.includes(brandName.toLowerCase()) || 
+          fullMatch.toLowerCase().includes(brandName.toLowerCase())) {
+        brandHyperlinkCount++;
+      }
+    }
+    
+    console.log(`   🔗 [HYPERLINKS] Found ${brandHyperlinkCount} hyperlinks for brand: ${brandName}`);
+    return brandHyperlinkCount;
+  }
+
+  /**
+   * Analyze sentiment for a brand in the response
+   * @param {object} brandData - Brand data object
+   * @param {string} response - LLM response text
+   * @returns {object} - Sentiment analysis results
+   */
+  analyzeSentiment(brandData, response) {
+    if (!response || !brandData || !brandData.sentences) {
+      return {
+        sentimentScore: 0,
+        positiveMentions: 0,
+        negativeMentions: 0,
+        neutralMentions: 0
+      };
+    }
+
+    let positiveCount = 0;
+    let negativeCount = 0;
+    let neutralCount = 0;
+
+    // Simple sentiment analysis based on keywords
+    const positiveWords = [
+      'leading', 'best', 'excellent', 'outstanding', 'superior', 'premium', 'advanced',
+      'innovative', 'reliable', 'trusted', 'comprehensive', 'strong', 'well-regarded',
+      'excel', 'attractive', 'competitive', 'expert', 'specialized', 'dedicated'
+    ];
+    
+    const negativeWords = [
+      'poor', 'bad', 'worst', 'inferior', 'weak', 'unreliable', 'expensive', 'limited',
+      'outdated', 'slow', 'problematic', 'issues', 'concerns', 'disappointing', 'failing'
+    ];
+
+    brandData.sentences.forEach(sentence => {
+      const text = sentence.text.toLowerCase();
+      let sentiment = 'neutral';
+      
+      // Check for positive words
+      const positiveMatches = positiveWords.filter(word => text.includes(word));
+      const negativeMatches = negativeWords.filter(word => text.includes(word));
+      
+      if (positiveMatches.length > negativeMatches.length) {
+        sentiment = 'positive';
+        positiveCount++;
+      } else if (negativeMatches.length > positiveMatches.length) {
+        sentiment = 'negative';
+        negativeCount++;
+      } else {
+        neutralCount++;
+      }
+    });
+
+    const totalSentences = brandData.sentences.length;
+    const sentimentScore = totalSentences > 0 
+      ? ((positiveCount - negativeCount) / totalSentences) * 100 
+      : 0;
+
+    console.log(`   😊 [SENTIMENT] ${brandData.brandName}: ${sentimentScore.toFixed(1)} (${positiveCount}+, ${negativeCount}-, ${neutralCount}~)`);
+    
+    return {
+      sentimentScore: parseFloat(sentimentScore.toFixed(2)),
+      positiveMentions: positiveCount,
+      negativeMentions: negativeCount,
+      neutralMentions: neutralCount
+    };
+  }
+
+  /**
+   * Extract total number of hyperlinks across all brands
+   * @param {array} allBrandMetrics - All brand metrics
+   * @param {string} responseText - Full response text
+   * @returns {number} - Total number of hyperlinks
+   */
+  extractTotalHyperlinks(allBrandMetrics, responseText) {
+    if (!responseText) return 0;
+    
+    const hyperlinkRegex = /\[([^\]]*)\]\(https?:\/\/[^\)]+\)/g;
+    const matches = responseText.match(hyperlinkRegex);
+    const totalHyperlinks = matches ? matches.length : 0;
+    
+    console.log(`   🔗 [HYPERLINKS] Found ${totalHyperlinks} total hyperlinks in response`);
+    return totalHyperlinks;
   }
 
   /**
    * Calculate depth of mention with exponential decay based on sentence position
    * Formula: Σ [words × exp(-position/totalSentences)] / total words in response
+   * Position is 1-indexed (first sentence = position 1, not 0)
    */
   calculateDepthOfMention(brandSentences, totalSentences, totalWordsInResponse) {
     if (brandSentences.length === 0 || totalWordsInResponse === 0) {
@@ -141,7 +287,9 @@ class MetricsExtractionService {
     let weightedWordCount = 0;
 
     brandSentences.forEach(sentence => {
-      const decayFactor = Math.exp(-sentence.position / totalSentences);
+      // Convert 0-indexed position to 1-indexed for correct decay calculation
+      const position1Indexed = sentence.position + 1;
+      const decayFactor = Math.exp(-position1Indexed / totalSentences);
       weightedWordCount += sentence.wordCount * decayFactor;
     });
 
@@ -194,19 +342,69 @@ class MetricsExtractionService {
 
   /**
    * Check if a sentence contains a brand mention
-   * Uses case-insensitive word boundary matching
+   * Uses case-insensitive word boundary matching with fuzzy matching for variations
    */
   containsBrand(sentence, brandName) {
     if (!sentence || !brandName) return false;
 
-    // Escape special regex characters in brand name
+    // First try exact matching
     const escapedBrand = brandName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const exactRegex = new RegExp(`\\b${escapedBrand}\\b`, 'i');
+    
+    if (exactRegex.test(sentence)) {
+      return true;
+    }
 
-    // Create regex with word boundaries for exact matching
-    // This prevents partial matches (e.g., "Apple" shouldn't match "Pineapple")
-    const regex = new RegExp(`\\b${escapedBrand}\\b`, 'i');
+    // For longer brand names, try fuzzy matching with common variations
+    if (brandName.length > 10) {
+      // Create variations by replacing common words
+      const variations = this.generateBrandVariations(brandName);
+      
+      for (const variation of variations) {
+        const escapedVariation = variation.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const variationRegex = new RegExp(`\\b${escapedVariation}\\b`, 'i');
+        
+        if (variationRegex.test(sentence)) {
+          return true;
+        }
+      }
+    }
 
-    return regex.test(sentence);
+    return false;
+  }
+
+  /**
+   * Generate common variations of a brand name for fuzzy matching
+   */
+  generateBrandVariations(brandName) {
+    const variations = [];
+    
+    // Replace common words that might vary
+    const replacements = [
+      { from: /\bfor\b/gi, to: 'of' },
+      { from: /\bof\b/gi, to: 'for' },
+      { from: /\byour\b/gi, to: 'a' },
+      { from: /\ba\b/gi, to: 'your' },
+      { from: /\bthe\b/gi, to: '' }, // Remove "the"
+      { from: /\bdesign\b/gi, to: 'design' }, // Keep as is
+      { from: /\bsystem\b/gi, to: 'system' }, // Keep as is
+    ];
+
+    // Apply each replacement
+    replacements.forEach(replacement => {
+      const variation = brandName.replace(replacement.from, replacement.to);
+      if (variation !== brandName && variation.trim().length > 0) {
+        variations.push(variation.trim());
+      }
+    });
+
+    // Also try without common articles and prepositions
+    const withoutArticles = brandName.replace(/\b(the|a|an|for|of|your)\b/gi, '').trim();
+    if (withoutArticles !== brandName && withoutArticles.length > 0) {
+      variations.push(withoutArticles);
+    }
+
+    return variations;
   }
 
   /**

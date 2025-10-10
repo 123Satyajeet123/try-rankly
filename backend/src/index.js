@@ -92,7 +92,8 @@ app.get('/api', (req, res) => {
       prompts: '/api/prompts/*',
       cleanup: '/api/cleanup/*',
       metrics: '/api/metrics/*',
-      analytics: '/api/analytics/*'
+      analytics: '/api/analytics/*',
+      urlAnalysis: '/api/url-analysis/*'
     },
     status: 'Development - Ready for implementation'
   });
@@ -108,6 +109,9 @@ const promptRoutes = require('./routes/prompts');
 const cleanupRoutes = require('./routes/cleanup');
 const metricsRoutes = require('./routes/metrics');
 const analyticsRoutes = require('./routes/analytics');
+const urlAnalysisRoutes = require('./routes/urlAnalysis');
+const clustersRoutes = require('./routes/clusters');
+const insightsRoutes = require('./routes/insights');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -119,6 +123,9 @@ app.use('/api/prompts', promptRoutes);
 app.use('/api/cleanup', cleanupRoutes);
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/analytics', analyticsRoutes);
+app.use('/api/url-analysis', urlAnalysisRoutes);
+app.use('/api/clusters', clustersRoutes);
+app.use('/api/insights', insightsRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

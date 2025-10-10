@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Filter, Globe, ChevronDown, Users, Plus } from 'lucide-react'
+import { URLSelector } from '@/components/URLSelector'
+import { useAnalytics } from '@/contexts/AnalyticsContext'
 
 interface TopNavProps {
   activeTab: string
@@ -16,6 +18,7 @@ interface TopNavProps {
 
 export function TopNav({ activeTab, onTabChange }: TopNavProps) {
   const router = useRouter()
+  const { setUrlAnalysisId, urlAnalysisId } = useAnalytics()
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['All Platforms'])
   const [selectedTopics, setSelectedTopics] = useState<string[]>(['All Topics'])
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>(['All Personas'])
@@ -199,9 +202,9 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
         <Tabs value={activeTab} onValueChange={onTabChange}>
           <TabsList className="bg-transparent p-0 h-auto border-0 flex space-x-0">
             {tabs.map((tab) => (
-              <TabsTrigger 
-                key={tab.id} 
-                value={tab.id} 
+              <TabsTrigger
+                key={tab.id}
+                value={tab.id}
                 className="relative px-4 py-2 body-text rounded-none border-0 bg-transparent hover:text-gray-900 text-gray-600 data-[state=active]:bg-transparent data-[state=active]:text-gray-900 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-gray-900 transition-colors"
               >
                 {tab.label}
@@ -210,8 +213,9 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
           </TabsList>
         </Tabs>
 
-        {/* Filter controls and New Analysis button - Top right */}
+        {/* URL Selector and Filter controls - Top right */}
         <div className="flex space-x-3 pr-4">
+          <URLSelector value={urlAnalysisId || undefined} onChange={setUrlAnalysisId} />
           <Button
             variant="default"
             size="sm"

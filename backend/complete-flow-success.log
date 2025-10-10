@@ -1,0 +1,288 @@
+🔑 OpenRouter API Key loaded: YES
+📋 [LLM MODELS] Configured: {
+  openai: 'openai/gpt-4o',
+  gemini: 'google/gemini-2.5-flash',
+  claude: 'anthropic/claude-3.5-sonnet',
+  perplexity: 'perplexity/sonar-pro'
+}
+🧪 PromptTestingService initialized (deterministic scoring)
+📊 MetricsAggregationService initialized
+
+================================================================================
+🚀 COMPLETE BACKEND FLOW TEST - NEW METRICS SYSTEM
+================================================================================
+
+✅ Connected to MongoDB
+
+📋 SETUP: Test User
+
+────────────────────────────────────────────────────────────────────────────────
+
+✅ Using test user: satyajeetdas225@gmail.com
+🧹 Cleaning up old test data...
+✅ Cleanup complete
+
+User ID: 68e7ef58da34c5124ad5fb1c
+
+────────────────────────────────────────────────────────────────────────────────
+
+📊 STEP 1: URL ANALYSIS
+
+================================================================================
+
+Analyzing: https://stripe.com
+Using: Perplexity AI (perplexity/sonar-pro)
+
+🔍 Starting website analysis for: https://stripe.com
+📄 Scraping website: https://stripe.com
+❌ Scraping failed: page.waitForTimeout is not a function
+🔄 Attempting fallback scraping method...
+✅ Fallback scraping successful
+🤖 Starting AI analysis...
+✅ Successfully parsed topics analysis
+   Raw data keys: topics
+   Normalized keys: topics
+   Topics count: 8
+✅ Successfully parsed competitors analysis
+   Raw data keys: competitors
+   Normalized keys: competitors
+   Competitors count: 6
+✅ Successfully parsed brandContext analysis
+   Raw data keys: companyName, industry, businessModel, targetMarket, valueProposition, keyServices, brandTone, marketPosition
+   Normalized keys: companyName, industry, businessModel, targetMarket, valueProposition, keyServices, brandTone, marketPosition
+✅ Successfully parsed personas analysis
+   Raw data keys: personas
+   Normalized keys: personas
+   Personas count: 4
+✅ Website analysis completed successfully
+✅ Analysis Complete!
+
+✅ Saved UrlAnalysis to database
+✅ Saved 6 competitors
+✅ Saved 8 topics
+✅ Saved 4 personas
+
+📊 Analysis Summary:
+Brand: Stripe
+Description: undefined...
+Competitors: 6
+Topics: 8
+Personas: 4
+
+Analysis ID: 68e8e3a81aa1038756694c85
+
+────────────────────────────────────────────────────────────────────────────────
+
+📊 STEP 2: USER SELECTIONS
+
+================================================================================
+
+Found 3 competitors to select
+✅ Selected competitor: PayPal
+✅ Selected competitor: Authorize.net
+✅ Selected competitor: GoCardless
+Found 2 topics to select
+✅ Selected topic: Revenue and Finance Automation
+✅ Selected topic: Global Payments and Multi-Currency Support
+Found 2 personas to select
+✅ Selected persona: Startup Founder / Entrepreneur
+✅ Selected persona: Marketplace / Platform Operator
+
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+─
+
+📊 STEP 3: PROMPT GENERATION
+
+================================================================================
+
+Generating prompts for 2 topics × 2 personas = 4 combinations...
+
+🎯 Starting prompt generation...
+Topics: 2, Personas: 2
+Generating prompts for: Revenue and Finance Automation × Startup Founder / Entrepreneur
+🔍 Topic object: {
+  id: '68e8e3a81aa1038756694ca6',
+  _id: new ObjectId('68e8e3a81aa1038756694ca6'),
+  name: 'Revenue and Finance Automation'
+}
+🔍 Persona object: {
+  id: '68e8e3a91aa1038756694cb5',
+  _id: new ObjectId('68e8e3a91aa1038756694cb5'),
+  type: 'Startup Founder / Entrepreneur'
+}
+🔍 Prompt generation context for Revenue and Finance Automation × Startup Founder / Entrepreneur:
+   Brand: Stripe
+   URL: https://stripe.com
+🔍 Generated prompts for topic-persona combination: {
+  topicId: new ObjectId('68e8e3a81aa1038756694ca6'),
+  topicName: 'Revenue and Finance Automation',
+  personaId: new ObjectId('68e8e3a91aa1038756694cb5'),
+  personaType: 'Startup Founder / Entrepreneur',
+  promptCount: 5
+}
+Generating prompts for: Revenue and Finance Automation × Marketplace / Platform Operator
+🔍 Topic object: {
+  id: '68e8e3a81aa1038756694ca6',
+  _id: new ObjectId('68e8e3a81aa1038756694ca6'),
+  name: 'Revenue and Finance Automation'
+}
+🔍 Persona object: {
+  id: '68e8e3a91aa1038756694cb8',
+  _id: new ObjectId('68e8e3a91aa1038756694cb8'),
+  type: 'Marketplace / Platform Operator'
+}
+🔍 Prompt generation context for Revenue and Finance Automation × Marketplace / Platform Operator:
+   Brand: Stripe
+   URL: https://stripe.com
+🔍 Generated prompts for topic-persona combination: {
+  topicId: new ObjectId('68e8e3a81aa1038756694ca6'),
+  topicName: 'Revenue and Finance Automation',
+  personaId: new ObjectId('68e8e3a91aa1038756694cb8'),
+  personaType: 'Marketplace / Platform Operator',
+  promptCount: 5
+}
+Generating prompts for: Global Payments and Multi-Currency Support × Startup Founder / Entrepreneur
+🔍 Topic object: {
+  id: '68e8e3a81aa1038756694ca5',
+  _id: new ObjectId('68e8e3a81aa1038756694ca5'),
+  name: 'Global Payments and Multi-Currency Support'
+}
+🔍 Persona object: {
+  id: '68e8e3a91aa1038756694cb5',
+  _id: new ObjectId('68e8e3a91aa1038756694cb5'),
+  type: 'Startup Founder / Entrepreneur'
+}
+🔍 Prompt generation context for Global Payments and Multi-Currency Support × Startup Founder / Entrepreneur:
+   Brand: Stripe
+   URL: https://stripe.com
+🔍 Generated prompts for topic-persona combination: {
+  topicId: new ObjectId('68e8e3a81aa1038756694ca5'),
+  topicName: 'Global Payments and Multi-Currency Support',
+  personaId: new ObjectId('68e8e3a91aa1038756694cb5'),
+  personaType: 'Startup Founder / Entrepreneur',
+  promptCount: 5
+}
+Generating prompts for: Global Payments and Multi-Currency Support × Marketplace / Platform Operator
+🔍 Topic object: {
+  id: '68e8e3a81aa1038756694ca5',
+  _id: new ObjectId('68e8e3a81aa1038756694ca5'),
+  name: 'Global Payments and Multi-Currency Support'
+}
+🔍 Persona object: {
+  id: '68e8e3a91aa1038756694cb8',
+  _id: new ObjectId('68e8e3a91aa1038756694cb8'),
+  type: 'Marketplace / Platform Operator'
+}
+🔍 Prompt generation context for Global Payments and Multi-Currency Support × Marketplace / Platform Operator:
+   Brand: Stripe
+   URL: https://stripe.com
+🔍 Generated prompts for topic-persona combination: {
+  topicId: new ObjectId('68e8e3a81aa1038756694ca5'),
+  topicName: 'Global Payments and Multi-Currency Support',
+  personaId: new ObjectId('68e8e3a91aa1038756694cb8'),
+  personaType: 'Marketplace / Platform Operator',
+  promptCount: 5
+}
+✅ Generated 20 prompts successfully
+✅ Generated 20 prompts
+
+Sample prompt data: {
+  "topicId": "68e8e3a81aa1038756694ca6",
+  "topicName": "Revenue and Finance Automation",
+  "personaId": "68e8e3a91aa1038756694cb5",
+  "personaType": "Startup Founder / Entrepreneur",
+  "promptText": "What is Stripe and how can it help my startup streamline payments?",
+  "promptIndex": 1,
+  "queryType": "Navigational"
+}
+✅ Saved 20 prompts to database
+
+Sample prompts:
+
+1. What is Stripe and how can it help my startup streamline payments?...
+
+❌ ERROR: Cannot read properties of undefined (reading 'topic')
+TypeError: Cannot read properties of undefined (reading 'topic')
+    at /home/jeet/rankly/tryrankly/backend/test-complete-flow-new-metrics.js:286:44
+    at Array.forEach (<anonymous>)
+    at runCompleteFlow (/home/jeet/rankly/tryrankly/backend/test-complete-flow-new-metrics.js:284:32)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+Disconnected from MongoDB

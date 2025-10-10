@@ -6,6 +6,11 @@ const topicSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  urlAnalysisId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'UrlAnalysis',
+    index: true
+  },
   name: {
     type: String,
     required: true,

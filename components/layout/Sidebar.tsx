@@ -1,15 +1,17 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { Sun, Moon, BarChart3, MessageSquare, Globe, HelpCircle, Plus } from 'lucide-react'
+import { Sun, Moon, BarChart3, MessageSquare, Globe, HelpCircle, Plus, LogOut } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
 import apiService from '@/services/api'
 
 export function Sidebar() {
   const { theme, setTheme } = useTheme()
+  const { logout } = useAuth()
   const [mounted, setMounted] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
@@ -86,7 +88,19 @@ export function Sidebar() {
           <HelpCircle className="mr-3 h-4 w-4" />
           Contact us
         </Button>
-        
+
+        <Button
+          variant="ghost"
+          className="w-full justify-start h-10 px-3 body-text text-muted-foreground hover:text-foreground"
+          onClick={() => {
+            logout()
+            router.push('/')
+          }}
+        >
+          <LogOut className="mr-3 h-4 w-4" />
+          Logout
+        </Button>
+
         {/* Theme Toggle */}
         <div className="flex items-center justify-center">
           <div className="flex items-center bg-muted/50 rounded-full p-0.5" suppressHydrationWarning>
@@ -95,8 +109,8 @@ export function Sidebar() {
               size="icon"
               onClick={() => setTheme('light')}
               className={`h-7 w-7 rounded-full transition-all ${
-                mounted && theme === 'light' 
-                  ? 'bg-background text-foreground shadow-sm' 
+                mounted && theme === 'light'
+                  ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -107,8 +121,8 @@ export function Sidebar() {
               size="icon"
               onClick={() => setTheme('dark')}
               className={`h-7 w-7 rounded-full transition-all ${
-                mounted && theme === 'dark' 
-                  ? 'bg-background text-foreground shadow-sm' 
+                mounted && theme === 'dark'
+                  ? 'bg-background text-foreground shadow-sm'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >

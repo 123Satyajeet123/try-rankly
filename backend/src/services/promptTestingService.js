@@ -1,6 +1,7 @@
 const axios = require('axios');
 const PromptTest = require('../models/PromptTest');
 const Prompt = require('../models/Prompt');
+const UrlAnalysis = require('../models/UrlAnalysis');
 
 class PromptTestingService {
   constructor() {
@@ -13,20 +14,15 @@ class PromptTestingService {
     }
 
     // OpenRouter model identifiers for different LLMs
-    // Updated with VERIFIED model IDs from OpenRouter API (2025-10-04)
     this.llmModels = {
       openai: 'openai/gpt-4o',
-      gemini: 'google/gemini-2.5-flash', // Fast and cost-effective
+      gemini: 'google/gemini-2.5-flash',
       claude: 'anthropic/claude-3.5-sonnet',
-      perplexity: 'perplexity/sonar-pro' // Best Perplexity model for our use case
+      perplexity: 'perplexity/sonar-pro'
     };
-    
-    console.log('📋 [LLM MODELS] Configured:', this.llmModels);
 
-    // Scoring model (cheaper, fast)
-    this.scoringModel = 'openai/gpt-4o-mini';
-    
-    console.log('🧪 PromptTestingService initialized');
+    console.log('📋 [LLM MODELS] Configured:', this.llmModels);
+    console.log('🧪 PromptTestingService initialized (deterministic scoring)');
   }
 
   /**
@@ -53,7 +49,7 @@ class PromptTestingService {
         personaId: { $exists: true, $ne: null },
         queryType: { $exists: true, $ne: null }
       })
-      .limit(options.testLimit || 2) // TESTING: Only test 2 prompts to save costs
+      .limit(options.testLimit || 50) // Test up to 50 prompts (remove artificial limitation)
       .populate('topicId')
       .populate('personaId')
       .lean();
@@ -79,6 +75,18 @@ class PromptTestingService {
         console.log(`      QueryType: ${p.queryType || 'NULL'}`);
       });
       
+      // Get latest URL analysis for this user
+      console.log(`\n🔗 [URL] Fetching latest URL analysis...`);
+      const latestUrlAnalysis = await UrlAnalysis.findOne({ userId })
+        .sort({ analysisDate: -1 })
+        .lean();
+
+      if (!latestUrlAnalysis) {
+        throw new Error('No URL analysis found. Please complete onboarding first.');
+      }
+
+      console.log(`✅ [URL] Found URL analysis: ${latestUrlAnalysis.url} (ID: ${latestUrlAnalysis._id})`);
+
       // Get brand name for scoring context
       console.log(`\n🏢 [CONTEXT] Fetching brand context for scoring...`);
       const brandContext = await this.getBrandContext(userId);
@@ -101,7 +109,7 @@ class PromptTestingService {
         
         const batchStartTime = Date.now();
         const batchResults = await Promise.all(
-          batch.map(prompt => this.testSinglePrompt(prompt, brandContext))
+          batch.map(prompt => this.testSinglePrompt(prompt, brandContext, latestUrlAnalysis._id))
         );
         const batchDuration = ((Date.now() - batchStartTime) / 1000).toFixed(2);
         
@@ -147,9 +155,10 @@ class PromptTestingService {
    * Test a single prompt across all 4 LLMs
    * @param {object} prompt - Prompt document
    * @param {object} brandContext - Brand context for scoring
+   * @param {string} urlAnalysisId - URL analysis ID to link test to
    * @returns {Promise<Array>} - Array of test results
    */
-  async testSinglePrompt(prompt, brandContext) {
+  async testSinglePrompt(prompt, brandContext, urlAnalysisId) {
     try {
       console.log(`\n🔬 [PROMPT] Testing: "${prompt.text.substring(0, 60)}..."`);
       console.log(`   Prompt ID: ${prompt._id}`);
@@ -181,29 +190,30 @@ class PromptTestingService {
         
         if (result.status === 'rejected') {
           console.error(`   ❌ [${llmProvider.toUpperCase()}] LLM call failed:`, result.reason.message);
-          return this.createFailedTest(prompt, llmProvider, result.reason.message);
+          return this.createFailedTest(prompt, llmProvider, result.reason.message, urlAnalysisId);
         }
         
         const llmResponse = result.value;
         console.log(`   📝 [${llmProvider.toUpperCase()}] Response received (${llmResponse.responseTime}ms, ${llmResponse.tokensUsed} tokens)`);
-        
+
         try {
-          // Generate scorecard for this response
-          const scorecard = await this.generateScorecard(
-            prompt.text,
+          // Calculate metrics deterministically from citations and brand mentions
+          const scorecard = this.calculateDeterministicScore(
             llmResponse.response,
-            brandContext,
-            prompt.queryType
+            llmResponse.citations,
+            brandContext
           );
-          
-          console.log(`   ✅ [${llmProvider.toUpperCase()}] Scorecard generated - Overall: ${scorecard.overallScore}/100, Visibility: ${scorecard.visibilityScore}/100`);
-          
+
+          console.log(`   ✅ [${llmProvider.toUpperCase()}] Score calculated - Visibility: ${scorecard.visibilityScore}/100, Overall: ${scorecard.overallScore}/100`);
+
           // Save test result to database
           const testResult = await this.saveTestResult(
             prompt,
             llmProvider,
             llmResponse,
-            scorecard
+            scorecard,
+            urlAnalysisId,
+            brandContext
           );
           
           console.log(`   💾 [${llmProvider.toUpperCase()}] Saved to database (ID: ${testResult._id})`);
@@ -211,7 +221,7 @@ class PromptTestingService {
           
         } catch (scoringError) {
           console.error(`   ❌ [${llmProvider.toUpperCase()}] Scoring failed:`, scoringError.message);
-          return this.createFailedTest(prompt, llmProvider, scoringError.message);
+          return this.createFailedTest(prompt, llmProvider, scoringError.message, urlAnalysisId);
         }
       });
       
@@ -232,6 +242,30 @@ class PromptTestingService {
   }
 
   /**
+   * Get system prompt for LLMs to request citations
+   * @returns {string} - System prompt text
+   */
+  getLLMSystemPrompt() {
+    return `You are a helpful AI assistant providing comprehensive answers to user questions.
+
+IMPORTANT: When providing information about companies, brands, products, or services, please include relevant citations and links whenever possible. This helps users verify information and access additional resources.
+
+Guidelines for citations:
+1. Include hyperlinks to official websites, documentation, or authoritative sources
+2. Use markdown link format: [link text](https://example.com)
+3. Provide citations for:
+   - Company websites and official pages
+   - Product documentation and features
+   - Reviews and testimonials (when available)
+   - Pricing and service information
+   - News articles and press releases
+
+If you cannot find or provide specific links, mention that information is based on your training data and suggest where users might find more current information.
+
+Be thorough, accurate, and helpful in your responses.`;
+  }
+
+  /**
    * Call a specific LLM via OpenRouter
    * @param {string} promptText - The prompt to send
    * @param {string} llmProvider - LLM provider name
@@ -240,16 +274,20 @@ class PromptTestingService {
    */
   async callLLM(promptText, llmProvider, promptDoc) {
     const startTime = Date.now();
-    
+
     try {
       const model = this.llmModels[llmProvider];
       console.log(`      🌐 [API] Calling ${llmProvider} (${model})...`);
-      
+
       const response = await axios.post(
         `${this.openRouterBaseUrl}/chat/completions`,
         {
           model: model,
           messages: [
+            {
+              role: 'system',
+              content: this.getLLMSystemPrompt()
+            },
             {
               role: 'user',
               content: promptText
@@ -268,20 +306,24 @@ class PromptTestingService {
           timeout: 60000 // 60 second timeout
         }
       );
-      
+
       const responseTime = Date.now() - startTime;
       const content = response.data.choices[0].message.content;
       const tokensUsed = response.data.usage?.total_tokens || 0;
-      
-      console.log(`      ✅ [API] ${llmProvider} responded in ${responseTime}ms (${tokensUsed} tokens, ${content.length} chars)`);
-      
+
+      // Extract citations from response
+      const citations = this.extractCitations(response.data, llmProvider, content);
+
+      console.log(`      ✅ [API] ${llmProvider} responded in ${responseTime}ms (${tokensUsed} tokens, ${content.length} chars, ${citations.length} citations)`);
+
       return {
         response: content,
+        citations,
         responseTime,
         tokensUsed,
         model: model
       };
-      
+
     } catch (error) {
       const errorMsg = error.response?.data?.error?.message || error.message;
       console.error(`      ❌ [API ERROR] ${llmProvider} failed:`, errorMsg);
@@ -293,258 +335,405 @@ class PromptTestingService {
   }
 
   /**
-   * Generate scorecard for an LLM response using a scoring LLM
-   * @param {string} originalPrompt - Original prompt text
-   * @param {string} llmResponse - LLM's response
-   * @param {object} brandContext - Brand information
-   * @param {string} queryType - Type of query
-   * @returns {Promise<object>} - Scorecard object
+   * Extract citations from LLM response
+   * @param {object} responseData - Full API response
+   * @param {string} llmProvider - LLM provider name
+   * @param {string} responseText - Response text content
+   * @returns {Array} - Array of citation objects
    */
-  async generateScorecard(originalPrompt, llmResponse, brandContext, queryType) {
+  extractCitations(responseData, llmProvider, responseText) {
+    const citations = [];
+
     try {
-      const brandName = brandContext.companyName || 'the brand';
-      const competitors = brandContext.competitors || [];
-      
-      console.log(`      🎯 [SCORING] Generating scorecard for brand: ${brandName}`);
-      
-      const scoringPrompt = this.buildScoringPrompt(
-        originalPrompt,
-        llmResponse,
-        brandName,
-        competitors,
-        queryType
-      );
-      
-      console.log(`      🤖 [SCORING] Calling scoring LLM (${this.scoringModel})...`);
-      const response = await axios.post(
-        `${this.openRouterBaseUrl}/chat/completions`,
-        {
-          model: this.scoringModel,
-          messages: [
-            {
-              role: 'system',
-              content: this.getScoringSystemPrompt()
-            },
-            {
-              role: 'user',
-              content: scoringPrompt
-            }
-          ],
-          temperature: 0.3, // Lower temperature for consistent scoring
-          max_tokens: 1500,
-          response_format: { type: "json_object" }
-        },
-        {
-          headers: {
-            'Authorization': `Bearer ${this.openRouterApiKey}`,
-            'HTTP-Referer': 'https://tryrankly.com',
-            'X-Title': 'Rankly AEO Platform',
-            'Content-Type': 'application/json'
-          },
-          timeout: 45000
+      // Method 1: Perplexity returns citations in API response
+      if (llmProvider === 'perplexity' && responseData.citations) {
+        citations.push(...responseData.citations.map((cit, idx) => ({
+          url: cit,
+          type: 'source',
+          position: idx + 1,
+          provider: 'perplexity_api'
+        })));
+      }
+
+      // Method 2: Parse markdown links from response text [text](url)
+      const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+      let match;
+      let position = 1;
+
+      while ((match = markdownLinkRegex.exec(responseText)) !== null) {
+        citations.push({
+          url: match[2],
+          text: match[1],
+          type: 'inline_link',
+          position: position++,
+          provider: llmProvider
+        });
+      }
+
+      // Method 3: Parse bare URLs
+      const urlRegex = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
+      const urls = responseText.match(urlRegex) || [];
+      urls.forEach((url, idx) => {
+        // Avoid duplicates from markdown links
+        if (!citations.find(c => c.url === url)) {
+          citations.push({
+            url: url,
+            type: 'bare_url',
+            position: citations.length + 1,
+            provider: llmProvider
+          });
         }
-      );
-      
-      const scorecardText = response.data.choices[0].message.content;
-      console.log(`      ✅ [SCORING] Received scorecard (${scorecardText.length} chars)`);
-      
-      let scorecard;
-      try {
-        scorecard = JSON.parse(scorecardText);
-        console.log(`      ✅ [SCORING] Scorecard parsed successfully`);
-      } catch (parseError) {
-        console.error(`      ❌ [SCORING] JSON parse failed:`, parseError.message);
-        console.error(`      Raw response:`, scorecardText.substring(0, 200));
-        throw parseError;
-      }
-      
-      // Validate and normalize scorecard
-      const validated = this.validateScorecard(scorecard);
-      console.log(`      ✅ [SCORING] Scorecard validated - Overall: ${validated.overallScore}/100`);
-      
-      return validated;
-      
+      });
+
+      console.log(`      📎 [CITATIONS] Extracted ${citations.length} citations from ${llmProvider}`);
+
     } catch (error) {
-      console.error(`      ❌ [SCORING ERROR] Scorecard generation failed:`, error.message);
-      if (error.response?.data) {
-        console.error(`      API Error:`, error.response.data);
-      }
-      // Return default scorecard on error
-      console.log(`      🔄 [SCORING] Using default scorecard`);
-      return this.getDefaultScorecard();
+      console.error(`      ❌ [CITATIONS ERROR] Failed to extract citations:`, error.message);
     }
+
+    return citations;
   }
 
   /**
-   * Build the scoring prompt for the scoring LLM
+   * Categorize a citation by type
+   * @param {string} url - Citation URL
+   * @param {string} brandName - Brand to check for
+   * @returns {string} - 'brand', 'earned', or 'social'
    */
-  buildScoringPrompt(originalPrompt, llmResponse, brandName, competitors, queryType) {
-    const competitorNames = competitors.map(c => c.name).join(', ');
+  categorizeCitation(url, brandName) {
+    const urlLower = url.toLowerCase();
+    const brandLower = brandName.toLowerCase().replace(/\s+/g, '');
     
-    return `Analyze this LLM response for Answer Engine Optimization (AEO) effectiveness.
-
-**Original User Query:**
-"${originalPrompt}"
-
-**Query Type:** ${queryType}
-
-**LLM Response to Analyze:**
-"""
-${llmResponse}
-"""
-
-**Brand Being Analyzed:** ${brandName}
-**Known Competitors:** ${competitorNames || 'None provided'}
-
-**Your Task:**
-Evaluate how well the LLM response promotes brand visibility for "${brandName}" and generate a comprehensive scorecard.
-
-**Scoring Guidelines:**
-
-1. **Brand Visibility (0-100):**
-   - Was the brand mentioned? Where in the response?
-   - How many times was it mentioned?
-   - Score 0 if not mentioned, 100 if prominently featured
-
-2. **Depth of Mention:**
-   - "none" = Not mentioned at all
-   - "shallow" = Brief mention, no details
-   - "moderate" = Mentioned with some context
-   - "detailed" = Comprehensive discussion with examples
-
-3. **Competitive Position:**
-   - How many competitors were mentioned?
-   - What position is the brand in vs competitors?
-   - Were there direct comparisons?
-
-4. **Citation & Trust:**
-   - Did the LLM cite sources or links?
-   - Were there trust signals (awards, certifications)?
-   - How authoritative was the mention?
-
-5. **Query Relevance (0-100):**
-   - How relevant was the response to the query?
-   - Did it match the query intent?
-
-6. **Overall Score (0-100):**
-   - Weighted average considering all factors
-   - Higher scores mean better AEO performance
-
-Return ONLY a valid JSON scorecard with all required fields.`;
+    // Check if it's a direct brand link
+    if (urlLower.includes(brandLower + '.com') || 
+        urlLower.includes(brandLower + '.io') ||
+        urlLower.includes(brandLower + '.ai')) {
+      return 'brand';
+    }
+    
+    // Check if it's social media
+    const socialDomains = ['twitter.com', 'linkedin.com', 'facebook.com', 'instagram.com', 'youtube.com'];
+    if (socialDomains.some(domain => urlLower.includes(domain))) {
+      return 'social';
+    }
+    
+    // Everything else is earned media (third-party articles/reviews)
+    return 'earned';
   }
 
   /**
-   * System prompt for the scoring LLM
+   * Analyze sentiment of brand mentions in response
+   * @param {string} responseText - Full LLM response
+   * @param {string} brandName - Brand to analyze
+   * @returns {object} - Sentiment analysis { sentiment, sentimentScore, drivers }
    */
-  getScoringSystemPrompt() {
-    return `You are an expert AEO (Answer Engine Optimization) analyst evaluating LLM responses for brand visibility.
+  analyzeSentiment(responseText, brandName) {
+    // Positive keywords
+    const positiveKeywords = [
+      'best', 'excellent', 'great', 'top', 'leading', 'trusted', 'reliable', 
+      'recommended', 'popular', 'strong', 'superior', 'outstanding', 'premier',
+      'robust', 'comprehensive', 'flexible', 'innovative', 'powerful', 'advanced',
+      'seamless', 'easy', 'simple', 'efficient', 'effective', 'preferred', 'ideal',
+      'unmatched', 'favored', 'recognized', 'renowned'
+    ];
 
-Your task is to analyze LLM responses and generate detailed scorecards with the following JSON structure:
+    // Negative keywords
+    const negativeKeywords = [
+      'bad', 'poor', 'worst', 'weak', 'limited', 'lacking', 'difficult', 
+      'complicated', 'expensive', 'costly', 'slow', 'unreliable', 'problematic',
+      'issues', 'problems', 'concerns', 'drawbacks', 'disadvantages', 'limitations',
+      'struggles', 'fails', 'inferior', 'outdated'
+    ];
 
-{
-  "brandMentioned": boolean,
-  "brandPosition": number (0 if not mentioned, 1-10 for position in response),
-  "brandMentionCount": number,
-  "competitorsMentioned": [string array],
-  "visibilityScore": number (0-100),
-  "mentionDepth": "none|shallow|moderate|detailed",
-  "contextQuality": number (0-100),
-  "sentencesAboutBrand": number,
-  "characterCount": number (characters dedicated to brand),
-  "citationPresent": boolean,
-  "citationType": "none|direct_link|reference|mention",
-  "trustSignals": [string array],
-  "expertiseIndicators": number (0-100),
-  "competitorCount": number,
-  "rankingPosition": number (0 if not ranked, 1 for #1, etc.),
-  "comparativeMentions": [string array],
-  "uniqueValuePropsHighlighted": [string array],
-  "relevanceScore": number (0-100),
-  "intentMatch": number (0-100),
-  "responseLength": number,
-  "responseCompleteness": number (0-100),
-  "overallScore": number (0-100)
-}
+    // Extract sentences mentioning the brand
+    const sentences = responseText.split(/[.!?]+/).filter(s => s.trim().length > 0);
+    const brandSentences = sentences.filter(s => 
+      s.toLowerCase().includes(brandName.toLowerCase())
+    );
 
-Be objective, thorough, and consistent. Return ONLY valid JSON, no markdown or explanations.`;
-  }
+    if (brandSentences.length === 0) {
+      return { sentiment: 'neutral', sentimentScore: 0, drivers: [] };
+    }
 
-  /**
-   * Validate and normalize scorecard data
-   */
-  validateScorecard(scorecard) {
+    // Analyze each sentence
+    let totalScore = 0;
+    const drivers = [];
+
+    brandSentences.forEach(sentence => {
+      const lowerSentence = sentence.toLowerCase();
+      let sentenceScore = 0;
+      const foundKeywords = [];
+
+      // Count positive keywords
+      positiveKeywords.forEach(keyword => {
+        if (lowerSentence.includes(keyword)) {
+          sentenceScore += 0.3;
+          foundKeywords.push('+' + keyword);
+        }
+      });
+
+      // Count negative keywords
+      negativeKeywords.forEach(keyword => {
+        if (lowerSentence.includes(keyword)) {
+          sentenceScore -= 0.3;
+          foundKeywords.push('-' + keyword);
+        }
+      });
+
+      // Determine sentence sentiment
+      let sentenceSentiment = 'neutral';
+      if (sentenceScore > 0.3) sentenceSentiment = 'positive';
+      else if (sentenceScore < -0.3) sentenceSentiment = 'negative';
+
+      if (foundKeywords.length > 0) {
+        drivers.push({
+          text: sentence.substring(0, 100),
+          sentiment: sentenceSentiment,
+          keywords: foundKeywords
+        });
+      }
+
+      totalScore += sentenceScore;
+    });
+
+    // Calculate overall sentiment
+    const avgScore = totalScore / brandSentences.length;
+    const normalizedScore = Math.max(-1, Math.min(1, avgScore)); // Clamp to -1 to +1
+
+    let overallSentiment = 'neutral';
+    if (normalizedScore > 0.2) overallSentiment = 'positive';
+    else if (normalizedScore < -0.2) overallSentiment = 'negative';
+    else if (drivers.some(d => d.sentiment === 'positive') && drivers.some(d => d.sentiment === 'negative')) {
+      overallSentiment = 'mixed';
+    }
+
     return {
-      brandMentioned: Boolean(scorecard.brandMentioned),
-      brandPosition: Math.max(0, parseInt(scorecard.brandPosition) || 0),
-      brandMentionCount: Math.max(0, parseInt(scorecard.brandMentionCount) || 0),
-      competitorsMentioned: Array.isArray(scorecard.competitorsMentioned) ? scorecard.competitorsMentioned : [],
-      visibilityScore: Math.min(100, Math.max(0, parseInt(scorecard.visibilityScore) || 0)),
-      mentionDepth: ['none', 'shallow', 'moderate', 'detailed'].includes(scorecard.mentionDepth) 
-        ? scorecard.mentionDepth : 'none',
-      contextQuality: Math.min(100, Math.max(0, parseInt(scorecard.contextQuality) || 0)),
-      sentencesAboutBrand: Math.max(0, parseInt(scorecard.sentencesAboutBrand) || 0),
-      characterCount: Math.max(0, parseInt(scorecard.characterCount) || 0),
-      citationPresent: Boolean(scorecard.citationPresent),
-      citationType: ['none', 'direct_link', 'reference', 'mention'].includes(scorecard.citationType)
-        ? scorecard.citationType : 'none',
-      trustSignals: Array.isArray(scorecard.trustSignals) ? scorecard.trustSignals : [],
-      expertiseIndicators: Math.min(100, Math.max(0, parseInt(scorecard.expertiseIndicators) || 0)),
-      competitorCount: Math.max(0, parseInt(scorecard.competitorCount) || 0),
-      rankingPosition: Math.max(0, parseInt(scorecard.rankingPosition) || 0),
-      comparativeMentions: Array.isArray(scorecard.comparativeMentions) ? scorecard.comparativeMentions : [],
-      uniqueValuePropsHighlighted: Array.isArray(scorecard.uniqueValuePropsHighlighted) 
-        ? scorecard.uniqueValuePropsHighlighted : [],
-      relevanceScore: Math.min(100, Math.max(0, parseInt(scorecard.relevanceScore) || 0)),
-      intentMatch: Math.min(100, Math.max(0, parseInt(scorecard.intentMatch) || 0)),
-      responseLength: Math.max(0, parseInt(scorecard.responseLength) || 0),
-      responseCompleteness: Math.min(100, Math.max(0, parseInt(scorecard.responseCompleteness) || 0)),
-      overallScore: Math.min(100, Math.max(0, parseInt(scorecard.overallScore) || 0))
+      sentiment: overallSentiment,
+      sentimentScore: normalizedScore,
+      drivers: drivers.slice(0, 5) // Top 5 drivers
     };
   }
 
   /**
-   * Get default scorecard for failed tests
+   * Extract brand metrics from response text with sentence-level data
+   * @param {string} responseText - LLM response
+   * @param {Array} citations - Extracted citations
+   * @param {string} brandName - Primary brand name
+   * @param {Array} competitors - Competitor brands
+   * @returns {Array} - brandMetrics array with complete data
    */
-  getDefaultScorecard() {
+  extractBrandMetrics(responseText, citations, brandName, competitors = []) {
+    // Split response into sentences
+    const sentences = responseText
+      .replace(/([.!?])\s+/g, '$1|')
+      .split('|')
+      .filter(s => s.trim().length > 0);
+
+    const allBrands = [brandName, ...competitors.map(c => c.name)];
+    const brandMetrics = [];
+
+    // Process each brand
+    allBrands.forEach((brand, brandIndex) => {
+      const brandRegex = new RegExp(brand, 'gi');
+
+      // Count brand mentions and track sentences
+      const brandSentences = [];
+      let mentionCount = 0;
+      let firstPosition = null;
+      let totalWordCount = 0;
+
+      sentences.forEach((sentence, idx) => {
+        const mentions = (sentence.match(brandRegex) || []).length;
+
+        if (mentions > 0) {
+          mentionCount += mentions;
+
+          if (firstPosition === null) {
+            firstPosition = idx + 1; // 1-indexed
+          }
+
+          const words = sentence.trim().split(/\s+/).length;
+          totalWordCount += words;
+
+          brandSentences.push({
+            text: sentence.trim(),
+            position: idx,        // 0-indexed for depth calculation
+            wordCount: words
+          });
+        }
+      });
+
+      // Get and categorize citations for this brand
+      const brandCitations = citations.filter(cit =>
+        cit.url.toLowerCase().includes(brand.toLowerCase().replace(/\s+/g, ''))
+      );
+
+      // Categorize citations
+      let brandCitationsCount = 0;
+      let earnedCitationsCount = 0;
+      let socialCitationsCount = 0;
+
+      const categorizedCitations = brandCitations.map(cit => {
+        const citationType = this.categorizeCitation(cit.url, brand);
+        
+        // Count by type
+        if (citationType === 'brand') brandCitationsCount++;
+        else if (citationType === 'earned') earnedCitationsCount++;
+        else if (citationType === 'social') socialCitationsCount++;
+
+        return {
+          url: cit.url,
+          type: citationType,
+          context: cit.text || 'Citation'
+        };
+      });
+
+      // Analyze sentiment for this brand
+      const sentimentAnalysis = this.analyzeSentiment(responseText, brand);
+
+      // Only add to metrics if brand was mentioned
+      if (mentionCount > 0) {
+        brandMetrics.push({
+          brandName: brand,
+          mentioned: true,
+          firstPosition,
+          mentionCount,
+          sentences: brandSentences,        // For depth calculation
+          totalWordCount: totalWordCount,   // For depth calculation
+          citationMetrics: {
+            brandCitations: brandCitationsCount,
+            earnedCitations: earnedCitationsCount,
+            socialCitations: socialCitationsCount,
+            totalCitations: categorizedCitations.length
+          },
+          sentiment: sentimentAnalysis.sentiment,
+          sentimentScore: sentimentAnalysis.sentimentScore,
+          sentimentDrivers: sentimentAnalysis.drivers,
+          citations: categorizedCitations
+        });
+      }
+    });
+
+    return brandMetrics;
+
+    // Add earned citations to primary brand if mentioned
+    const assignedUrls = new Set(
+      brandMetrics.flatMap(bm => bm.citations.map(c => c.url))
+    );
+    const earnedCitations = citations.filter(cit => !assignedUrls.has(cit.url));
+
+    if (earnedCitations.length > 0 && brandMetrics.length > 0) {
+      brandMetrics[0].citations.push(...earnedCitations.map(cit => ({
+        url: cit.url,
+        type: 'earned',
+        context: cit.text || 'Citation'
+      })));
+    }
+
+    return brandMetrics;
+  }
+
+  /**
+   * Calculate deterministic score based on brand mentions, position, and citations
+   * @param {string} responseText - LLM response text
+   * @param {Array} citations - Extracted citations
+   * @param {object} brandContext - Brand information
+   * @returns {object} - Scorecard with visibility and overall scores
+   */
+  calculateDeterministicScore(responseText, citations, brandContext) {
+    const brandName = brandContext.companyName || 'the brand';
+    const competitors = brandContext.competitors || [];
+
+    console.log(`      🎯 [SCORING] Creating simple scorecard for: ${brandName}`);
+
+    // Count brand mentions
+    const brandRegex = new RegExp(brandName, 'gi');
+    const brandMentions = (responseText.match(brandRegex) || []).length;
+    const brandMentioned = brandMentions > 0;
+
+    // Calculate brand position (which sentence brand first appears in)
+    let brandPosition = null;
+    if (brandMentioned) {
+      const sentences = responseText.split(/[.!?]+/).filter(s => s.trim().length > 0);
+      for (let i = 0; i < sentences.length; i++) {
+        if (sentences[i].toLowerCase().includes(brandName.toLowerCase())) {
+          brandPosition = i + 1; // 1-indexed
+          break;
+        }
+      }
+    }
+
+    // Categorize brand citations
+    const allBrandCitations = citations.filter(c =>
+      c.url.toLowerCase().includes(brandName.toLowerCase().replace(/\s+/g, ''))
+    );
+    
+    let brandCitationsCount = 0;
+    let earnedCitationsCount = 0;
+    let socialCitationsCount = 0;
+    
+    allBrandCitations.forEach(cit => {
+      const citType = this.categorizeCitation(cit.url, brandName);
+      if (citType === 'brand') brandCitationsCount++;
+      else if (citType === 'earned') earnedCitationsCount++;
+      else if (citType === 'social') socialCitationsCount++;
+    });
+    
+    const totalCitations = allBrandCitations.length;
+    const citationPresent = totalCitations > 0;
+    const citationType = brandCitationsCount > 0 ? 'direct_link' : 
+                        earnedCitationsCount > 0 ? 'reference' : 
+                        socialCitationsCount > 0 ? 'social' : 'none';
+
+    // Find competitors mentioned in response
+    const competitorsMentioned = [];
+    
+    competitors.forEach(comp => {
+      const regex = new RegExp(comp.name, 'gi');
+      const mentions = (responseText.match(regex) || []).length;
+      if (mentions > 0) {
+        competitorsMentioned.push(comp.name);
+      }
+    });
+
+    // Analyze sentiment for user's brand
+    const sentimentAnalysis = this.analyzeSentiment(responseText, brandName);
+
+    console.log(`      📊 [SCORECARD] Brand: ${brandName}`);
+    console.log(`         Mentioned: ${brandMentioned}, Count: ${brandMentions}, Position: ${brandPosition}`);
+    console.log(`         Citations - Brand: ${brandCitationsCount}, Earned: ${earnedCitationsCount}, Social: ${socialCitationsCount}`);
+    console.log(`         Sentiment: ${sentimentAnalysis.sentiment} (Score: ${sentimentAnalysis.sentimentScore.toFixed(2)})`);
+
     return {
-      brandMentioned: false,
-      brandPosition: 0,
-      brandMentionCount: 0,
-      competitorsMentioned: [],
-      visibilityScore: 0,
-      mentionDepth: 'none',
-      contextQuality: 0,
-      sentencesAboutBrand: 0,
-      characterCount: 0,
-      citationPresent: false,
-      citationType: 'none',
-      trustSignals: [],
-      expertiseIndicators: 0,
-      competitorCount: 0,
-      rankingPosition: 0,
-      comparativeMentions: [],
-      uniqueValuePropsHighlighted: [],
-      relevanceScore: 0,
-      intentMatch: 0,
-      responseLength: 0,
-      responseCompleteness: 0,
-      overallScore: 0
+      brandMentioned,
+      brandPosition,
+      brandMentionCount: brandMentions,
+      citationPresent,
+      citationType,
+      brandCitations: brandCitationsCount,
+      earnedCitations: earnedCitationsCount,
+      socialCitations: socialCitationsCount,
+      totalCitations: totalCitations,
+      sentiment: sentimentAnalysis.sentiment,
+      sentimentScore: sentimentAnalysis.sentimentScore,
+      competitorsMentioned
     };
   }
+
 
   /**
    * Save test result to database
    */
-  async saveTestResult(prompt, llmProvider, llmResponse, scorecard) {
+  async saveTestResult(prompt, llmProvider, llmResponse, scorecard, urlAnalysisId, brandContext) {
     try {
       console.log(`      💾 [SAVE] Preparing to save test result for ${llmProvider}`);
-      
+
       // Extract IDs from populated objects if needed
       const topicId = prompt.topicId?._id || prompt.topicId;
       const personaId = prompt.personaId?._id || prompt.personaId;
-      
+
       console.log(`      📋 [SAVE] Extracted IDs - topicId: ${topicId}, personaId: ${personaId}, queryType: ${prompt.queryType}`);
-      
+
       // Ensure we have the required fields
       if (!topicId || !personaId || !prompt.queryType) {
         console.error(`      ❌ [SAVE ERROR] Missing required fields in prompt:`, {
@@ -557,9 +746,25 @@ Be objective, thorough, and consistent. Return ONLY valid JSON, no markdown or e
         });
         throw new Error('Missing required fields: topicId, personaId, or queryType');
       }
-      
+
+      // Extract complete brand metrics (mentions, positions, sentences, citations)
+      const brandMetrics = this.extractBrandMetrics(
+        llmResponse.response,
+        llmResponse.citations || [],
+        brandContext.companyName,
+        brandContext.competitors
+      );
+
+      console.log(`      📊 [SAVE] Extracted ${brandMetrics.length} brand entries with complete metrics`);
+
+      // Calculate response metadata for depth calculations
+      const sentences = llmResponse.response.split(/[.!?]+/).filter(s => s.trim().length > 0);
+      const totalSentences = sentences.length;
+      const totalWords = llmResponse.response.trim().split(/\s+/).length;
+
       const testResult = new PromptTest({
         userId: prompt.userId,
+        urlAnalysisId: urlAnalysisId,
         promptId: prompt._id,
         topicId: topicId,
         personaId: personaId,
@@ -571,14 +776,20 @@ Be objective, thorough, and consistent. Return ONLY valid JSON, no markdown or e
         responseTime: llmResponse.responseTime,
         tokensUsed: llmResponse.tokensUsed,
         scorecard: scorecard,
+        brandMetrics: brandMetrics,
+        responseMetadata: {
+          totalSentences: totalSentences,
+          totalWords: totalWords,
+          totalBrandsDetected: brandMetrics.length
+        },
         status: 'completed',
         scoredAt: new Date()
       });
-      
+
       await testResult.save();
-      console.log(`      ✅ [SAVE] Test result saved successfully`);
+      console.log(`      ✅ [SAVE] Test result saved successfully with ${brandMetrics.length} brand metrics`);
       return testResult;
-      
+
     } catch (error) {
       console.error('      ❌ [SAVE ERROR] Failed to save test result:', error.message);
       throw error;
@@ -588,14 +799,14 @@ Be objective, thorough, and consistent. Return ONLY valid JSON, no markdown or e
   /**
    * Create a failed test record
    */
-  async createFailedTest(prompt, llmProvider, errorMessage) {
+  async createFailedTest(prompt, llmProvider, errorMessage, urlAnalysisId) {
     try {
       console.log(`      💾 [FAILED TEST] Saving failed test for ${llmProvider}`);
-      
+
       // Extract IDs from populated objects if needed
       const topicId = prompt.topicId?._id || prompt.topicId;
       const personaId = prompt.personaId?._id || prompt.personaId;
-      
+
       // Check if we have required fields, return plain object if not (can't save)
       if (!topicId || !personaId || !prompt.queryType) {
         console.error(`      ❌ [FAILED TEST] Cannot save - missing required fields`);
@@ -605,9 +816,10 @@ Be objective, thorough, and consistent. Return ONLY valid JSON, no markdown or e
           llmProvider: llmProvider
         };
       }
-      
+
       const testResult = new PromptTest({
         userId: prompt.userId,
+        urlAnalysisId: urlAnalysisId,
         promptId: prompt._id,
         topicId: topicId,
         personaId: personaId,
