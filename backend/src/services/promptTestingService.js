@@ -402,12 +402,18 @@ Be thorough, accurate, and helpful in your responses.`;
    */
   categorizeCitation(url, brandName) {
     const urlLower = url.toLowerCase();
-    const brandLower = brandName.toLowerCase().replace(/\s+/g, '');
+    
+    // Extract core brand name (e.g., "HDFC Bank" from "HDFC Bank Freedom Credit Card")
+    const brandParts = brandName.toLowerCase().split(/\s+/);
+    const coreBrandName = brandParts.slice(0, Math.min(2, brandParts.length)).join('').replace(/[^a-z0-9]/g, '');
     
     // Check if it's a direct brand link
-    if (urlLower.includes(brandLower + '.com') || 
-        urlLower.includes(brandLower + '.io') ||
-        urlLower.includes(brandLower + '.ai')) {
+    if (urlLower.includes(coreBrandName + '.com') || 
+        urlLower.includes(coreBrandName + '.io') ||
+        urlLower.includes(coreBrandName + '.ai') ||
+        urlLower.includes(coreBrandName + '.in') ||
+        urlLower.includes('://' + coreBrandName) ||
+        urlLower.includes('www.' + coreBrandName)) {
       return 'brand';
     }
     
@@ -564,9 +570,15 @@ Be thorough, accurate, and helpful in your responses.`;
       });
 
       // Get and categorize citations for this brand
-      const brandCitations = citations.filter(cit =>
-        cit.url.toLowerCase().includes(brand.toLowerCase().replace(/\s+/g, ''))
-      );
+      // Extract core brand name (e.g., "HDFC Bank" from "HDFC Bank Freedom Credit Card")
+      const brandParts = brand.toLowerCase().split(/\s+/);
+      const coreBrandName = brandParts.slice(0, Math.min(2, brandParts.length)).join('').replace(/[^a-z0-9]/g, '');
+      
+      const brandCitations = citations.filter(cit => {
+        const urlLower = cit.url.toLowerCase();
+        // Try to match core brand name in URL (e.g., "hdfcbank" in "hdfcbank.com")
+        return urlLower.includes(coreBrandName);
+      });
 
       // Categorize citations
       let brandCitationsCount = 0;

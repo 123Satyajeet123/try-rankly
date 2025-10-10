@@ -330,12 +330,15 @@ router.get('/all', authenticateToken, async (req, res) => {
         // ✅ AI-Powered Performance Insights
         aiInsights: aiInsights,
         
-        // Platform-level data
+        // Platform-level data (formatted)
         platforms: platforms.map(p => ({
           platform: p.scopeValue,
           visibility: formatVisibilityData(p, userBrandName),
           depth: formatDepthData(p, userBrandName)
         })),
+        
+        // ✅ Raw platform data for citation analysis
+        platformMetrics: platforms,
         
         lastUpdated: overall?.lastCalculated || new Date()
       }

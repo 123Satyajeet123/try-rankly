@@ -478,10 +478,9 @@ class MetricsAggregationService {
       depthOfMention = parseFloat(((weightedWordCount / totalWordsAllResponses) * 100).toFixed(4));
     }
 
-    // 4. Citation Share = % of tests where brand was cited
-    const citationShare = brandData.totalAppearances > 0
-      ? parseFloat(((brandData.citationCount / brandData.totalAppearances) * 100).toFixed(2))
-      : 0;
+    // 4. Citation Share = Will be calculated later in assignRanks()
+    // Formula: CitationShare(b) = (Total citations of Brand b / Total citations of all brands) × 100
+    const citationShare = 0; // Placeholder, calculated in assignRanks()
 
     // 5. Sentiment Score = Average sentiment score
     const sentimentScore = brandData.sentimentScores.length > 0
@@ -557,6 +556,16 @@ class MetricsAggregationService {
     brandMetrics.forEach(b => {
       b.shareOfVoice = totalMentions > 0
         ? parseFloat(((b.totalMentions / totalMentions) * 100).toFixed(2))
+        : 0;
+    });
+
+    // Calculate Citation Share (needs total citations across all brands)
+    // Formula: CitationShare(b) = (Total citations of Brand b / Total citations of all brands) × 100
+    const totalCitations = brandMetrics.reduce((sum, b) => sum + (b.totalCitations || 0), 0);
+    
+    brandMetrics.forEach(b => {
+      b.citationShare = totalCitations > 0
+        ? parseFloat(((b.totalCitations / totalCitations) * 100).toFixed(2))
         : 0;
     });
 

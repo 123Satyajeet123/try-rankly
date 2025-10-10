@@ -99,7 +99,7 @@ Each test result contains metrics for **ALL BRANDS** (your brand + competitors):
 }
 ```
 
-**Current State:** 16 tests stored, each with metrics for 4 brands (Stripe + 3 competitors)
+**Current State:** 8 tests stored, each with metrics for 3 brands (HDFC Bank Freedom Credit Card + 2 competitors)
 
 ---
 
@@ -115,66 +115,70 @@ Step 5 takes the raw `brandMetrics` and calculates aggregated metrics for **EACH
   scope: "overall",  // or "platform", "topic", "persona"
   scopeValue: "all", // or "chatgpt", "Payment Processing", "Developer"
   
-  totalPrompts: 30,
-  totalResponses: 120,  // 30 prompts × 4 LLMs
-  totalBrands: 4,       // Stripe + 3 competitors
+  totalPrompts: 2,
+  totalResponses: 8,    // 2 prompts × 4 LLMs
+  totalBrands: 3,       // HDFC Bank Freedom Credit Card + 2 competitors
   
   // METRICS FOR ALL BRANDS
   brandMetrics: [
     {
-      brandId: "stripe",
-      brandName: "Stripe",
+      brandId: "hdfc-bank-freedom-credit-card",
+      brandName: "HDFC Bank Freedom Credit Card",
       
       // Core Metrics
-      visibilityScore: 85,      // 0-100 score
+      visibilityScore: 50,      // 0-100 score (1/2 prompts = 50%)
       visibilityRank: 1,        // Ranked #1
       
-      wordCount: 3167,          // Total words about Stripe
-      wordCountRank: 1,
-      
-      depthOfMention: 450,      // Depth score
-      depthRank: 1,
-      
-      shareOfVoice: 25.5,       // % of tests mentioning Stripe
+      shareOfVoice: 85.71,      // % of total mentions
       shareOfVoiceRank: 1,
       
-      avgPosition: 1.13,        // Average position (1.0 = always 1st)
+      avgPosition: 1.0,         // Average position (1.0 = always 1st)
       avgPositionRank: 1,
       
-      // Position Distribution
-      count1st: 10,             // Mentioned 1st: 10 times
-      count2nd: 5,              // Mentioned 2nd: 5 times
-      count3rd: 3,              // Mentioned 3rd: 3 times
-      rank1st: 1,               // Ranked #1 for 1st mentions
-      rank2nd: 1,
-      rank3rd: 1,
+      depthOfMention: 7.41,     // Depth score
+      depthRank: 1,
+      
+      // Citation Metrics
+      citationShare: 100,       // % of citations
+      citationShareRank: 1,
+      brandCitationsTotal: 14,  // Brand website citations
+      earnedCitationsTotal: 0,  // Third-party citations
+      socialCitationsTotal: 0,  // Social media citations
+      totalCitations: 14,
+      
+      // Sentiment Metrics
+      sentimentScore: 0.09,     // -1 to 1 scale
+      sentimentBreakdown: {
+        positive: 1,
+        neutral: 3,
+        negative: 0,
+        mixed: 0
+      },
       
       // Raw Data
-      totalAppearances: 18,     // Appeared in 18 responses
-      totalMentions: 233,       // Mentioned 233 times total
-      totalWordCountRaw: 3167   // 3167 words written about Stripe
+      totalAppearances: 1,      // Appeared in 1 unique prompt
+      totalMentions: 12,        // Mentioned 12 times total
     },
     {
-      brandId: "paypal",
-      brandName: "PayPal",      // ← COMPETITOR 1 METRICS
-      visibilityScore: 78,
+      brandId: "chase-freedom-flex",
+      brandName: "Chase Freedom Flex",  // ← COMPETITOR 1 METRICS
+      visibilityScore: 50,
       visibilityRank: 2,        // Ranked #2
-      shareOfVoice: 15.2,
+      shareOfVoice: 7.14,
       avgPosition: 2.0,
+      citationShare: 0,
+      citationShareRank: 2,
       // ... all same metrics as above
     },
     {
-      brandId: "square",
-      brandName: "Square",      // ← COMPETITOR 2 METRICS
-      visibilityScore: 65,
+      brandId: "discover-it-cash-back",
+      brandName: "Discover it Cash Back",  // ← COMPETITOR 2 METRICS
+      visibilityScore: 50,
       visibilityRank: 3,
-      // ... all same metrics
-    },
-    {
-      brandId: "adyen",
-      brandName: "Adyen",       // ← COMPETITOR 3 METRICS
-      visibilityScore: 60,
-      visibilityRank: 4,
+      shareOfVoice: 7.14,
+      avgPosition: 3.0,
+      citationShare: 0,
+      citationShareRank: 3,
       // ... all same metrics
     }
   ],
@@ -193,16 +197,14 @@ Based on your dashboard components, the frontend expects:
 ```typescript
 {
   chartData: [
-    { name: "Stripe", score: 85, color: "#3B82F6" },
-    { name: "PayPal", score: 78, color: "#EF4444" },
-    { name: "Square", score: 65, color: "#8B5CF6" },
-    { name: "Adyen", score: 60, color: "#06B6D4" }
+    { name: "HDFC Bank Freedom Credit Card", score: 50, color: "#3B82F6" },
+    { name: "Chase Freedom Flex", score: 50, color: "#EF4444" },
+    { name: "Discover it Cash Back", score: 50, color: "#8B5CF6" }
   ],
   allRankings: [
-    { rank: 1, name: "Stripe", isOwner: true, rankChange: 0 },
-    { rank: 2, name: "PayPal", isOwner: false, rankChange: 1 },
-    { rank: 3, name: "Square", isOwner: false, rankChange: -1 },
-    { rank: 4, name: "Adyen", isOwner: false, rankChange: 0 }
+    { rank: 1, name: "HDFC Bank Freedom Credit Card", isOwner: true, rankChange: 0 },
+    { rank: 2, name: "Chase Freedom Flex", isOwner: false, rankChange: 0 },
+    { rank: 3, name: "Discover it Cash Back", isOwner: false, rankChange: 0 }
   ]
 }
 ```
@@ -212,18 +214,13 @@ Based on your dashboard components, the frontend expects:
 {
   topicData: [
     {
-      topic: "Global Payment Processing",
+      topic: "Lifestyle Benefits and Merchant Partnerships",
       status: "Leader",  // or "Needs work"
       rankings: [
-        { rank: 1, name: "Stripe", isOwner: true },
-        { rank: 2, name: "PayPal", isOwner: false },
-        // ... top 10 brands for this topic
+        { rank: 1, name: "HDFC Bank Freedom Credit Card", isOwner: true },
+        { rank: 2, name: "Chase Freedom Flex", isOwner: false },
+        { rank: 3, name: "Discover it Cash Back", isOwner: false }
       ]
-    },
-    {
-      topic: "Fraud Prevention",
-      status: "Strong",
-      rankings: [ /* ... */ ]
     }
   ]
 }
@@ -234,32 +231,60 @@ Based on your dashboard components, the frontend expects:
 {
   personaData: [
     {
-      persona: "Developer/Technical Lead",
+      persona: "Family Manager",
       status: "Leader",
       rankings: [
-        { rank: 1, name: "Stripe", isOwner: true },
-        { rank: 2, name: "Square", isOwner: false },
-        // ... top 10 brands for this persona
+        { rank: 1, name: "HDFC Bank Freedom Credit Card", isOwner: true },
+        { rank: 2, name: "Chase Freedom Flex", isOwner: false },
+        { rank: 3, name: "Discover it Cash Back", isOwner: false }
       ]
     }
   ]
 }
 ```
 
-### 4. **Performance Insights**:
+### 4. **Citation Types** (`CitationTypesSection.tsx`):
+```typescript
+{
+  citationData: [
+    {
+      name: "HDFC Bank Freedom Credit Card",
+      brand: 100,    // 100% brand citations (14/14)
+      earned: 0,     // 0% earned citations (0/14)
+      social: 0,     // 0% social citations (0/14)
+      total: 100
+    },
+    {
+      name: "Chase Freedom Flex",
+      brand: 0,      // 0% brand citations (0/0)
+      earned: 0,     // 0% earned citations (0/0)
+      social: 0,     // 0% social citations (0/0)
+      total: 0
+    },
+    {
+      name: "Discover it Cash Back",
+      brand: 0,      // 0% brand citations (0/0)
+      earned: 0,     // 0% earned citations (0/0)
+      social: 0,     // 0% social citations (0/0)
+      total: 0
+    }
+  ]
+}
+```
+
+### 5. **Performance Insights**:
 ```typescript
 {
   shareOfVoice: [
-    { name: "Stripe", value: 25.5 },
-    { name: "PayPal", value: 15.2 },
-    { name: "Square", value: 12.1 },
-    { name: "Adyen", value: 10.8 }
+    { name: "HDFC Bank Freedom Credit Card", value: 85.71 },
+    { name: "Chase Freedom Flex", value: 7.14 },
+    { name: "Discover it Cash Back", value: 7.14 }
   ],
-  positionDistribution: {
-    "Stripe": { "1st": 55%, "2nd": 30%, "3rd": 15% },
-    "PayPal": { "1st": 20%, "2nd": 40%, "3rd": 40% },
-    // ... for all brands
-  }
+  citationShare: [
+    { name: "HDFC Bank Freedom Credit Card", value: 100 },
+    { name: "Chase Freedom Flex", value: 0 },
+    { name: "Discover it Cash Back", value: 0 }
+  ]
 }
 ```
 
@@ -269,12 +294,11 @@ Based on your dashboard components, the frontend expects:
 
 ```
 STEP 4: LLM Testing
-├─ Raw Response → "Stripe is great, PayPal is good, Square works..."
+├─ Raw Response → "HDFC Bank Freedom Credit Card offers great benefits..."
 ├─ Extract Metrics for EACH brand:
-│  ├─ Stripe: mentioned 7x, position 1, 130 words
-│  ├─ PayPal: mentioned 9x, position 2, 147 words
-│  ├─ Square: mentioned 6x, position 3, 113 words
-│  └─ Adyen: mentioned 6x, position 4, 115 words
+│  ├─ HDFC Bank Freedom Credit Card: mentioned 12x, position 1, 14 citations
+│  ├─ Chase Freedom Flex: mentioned 1x, position 2, 0 citations
+│  └─ Discover it Cash Back: mentioned 1x, position 3, 0 citations
 └─ Store in PromptTest.brandMetrics[]
 
                     ↓
@@ -287,9 +311,10 @@ STEP 5: Metrics Aggregation
 │  ├─ Share of Voice (%)
 │  ├─ Average Position (1.0 = always 1st)
 │  ├─ Depth of Mention
-│  ├─ Word Count
-│  └─ Position Distribution (1st/2nd/3rd counts)
-├─ Rank ALL brands (1, 2, 3, 4...)
+│  ├─ Citation Share (%)
+│  ├─ Citation Types (Brand/Earned/Social)
+│  └─ Sentiment Score (-1 to 1)
+├─ Rank ALL brands (1, 2, 3...)
 └─ Store in AggregatedMetrics.brandMetrics[]
 
                     ↓
@@ -302,9 +327,10 @@ STEP 6: Dashboard API
                     ↓
 
 Frontend Dashboard
-├─ Displays user brand (Stripe) highlighted
-├─ Shows competitors (PayPal, Square, Adyen)
+├─ Displays user brand (HDFC Bank Freedom Credit Card) highlighted
+├─ Shows competitors (Chase Freedom Flex, Discover it Cash Back)
 ├─ Charts compare ALL brands
+├─ Citation Types show real data (no hardcoded values)
 └─ Rankings show ALL brands
 ```
 
@@ -314,15 +340,16 @@ Frontend Dashboard
 
 ### Q: "Are these all the metrics?"
 **A:** No! The `test-flow-step4-data.json` is just a summary. The actual database has:
-- ✅ Per-test metrics for ALL brands (Stripe + competitors)
+- ✅ Per-test metrics for ALL brands (HDFC Bank Freedom Credit Card + competitors)
 - ✅ Detailed sentence-level data
-- ✅ Citations per brand
+- ✅ Citations per brand (Brand/Earned/Social breakdown)
 - ✅ Position rankings
+- ✅ Sentiment analysis
 
 ### Q: "Should metrics be computed for competitors?"
 **A:** YES! And they ARE:
-- ✅ Each test tracks metrics for Stripe + ALL 3 selected competitors
-- ✅ Current data shows: Stripe, PayPal, Square, Adyen all tracked
+- ✅ Each test tracks metrics for HDFC Bank Freedom Credit Card + ALL 2 selected competitors
+- ✅ Current data shows: HDFC Bank Freedom Credit Card, Chase Freedom Flex, Discover it Cash Back all tracked
 - ✅ Ready for aggregation
 
 ### Q: "Is this needed for frontend?"
@@ -330,23 +357,24 @@ Frontend Dashboard
 - ✅ Brand comparisons (your brand vs competitors)
 - ✅ Rankings (who's 1st, 2nd, 3rd)
 - ✅ Share of voice comparisons
-- ✅ Position distribution charts
+- ✅ Citation types breakdown (Brand/Earned/Social)
+- ✅ Sentiment analysis
 
 ---
 
-## 📊 Current Test Data (16 tests):
+## 📊 Current Test Data (8 tests):
 
-| Brand | Share of Voice | Total Mentions | Total Words | Avg Position |
-|-------|----------------|----------------|-------------|--------------|
-| **Stripe** (YOU) | 100.0% | 233 | 3,167 | **1.13** 🥇 |
-| PayPal | 100.0% | 46 | 602 | 2.00 |
-| Square | 100.0% | 24 | 346 | 3.00 |
-| Adyen | 100.0% | 36 | 512 | 3.56 |
+| Brand | Share of Voice | Total Mentions | Citations | Avg Position |
+|-------|----------------|----------------|-----------|--------------|
+| **HDFC Bank Freedom Credit Card** (YOU) | 85.71% | 12 | 14 | **1.0** 🥇 |
+| Chase Freedom Flex | 7.14% | 1 | 0 | 2.0 |
+| Discover it Cash Back | 7.14% | 1 | 0 | 3.0 |
 
-**Analysis:** Stripe is performing VERY WELL! 
-- 🥇 Best average position (1.13)
-- 📝 Most words written (3,167)
-- 💬 Most mentions (233)
+**Analysis:** HDFC Bank Freedom Credit Card is performing VERY WELL! 
+- 🥇 Best average position (1.0 - always first)
+- 📝 Most mentions (12)
+- 🔗 Most citations (14 brand citations)
+- 📊 Highest share of voice (85.71%)
 
 ---
 
@@ -355,25 +383,21 @@ Frontend Dashboard
 Step 5 will aggregate all this data and create metrics at multiple levels:
 
 1. **Overall Metrics** - All prompts combined
-   - Stripe: Score 85, Rank #1
-   - PayPal: Score 78, Rank #2
-   - Square: Score 65, Rank #3
-   - Adyen: Score 60, Rank #4
+   - HDFC Bank Freedom Credit Card: Score 50, Rank #1
+   - Chase Freedom Flex: Score 50, Rank #2
+   - Discover it Cash Back: Score 50, Rank #3
 
 2. **Per-Platform** - Separate metrics for each LLM
-   - ChatGPT: Brand rankings for this platform
+   - OpenAI: Brand rankings for this platform
    - Claude: Brand rankings for this platform
    - Perplexity: Brand rankings for this platform
    - Gemini: Brand rankings for this platform
 
 3. **Per-Topic** - Metrics for each topic
-   - "Payment Processing": Stripe vs competitors
-   - "Finance Automation": Stripe vs competitors
-   - "Embedded Finance": Stripe vs competitors
+   - "Lifestyle Benefits and Merchant Partnerships": HDFC Bank Freedom Credit Card vs competitors
 
 4. **Per-Persona** - Metrics for each persona
-   - "Developer": Who ranks best for developers?
-   - "Startup Founder": Who ranks best for founders?
+   - "Family Manager": Who ranks best for family managers?
 
 ---
 
@@ -382,43 +406,42 @@ Step 5 will aggregate all this data and create metrics at multiple levels:
 The frontend needs these visualizations (all using competitor data):
 
 ### 1. **Visibility Score Chart**
-- Shows ALL brands (Stripe + competitors)
+- Shows ALL brands (HDFC Bank Freedom Credit Card + competitors)
 - Bar/Pie chart comparing scores
 - Your brand highlighted
 
 ### 2. **Topic Rankings Table**
-- Per topic: Shows top 10 brands
-- Example: "Payment Processing"
-  - Rank 1: Stripe ✅ (yours)
-  - Rank 2: PayPal
-  - Rank 3: Square
-  - ...
+- Per topic: Shows top brands
+- Example: "Lifestyle Benefits and Merchant Partnerships"
+  - Rank 1: HDFC Bank Freedom Credit Card ✅ (yours)
+  - Rank 2: Chase Freedom Flex
+  - Rank 3: Discover it Cash Back
 
 ### 3. **Persona Rankings Table**
-- Per persona: Shows top 10 brands
-- Example: "Developer/Technical Lead"
-  - Rank 1: Stripe ✅
-  - Rank 2: Square
-  - ...
+- Per persona: Shows top brands
+- Example: "Family Manager"
+  - Rank 1: HDFC Bank Freedom Credit Card ✅
+  - Rank 2: Chase Freedom Flex
+  - Rank 3: Discover it Cash Back
 
 ### 4. **Share of Voice Comparison**
 - Pie chart showing % mention rate
-- Stripe: 25.5%
-- PayPal: 15.2%
-- Square: 12.1%
-- Others: ...
+- HDFC Bank Freedom Credit Card: 85.71%
+- Chase Freedom Flex: 7.14%
+- Discover it Cash Back: 7.14%
 
-### 5. **Average Position Chart**
+### 5. **Citation Types Breakdown**
+- Shows Brand/Earned/Social citation distribution
+- HDFC Bank Freedom Credit Card: 100% brand citations
+- Chase Freedom Flex: 0% citations
+- Discover it Cash Back: 0% citations
+
+### 6. **Average Position Chart**
 - Bar chart comparing avg positions
 - Lower = Better (1.0 is perfect)
-- Stripe: 1.13 🥇
-- PayPal: 2.00
-- Square: 3.00
-
-### 6. **Position Distribution**
-- Shows how often each brand ranks 1st/2nd/3rd
-- Stripe: 55% first, 30% second, 15% third
-- PayPal: 20% first, 40% second, 40% third
+- HDFC Bank Freedom Credit Card: 1.0 🥇
+- Chase Freedom Flex: 2.0
+- Discover it Cash Back: 3.0
 
 ---
 
@@ -427,37 +450,44 @@ The frontend needs these visualizations (all using competitor data):
 **YES, ALL the data IS being stored:**
 
 ✅ **Raw Test Data** (Step 4 - DONE):
-- 16 tests stored
-- Each test has metrics for 4 brands (Stripe + 3 competitors)
-- Metrics include: mentions, positions, word counts, citations
-- Total data points: 16 tests × 4 brands = 64 brand metric records
+- 8 tests stored
+- Each test has metrics for 3 brands (HDFC Bank Freedom Credit Card + 2 competitors)
+- Metrics include: mentions, positions, citations, sentiment
+- Total data points: 8 tests × 3 brands = 24 brand metric records
 
-✅ **Aggregated Metrics** (Step 5 - NEXT):
-- Will calculate overall rankings
-- Will rank all brands (1, 2, 3, 4)
-- Will compute: visibility scores, share of voice, avg position
-- Will generate per-platform, per-topic, per-persona breakdowns
-- Will include ALL brands in each aggregation
+✅ **Aggregated Metrics** (Step 5 - COMPLETED):
+- ✅ Calculated overall rankings
+- ✅ Ranked all brands (1, 2, 3)
+- ✅ Computed: visibility scores, share of voice, avg position, citation share
+- ✅ Generated per-platform, per-topic, per-persona breakdowns
+- ✅ Included ALL brands in each aggregation
 
-✅ **Dashboard API** (Step 6 - After Step 5):
-- Will format aggregated data for frontend
-- Will include competitor comparisons
-- Will show rankings for all brands
+✅ **Dashboard API** (Step 6 - COMPLETED):
+- ✅ Formatted aggregated data for frontend
+- ✅ Included competitor comparisons
+- ✅ Shows rankings for all brands
+- ✅ Fixed Citation Types display (no hardcoded values)
 
 ---
 
-## 🚀 Ready for Step 5?
+## ✅ System Status - COMPLETE!
 
-Step 5 will:
-1. Read all 16 test results (with 4 brands each)
-2. Calculate aggregate metrics (overall + per-platform + per-topic + per-persona)
-3. Rank ALL brands in each category
-4. Store in `AggregatedMetrics` collection
-5. Make data ready for dashboard visualization
+**All steps have been completed:**
 
-**All competitor metrics WILL be included!** ✅
+✅ **Step 4 - LLM Testing**: 8 tests completed with metrics for all brands  
+✅ **Step 5 - Metrics Aggregation**: All metrics calculated and stored  
+✅ **Step 6 - Dashboard API**: Frontend integration complete  
+✅ **Citation Types Fix**: Hardcoded values removed, real data displayed  
 
-Proceed to Step 5? 🎯
+**Current System State:**
+- **Database**: 8 tests, 3 brands, all metrics calculated
+- **API**: `/api/dashboard/all` endpoint working
+- **Frontend**: All components using real data
+- **Citation Types**: Fixed to show actual database values
+
+**All competitor metrics ARE included and working!** ✅
+
+The system is now fully operational with real-time data flow from database to frontend! 🎉
 
 
 
