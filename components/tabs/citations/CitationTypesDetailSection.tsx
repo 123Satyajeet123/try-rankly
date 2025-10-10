@@ -1,406 +1,402 @@
 'use client'
 
-import { useState } from 'react'
 import { UnifiedCard, UnifiedCardContent } from '@/components/ui/unified-card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { 
-  ChevronDown, 
-  ChevronRight,
-  ExternalLink,
-  TrendingUp,
-  TrendingDown,
-  X,
-  Save
-} from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
-import { Textarea } from '@/components/ui/textarea'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Settings, ChevronDown, Calendar as CalendarIcon, ArrowUp, ArrowDown, Expand, ExternalLink, ChevronRight } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Calendar } from '@/components/ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { getDynamicFaviconUrl, handleFaviconError } from '../../../lib/faviconUtils'
+import { useSkeletonLoading } from '@/components/ui/with-skeleton-loading'
+import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
+import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
 
-// Mock data for detailed citation types
-const citationTypesDetail = [
-  {
-    type: "Brand",
-    links: [
-      { 
-        title: "Acme Inc.com", 
-        url: "https://acme-inc.com", 
-        type: "Website",
-        sentiment: "Positive",
-        citationShare: "45.2%",
-        citationRank: "#1",
-        promptSummary: "How can I personalize user experiences to increase engagement?",
-        subjectiveMetrics: {
-          relevance: "The citation directly addresses personalization strategies and provides actionable insights for user engagement. Key points include:\n• Real-time data processing capabilities\n• Machine learning algorithms for behavior analysis\n• A/B testing frameworks for optimization\n• Integration with customer data platforms",
-          influence: "Strong influence on user's understanding of personalization techniques and their impact on engagement metrics. Notable aspects:\n• Case studies showing 25% increase in conversion rates\n• Best practices for segment-based targeting\n• ROI calculations and performance benchmarks\n• Industry comparison with competitors",
-          uniqueness: "Provides unique insights into advanced personalization methods not commonly found in generic marketing content. Distinctive elements:\n• Proprietary AI algorithms for user profiling\n• Custom integration APIs for enterprise clients\n• Advanced analytics dashboard with predictive modeling\n• White-label solutions for agencies",
-          position: "Subjectively positioned as a comprehensive guide that users would find valuable and trustworthy. Positioning factors:\n• Featured in top industry publications\n• Endorsed by leading marketing experts\n• High domain authority and backlink profile\n• Positive user reviews and testimonials",
-          clickProbability: "High probability of clicks due to practical examples and clear value proposition. Engagement drivers:\n• Interactive demo and free trial offer\n• Detailed pricing information upfront\n• Customer success stories and case studies\n• Clear call-to-action buttons",
-          diversity: "Brings diverse perspectives from multiple personalization approaches and industry best practices. Variety includes:\n• E-commerce personalization strategies\n• SaaS product customization techniques\n• B2B lead nurturing automation\n• Cross-platform data synchronization"
-        }
-      },
-      { 
-        title: "TechCorp Solutions", 
-        url: "https://techcorp-solutions.com", 
-        type: "Website",
-        sentiment: "Positive",
-        citationShare: "32.1%",
-        citationRank: "#2"
-      },
-      { 
-        title: "InnovateNow Blog", 
-        url: "https://innovatnow.com/blog", 
-        type: "Blog",
-        sentiment: "Neutral",
-        citationShare: "14.6%",
-        citationRank: "#3"
-      },
-      { 
-        title: "BrandPress Release", 
-        url: "https://brandpress.com/news", 
-        type: "Press",
-        sentiment: "Positive",
-        citationShare: "8.1%",
-        citationRank: "#4"
-      }
-    ]
-  },
-  {
-    type: "Earned",
-    links: [
-      { 
-        title: "ReviewTech.io", 
-        url: "https://reviewtech.io/acme-review", 
-        type: "Review",
-        sentiment: "Positive",
-        citationShare: "0.4%",
-        citationRank: "#1"
-      },
-      { 
-        title: "CompareTools.net", 
-        url: "https://comparetools.net/comparison", 
-        type: "Comparison",
-        sentiment: "Neutral",
-        citationShare: "0.2%",
-        citationRank: "#2"
-      },
-      { 
-        title: "ExpertInsights.com", 
-        url: "https://expertinsights.com/opinion", 
-        type: "Opinion",
-        sentiment: "Positive",
-        citationShare: "0.1%",
-        citationRank: "#3"
-      }
-    ]
-  },
-  {
-    type: "Social",
-    links: [
-      { 
-        title: "LinkedIn Acme Inc", 
-        url: "https://linkedin.com/company/acme-inc", 
-        type: "Social Media",
-        sentiment: "Positive",
-        citationShare: "4.2%",
-        citationRank: "#1"
-      },
-      { 
-        title: "Twitter @AcmeInc", 
-        url: "https://twitter.com/acmeinc", 
-        type: "Social Media",
-        sentiment: "Positive",
-        citationShare: "2.1%",
-        citationRank: "#2"
-      },
-      { 
-        title: "Reddit r/technology", 
-        url: "https://reddit.com/r/technology/acme", 
-        type: "Community",
-        sentiment: "Neutral",
-        citationShare: "0.8%",
-        citationRank: "#3"
-      },
-      { 
-        title: "YouTube TechReview", 
-        url: "https://youtube.com/watch?v=acme-review", 
-        type: "Video",
-        sentiment: "Positive",
-        citationShare: "0.3%",
-        citationRank: "#4"
-      }
-    ]
+interface CitationTypesDetailSectionProps {
+  filterContext?: {
+    selectedTopics: string[]
+    selectedPersonas: string[]
+    selectedPlatforms: string[]
   }
-]
+  dashboardData?: any
+}
 
-export function CitationTypesDetailSection() {
-  const [expandedRows, setExpandedRows] = useState<string[]>([])
-  const [selectedLink, setSelectedLink] = useState<any>(null)
+// Platform colors mapping (favicons will be handled dynamically)
+const platformColors: { [key: string]: string } = {
+  'openai': '#10A37F',
+  'claude': '#FF6B35',
+  'perplexity': '#8B5CF6',
+  'gemini': '#4285F4'
+}
 
-  const toggleRow = (type: string) => {
-    setExpandedRows(prev => 
-      prev.includes(type) 
-        ? prev.filter(t => t !== type)
-        : [...prev, type]
+// Transform dashboard data to detailed citation types format
+const getDetailedCitationData = (dashboardData: any) => {
+  if (!dashboardData?.metrics?.competitorsByCitation || dashboardData.metrics.competitorsByCitation.length === 0) {
+    return { brand: [], earned: [], social: [] }
+  }
+
+  const competitors = dashboardData.metrics.competitorsByCitation
+  const brandData: any[] = []
+  const earnedData: any[] = []
+  const socialData: any[] = []
+
+  // Get platform-specific data from aggregated metrics
+  const platformData = dashboardData.metrics?.platformMetrics || []
+  
+  competitors.forEach((competitor: any, index: number) => {
+    const brandCitations = competitor.brandCitationsTotal || 0
+    const earnedCitations = competitor.earnedCitationsTotal || 0
+    const socialCitations = competitor.socialCitationsTotal || 0
+
+    // Brand citations data
+    if (brandCitations > 0) {
+      const brandPlatforms = []
+      const brandShares = []
+      const brandRanks = []
+
+      // ✅ Fix: Handle the raw platform data structure from database
+      // Platform data now comes as raw database documents with scopeValue and brandMetrics
+      platformData.forEach((platformDoc: any) => {
+        const platformName = platformDoc.scopeValue
+        
+        // Get platform-specific citation data
+        if (platformDoc.brandMetrics && platformDoc.brandMetrics.length > 0) {
+          const brandMetric = platformDoc.brandMetrics.find((bm: any) => bm.brandName === competitor.name)
+          if (brandMetric && brandMetric.brandCitationsTotal > 0) {
+            brandPlatforms.push(platformName)
+            brandShares.push({
+              platform: platformName,
+              percentage: Math.round((brandMetric.brandCitationsTotal / brandCitations) * 100 * 10) / 10
+            })
+            brandRanks.push({
+              platform: platformName,
+              rank: brandMetric.citationShareRank || 1
+            })
+          }
+        }
+      })
+
+      brandData.push({
+        name: competitor.name,
+        type: 'Website',
+        platforms: brandPlatforms,
+        citationShares: brandShares,
+        citationRanks: brandRanks,
+        totalCitations: brandCitations,
+        isOwner: index === 0,
+        favicon: getDynamicFaviconUrl(competitor.name)
+      })
+    }
+
+    // Earned citations data (currently 0 for all brands)
+    if (earnedCitations > 0) {
+      earnedData.push({
+        name: competitor.name,
+        type: 'Blog',
+        platforms: [],
+        citationShares: [],
+        citationRanks: [],
+        totalCitations: earnedCitations,
+        isOwner: index === 0,
+        favicon: getDynamicFaviconUrl(competitor.name)
+      })
+    }
+
+    // Social citations data (currently 0 for all brands)
+    if (socialCitations > 0) {
+      socialData.push({
+        name: competitor.name,
+        type: 'Social',
+        platforms: [],
+        citationShares: [],
+        citationRanks: [],
+        totalCitations: socialCitations,
+        isOwner: index === 0,
+        favicon: getDynamicFaviconUrl(competitor.name)
+      })
+    }
+  })
+
+  return { brand: brandData, earned: earnedData, social: socialData }
+}
+
+export function CitationTypesDetailSection({ filterContext, dashboardData }: CitationTypesDetailSectionProps) {
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
+  const [comparisonDate, setComparisonDate] = useState<Date | undefined>(undefined)
+  const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({
+    brand: true,
+    earned: false,
+    social: false
+  })
+
+  // Skeleton loading
+  const { showSkeleton, isVisible } = useSkeletonLoading(filterContext)
+
+  // Get detailed citation data
+  const citationData = getDetailedCitationData(dashboardData)
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      year: date.getFullYear() !== new Date().getFullYear() ? 'numeric' : undefined
+    })
+  }
+
+  const getDateLabel = () => {
+    if (!selectedDate) return 'Select Date'
+    return formatDate(selectedDate)
+  }
+
+  const toggleSection = (section: string) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }))
+  }
+
+  const getPlatformColor = (platform: string) => {
+    return platformColors[platform] || '#6B7280'
+  }
+
+  const renderCitationRow = (item: any, index: number) => (
+    <TableRow key={`${item.name}-${index}`} className="border-border/60 hover:bg-muted/30 transition-colors">
+      <TableCell className="py-3 px-3">
+        <div className="flex items-center gap-3">
+          <img 
+            src={item.favicon} 
+            alt={item.name}
+            className="w-4 h-4 rounded-sm"
+            onError={handleFaviconError}
+          />
+          <div>
+            <div className="font-medium text-foreground">{item.name}</div>
+            <div className="text-xs text-muted-foreground">({item.type})</div>
+          </div>
+        </div>
+      </TableCell>
+      
+      <TableCell className="py-3 px-3">
+        <div className="flex items-center gap-2">
+          {item.platforms.map((platform: string, idx: number) => {
+            const platformColor = getPlatformColor(platform)
+            return (
+              <div key={idx} className="flex items-center gap-1">
+                <img 
+                  src={getDynamicFaviconUrl(platform, 16)} 
+                  alt={platform}
+                  className="w-4 h-4 rounded-sm"
+                  onError={handleFaviconError}
+                  style={{ border: `1px solid ${platformColor}` }}
+                />
+                <span className="text-xs capitalize">{platform}</span>
+              </div>
+            )
+          })}
+          {item.platforms.length === 0 && (
+            <span className="text-muted-foreground">-</span>
+          )}
+        </div>
+      </TableCell>
+      
+      <TableCell className="py-3 px-3">
+        <div className="space-y-1">
+          {item.citationShares.map((share: any, idx: number) => {
+            const platformColor = getPlatformColor(share.platform)
+            return (
+              <div key={idx} className="flex items-center gap-1">
+                <img 
+                  src={getDynamicFaviconUrl(share.platform, 16)} 
+                  alt={share.platform}
+                  className="w-4 h-4 rounded-sm"
+                  onError={handleFaviconError}
+                  style={{ border: `1px solid ${platformColor}` }}
+                />
+                <span className="text-xs font-medium">{share.percentage}%</span>
+              </div>
+            )
+          })}
+          {item.citationShares.length === 0 && (
+            <span className="text-muted-foreground">-</span>
+          )}
+        </div>
+      </TableCell>
+      
+      <TableCell className="py-3 px-3">
+        <div className="space-y-1">
+          {item.citationRanks.map((rank: any, idx: number) => {
+            const platformColor = getPlatformColor(rank.platform)
+            return (
+              <div key={idx} className="flex items-center gap-1">
+                <img 
+                  src={getDynamicFaviconUrl(rank.platform, 16)} 
+                  alt={rank.platform}
+                  className="w-4 h-4 rounded-sm"
+                  onError={handleFaviconError}
+                  style={{ border: `1px solid ${platformColor}` }}
+                />
+                <span className="text-xs font-medium">#{rank.rank}</span>
+              </div>
+            )
+          })}
+          {item.citationRanks.length === 0 && (
+            <span className="text-muted-foreground">-</span>
+          )}
+        </div>
+      </TableCell>
+      
+      <TableCell className="py-3 px-3">
+        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
+          <ExternalLink className="w-3 h-3 mr-1" />
+          View
+        </Button>
+      </TableCell>
+    </TableRow>
+  )
+
+  if (showSkeleton) {
+    return (
+      <SkeletonWrapper show={showSkeleton} isVisible={isVisible}>
+        <UnifiedCardSkeleton type="table" tableColumns={5} />
+      </SkeletonWrapper>
     )
   }
 
-  const handleViewClick = (link: any) => {
-    setSelectedLink(link)
-  }
-
-  const getSentimentColor = (sentiment: string) => {
-    switch (sentiment) {
-      case 'Positive':
-        return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-      case 'Neutral':
-        return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200'
-      case 'Negative':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
-    }
-  }
-
-  const getTrendIcon = (trend: string) => {
-    switch (trend) {
-      case 'up':
-        return <TrendingUp className="w-3 h-3 text-green-600" />
-      case 'down':
-        return <TrendingDown className="w-3 h-3 text-red-600" />
-      default:
-        return null
-    }
-  }
-
   return (
-    <div id="citation-types-detail">
-      <UnifiedCard>
-        <UnifiedCardContent className="p-6">
-          <div className="space-y-4">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-              <h3 className="text-xl font-semibold">All Citation Types</h3>
-              <Badge variant="outline" className="text-sm">
-                3 citation types
-              </Badge>
-            </div>
-
-            {/* Table */}
-            <div className="border rounded-lg overflow-hidden">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10"></TableHead>
-                    <TableHead>Citation Type</TableHead>
-                    <TableHead>Sentiment</TableHead>
-                    <TableHead>Citation Share</TableHead>
-                    <TableHead>Citation Rank</TableHead>
-                    <TableHead className="w-20"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {citationTypesDetail.map((item, index) => (
-                    <>
-                      <TableRow 
-                        key={item.type}
-                        className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                        onClick={() => toggleRow(item.type)}
-                      >
-                        <TableCell>
-                          {expandedRows.includes(item.type) ? (
-                            <ChevronDown className="w-4 h-4" />
-                          ) : (
-                            <ChevronRight className="w-4 h-4" />
-                          )}
-                        </TableCell>
-                        <TableCell className="font-medium">{item.type}</TableCell>
-                        <TableCell className="text-muted-foreground">-</TableCell>
-                        <TableCell className="text-muted-foreground">-</TableCell>
-                        <TableCell className="text-muted-foreground">-</TableCell>
-                        <TableCell></TableCell>
-                      </TableRow>
-                      
-                      {/* Expanded content */}
-                      {expandedRows.includes(item.type) && 
-                        item.links.map((link, linkIndex) => (
-                          <TableRow key={`${item.type}-${linkIndex}`} className="bg-gray-50 dark:bg-gray-900/50">
-                            <TableCell></TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium text-sm">{link.title}</span>
-                                <Badge variant="outline" className="text-xs">
-                                  {link.type}
-                                </Badge>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Badge className={getSentimentColor(link.sentiment)}>
-                                {link.sentiment}
-                              </Badge>
-                            </TableCell>
-                            <TableCell className="font-medium text-sm">
-                              {link.citationShare}
-                            </TableCell>
-                            <TableCell className="font-medium text-sm">
-                              {link.citationRank}
-                            </TableCell>
-                            <TableCell>
-                              <Sheet>
-                                <SheetTrigger asChild>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
-                                    className="h-auto p-0 text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 text-sm font-medium"
-                                    onClick={() => handleViewClick(link)}
-                                  >
-                                    <span>View</span>
-                                    <ExternalLink className="w-3 h-3 ml-1" />
-                                  </Button>
-                                </SheetTrigger>
-                                <SheetContent className="w-[600px] sm:w-[700px]">
-                                  <SheetHeader>
-                                    <SheetTitle className="flex items-center gap-2">
-                                      <ExternalLink className="w-5 h-5" />
-                                      Subjective Impression Analysis
-                                    </SheetTitle>
-                                    <SheetDescription>
-                                      Detailed analysis for: <span className="font-semibold">{link.title}</span>
-                                    </SheetDescription>
-                                  </SheetHeader>
-                                  
-                                  <div className="mt-6 space-y-4">
-                                    <div className="p-4 bg-muted/50 rounded-lg">
-                                      <h4 className="font-semibold text-sm mb-2">Prompt Summary</h4>
-                                      <p className="text-sm text-muted-foreground">{link.promptSummary}</p>
-                                    </div>
-                                    
-                                    <Accordion type="multiple" className="w-full">
-                                      <AccordionItem value="relevance">
-                                        <AccordionTrigger className="text-sm font-medium">
-                                          <div className="flex flex-col items-start">
-                                            <span>Relevance</span>
-                                            <span className="text-xs text-muted-foreground font-normal">Is the citation actually answering the query?</span>
-                                          </div>
-                                        </AccordionTrigger>
-                                        <AccordionContent>
-                                          <Textarea
-                                            value={link.subjectiveMetrics?.relevance || ""}
-                                            readOnly
-                                            className="min-h-[120px] resize-none"
-                                          />
-                                        </AccordionContent>
-                                      </AccordionItem>
-                                      
-                                      <AccordionItem value="influence">
-                                        <AccordionTrigger className="text-sm font-medium">
-                                          <div className="flex flex-col items-start">
-                                            <span>Influence</span>
-                                            <span className="text-xs text-muted-foreground font-normal">Does it shape the user's takeaway?</span>
-                                          </div>
-                                        </AccordionTrigger>
-                                        <AccordionContent>
-                                          <Textarea
-                                            value={link.subjectiveMetrics?.influence || ""}
-                                            readOnly
-                                            className="min-h-[120px] resize-none"
-                                          />
-                                        </AccordionContent>
-                                      </AccordionItem>
-                                      
-                                      <AccordionItem value="uniqueness">
-                                        <AccordionTrigger className="text-sm font-medium">
-                                          <div className="flex flex-col items-start">
-                                            <span>Uniqueness</span>
-                                            <span className="text-xs text-muted-foreground font-normal">Is the info special, or just repeated elsewhere?</span>
-                                          </div>
-                                        </AccordionTrigger>
-                                        <AccordionContent>
-                                          <Textarea
-                                            value={link.subjectiveMetrics?.uniqueness || ""}
-                                            readOnly
-                                            className="min-h-[120px] resize-none"
-                                          />
-                                        </AccordionContent>
-                                      </AccordionItem>
-                                      
-                                      <AccordionItem value="position">
-                                        <AccordionTrigger className="text-sm font-medium">
-                                          <div className="flex flex-col items-start">
-                                            <span>Position</span>
-                                            <span className="text-xs text-muted-foreground font-normal">Subjectively measured, not just raw position.</span>
-                                          </div>
-                                        </AccordionTrigger>
-                                        <AccordionContent>
-                                          <Textarea
-                                            value={link.subjectiveMetrics?.position || ""}
-                                            readOnly
-                                            className="min-h-[120px] resize-none"
-                                          />
-                                        </AccordionContent>
-                                      </AccordionItem>
-                                      
-                                      <AccordionItem value="clickProbability">
-                                        <AccordionTrigger className="text-sm font-medium">
-                                          <div className="flex flex-col items-start">
-                                            <span>Click Probability</span>
-                                            <span className="text-xs text-muted-foreground font-normal">Would the user click the citation if links are shown?</span>
-                                          </div>
-                                        </AccordionTrigger>
-                                        <AccordionContent>
-                                          <Textarea
-                                            value={link.subjectiveMetrics?.clickProbability || ""}
-                                            readOnly
-                                            className="min-h-[120px] resize-none"
-                                          />
-                                        </AccordionContent>
-                                      </AccordionItem>
-                                      
-                                      <AccordionItem value="diversity">
-                                        <AccordionTrigger className="text-sm font-medium">
-                                          <div className="flex flex-col items-start">
-                                            <span>Diversity</span>
-                                            <span className="text-xs text-muted-foreground font-normal">Does the citation bring in a new perspective?</span>
-                                          </div>
-                                        </AccordionTrigger>
-                                        <AccordionContent>
-                                          <Textarea
-                                            value={link.subjectiveMetrics?.diversity || ""}
-                                            readOnly
-                                            className="min-h-[120px] resize-none"
-                                          />
-                                        </AccordionContent>
-                                      </AccordionItem>
-                                    </Accordion>
-                                  </div>
-                                  
-                                  <div className="flex items-center justify-end gap-3 mt-8 pt-4 border-t">
-                                    <Button variant="outline" size="sm" className="gap-2">
-                                      <Save className="w-4 h-4" />
-                                      Save Changes
-                                    </Button>
-                                    <SheetTrigger asChild>
-                                      <Button variant="default" size="sm" className="gap-2">
-                                        <X className="w-4 h-4" />
-                                        Close
-                                      </Button>
-                                    </SheetTrigger>
-                                  </div>
-                                </SheetContent>
-                              </Sheet>
-                            </TableCell>
-                          </TableRow>
-                        ))
-                      }
-                    </>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+    <UnifiedCard className="h-full">
+      <UnifiedCardContent className="p-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-semibold text-foreground">All Citation Types</h2>
+            <Badge variant="secondary" className="text-xs">
+              {citationData.brand.length + citationData.earned.length + citationData.social.length} citation types
+            </Badge>
           </div>
-        </UnifiedCardContent>
-      </UnifiedCard>
-    </div>
+          
+          <div className="flex items-center gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8 px-3">
+                  <CalendarIcon className="w-4 h-4 mr-2" />
+                  {getDateLabel()}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={setSelectedDate}
+                  className="rounded-md border"
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        </div>
+
+        {/* Table */}
+        <div className="rounded-lg border border-border/60 overflow-hidden">
+          <Table>
+            <TableHeader>
+              <TableRow className="bg-muted/30">
+                <TableHead className="py-3 px-3 font-semibold">Citation Type</TableHead>
+                <TableHead className="py-3 px-3 font-semibold">Platform(s)</TableHead>
+                <TableHead className="py-3 px-3 font-semibold">Citation Share</TableHead>
+                <TableHead className="py-3 px-3 font-semibold">Citation Rank</TableHead>
+                <TableHead className="py-3 px-3 font-semibold">Subjective Impression</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {/* Brand Section */}
+              <TableRow className="border-b-2 border-border/60">
+                <TableCell colSpan={5} className="p-0">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-between p-3 h-auto font-semibold hover:bg-muted/50"
+                    onClick={() => toggleSection('brand')}
+                  >
+                    <span className="flex items-center gap-2">
+                      <ChevronRight className={`w-4 h-4 transition-transform ${expandedSections.brand ? 'rotate-90' : ''}`} />
+                      Brand
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {citationData.brand.length} items
+                    </span>
+                  </Button>
+                </TableCell>
+              </TableRow>
+              
+              {expandedSections.brand && citationData.brand.map((item, index) => renderCitationRow(item, index))}
+              {expandedSections.brand && citationData.brand.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    No brand citations found
+                  </TableCell>
+                </TableRow>
+              )}
+
+              {/* Earned Section */}
+              <TableRow className="border-b-2 border-border/60">
+                <TableCell colSpan={5} className="p-0">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-between p-3 h-auto font-semibold hover:bg-muted/50"
+                    onClick={() => toggleSection('earned')}
+                  >
+                    <span className="flex items-center gap-2">
+                      <ChevronRight className={`w-4 h-4 transition-transform ${expandedSections.earned ? 'rotate-90' : ''}`} />
+                      Earned
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {citationData.earned.length} items
+                    </span>
+                  </Button>
+                </TableCell>
+              </TableRow>
+              
+              {expandedSections.earned && citationData.earned.map((item, index) => renderCitationRow(item, index))}
+              {expandedSections.earned && citationData.earned.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    No earned citations found
+                  </TableCell>
+                </TableRow>
+              )}
+
+              {/* Social Section */}
+              <TableRow>
+                <TableCell colSpan={5} className="p-0">
+                  <Button
+                    variant="ghost"
+                    className="w-full justify-between p-3 h-auto font-semibold hover:bg-muted/50"
+                    onClick={() => toggleSection('social')}
+                  >
+                    <span className="flex items-center gap-2">
+                      <ChevronRight className={`w-4 h-4 transition-transform ${expandedSections.social ? 'rotate-90' : ''}`} />
+                      Social
+                    </span>
+                    <span className="text-sm text-muted-foreground">
+                      {citationData.social.length} items
+                    </span>
+                  </Button>
+                </TableCell>
+              </TableRow>
+              
+              {expandedSections.social && citationData.social.map((item, index) => renderCitationRow(item, index))}
+              {expandedSections.social && citationData.social.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={5} className="py-8 text-center text-muted-foreground">
+                    No social citations found
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </UnifiedCardContent>
+    </UnifiedCard>
   )
 }

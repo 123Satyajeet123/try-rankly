@@ -51,10 +51,10 @@ export function PromptDesignerPage({ onBack }: PromptDesignerPageProps) {
       regions: [{ flag: "🇺🇸", name: "US" }],
       tags: ["Tag"],
       platforms: [
-        { id: "chatgpt", icon: "🤖", color: "bg-black" },
-        { id: "perplexity", icon: "🔍", color: "bg-blue-500" },
-        { id: "google", icon: "🌐", color: "bg-white border" },
-        { id: "microsoft", icon: "🔵", color: "bg-gray-300" }
+        { id: "chatgpt", name: "ChatGPT", color: "bg-black" },
+        { id: "perplexity", name: "Perplexity", color: "bg-blue-500" },
+        { id: "gemini", name: "Gemini", color: "bg-white border" },
+        { id: "claude", name: "Claude", color: "bg-gray-300" }
       ],
       updated: "3 days ago",
       created: "3 days ago"

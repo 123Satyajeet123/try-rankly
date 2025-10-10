@@ -4,64 +4,124 @@ import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Settings, ChevronDown, Calendar as CalendarIcon, ArrowUp, ArrowDown, Expand } from 'lucide-react'
-import { useState } from 'react'
+import { Settings, ChevronDown, Calendar as CalendarIcon, ArrowUp, ArrowDown, Expand, Info } from 'lucide-react'
+import { useState, useEffect } from 'react'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Label, Pie, PieChart, Sector, Cell } from 'recharts'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Label, Pie, PieChart, Sector, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, LabelList } from 'recharts'
 import { PieSectorDataItem } from 'recharts/types/polar/Pie'
+import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
+import { useSkeletonLoader } from '@/hooks/useSkeletonLoader'
+import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
+import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
 
-// Mock data for Depth of Mention
-const chartData = [
-  { name: 'DataFlow', score: 8.2, color: '#3B82F6', comparisonScore: 7.8 },
-  { name: 'CloudSync', score: 6.8, color: '#EF4444', comparisonScore: 6.2 },
-  { name: 'SmartAI', score: 5.9, color: '#8B5CF6', comparisonScore: 5.4 },
-  { name: 'TechCorp', score: 4.7, color: '#06B6D4', comparisonScore: 4.1 },
-  { name: 'InnovateTech', score: 3.2, color: '#10B981', comparisonScore: 2.9 },
-]
+// Helper function to generate trend data from chart data
+const generateTrendData = (chartData: any[]) => {
+  if (chartData.length === 0) return []
 
-const allRankings = [
-  { rank: 1, name: 'DataFlow', isOwner: false, rankChange: 0 },
-  { rank: 2, name: 'CloudSync', isOwner: false, rankChange: 1 },
-  { rank: 3, name: 'SmartAI', isOwner: false, rankChange: -1 },
-  { rank: 4, name: 'TechCorp', isOwner: false, rankChange: -1 },
-  { rank: 5, name: 'InnovateTech', isOwner: true, rankChange: 0 },
-  { rank: 6, name: 'NextGen Solutions', isOwner: false, rankChange: 1 },
-  { rank: 7, name: 'Future Systems', isOwner: false, rankChange: -1 },
-  { rank: 8, name: 'Digital Dynamics', isOwner: false, rankChange: 0 },
-  { rank: 9, name: 'CloudFirst Inc', isOwner: false, rankChange: 1 },
-  { rank: 10, name: 'AI Solutions Pro', isOwner: false, rankChange: -1 },
-  { rank: 11, name: 'TechVision Corp', isOwner: false, rankChange: 0 },
-  { rank: 12, name: 'Digital Edge', isOwner: false, rankChange: 1 },
-  { rank: 13, name: 'NextWave Technologies', isOwner: false, rankChange: -1 },
-  { rank: 14, name: 'Innovation Labs', isOwner: false, rankChange: 0 },
-  { rank: 15, name: 'Quantum Systems', isOwner: false, rankChange: 1 },
-]
-
-// Show top 5 by default, but include owned brand if it's not in top 5
-const getDisplayRankings = () => {
-  const top5 = allRankings.slice(0, 5)
-  const ownedBrand = allRankings.find(item => item.isOwner)
-  
-  // If owned brand is not in top 5, replace the last item with owned brand
-  if (ownedBrand && ownedBrand.rank > 5) {
-    return [...top5.slice(0, 4), ownedBrand]
+  return [
+    { month: 'Week 1', ...Object.fromEntries(chartData.map(d => [d.name, d.score])) },
+    { month: 'Week 2', ...Object.fromEntries(chartData.map(d => [d.name, d.score])) },
+    { month: 'Week 3', ...Object.fromEntries(chartData.map(d => [d.name, d.score])) },
+    { month: 'Week 4', ...Object.fromEntries(chartData.map(d => [d.name, d.score])) },
+  ]
+}
+interface UnifiedDepthOfMentionSectionProps {
+  filterContext?: {
+    selectedTopics: string[]
+    selectedPersonas: string[]
+    selectedPlatforms: string[]
   }
-  
-  return top5
+  dashboardData?: any
 }
 
-const rankings = getDisplayRankings()
+function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedDepthOfMentionSectionProps) {
+  // Transform dashboard data to chart format
+  const getChartDataFromDashboard = () => {
+    console.log('🔍 [DepthOfMention] Dashboard data:', dashboardData?.metrics?.depthOfMention)
 
-function UnifiedDepthOfMentionSection() {
+    if (!dashboardData?.metrics?.depthOfMention?.data || dashboardData.metrics.depthOfMention.data.length === 0) {
+      console.log('⚠️ [DepthOfMention] No depth of mention data available')
+      return []
+    }
+
+    const chartData = dashboardData.metrics.depthOfMention.data.map((item: any, index: number) => ({
+      name: item.name,
+      score: item.value,
+      color: item.fill || (index === 0 ? '#3B82F6' : '#E5E7EB'),
+      comparisonScore: item.value // For now, use same value for comparison
+    }))
+
+    console.log('📊 [DepthOfMention] Transformed chart data:', chartData)
+    return chartData
+  }
+
+  const getRankingsFromDashboard = () => {
+    // ✅ Use depth-specific rankings
+    const depthCompetitors = dashboardData?.metrics?.competitorsByDepth || dashboardData?.metrics?.competitors || []
+    
+    if (depthCompetitors.length === 0) {
+      console.log('⚠️ [DepthOfMention] No competitor data available')
+      return []
+    }
+
+    return depthCompetitors.map((competitor: any, index: number) => ({
+      rank: competitor.rank, // ✅ Now uses depthRank from backend
+      name: competitor.name,
+      isOwner: index === 0, // First is primary brand
+      rankChange: 0, // TODO: Calculate from historical data
+      score: competitor.score // ✅ Now uses depthOfMention score
+    }))
+  }
+
+  // Get current data from dashboard or use defaults
+  const currentChartData = getChartDataFromDashboard()
+  const currentRankings = getRankingsFromDashboard()
+  const trendData = generateTrendData(currentChartData)
+  const hasData = currentChartData.length > 0 && currentRankings.length > 0
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
   const [chartType, setChartType] = useState('bar')
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [comparisonDate, setComparisonDate] = useState<Date | undefined>(undefined)
-  const [activePlatform, setActivePlatform] = useState(chartData[0].name)
+  const [activePlatform, setActivePlatform] = useState(currentChartData[0]?.name || '')
   const [showExpandedRankings, setShowExpandedRankings] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
+
+  // Skeleton loading state
+  const [isDataLoading, setIsDataLoading] = useState(false)
+  const { showSkeleton, isVisible, setLoading } = useSkeletonLoader({
+    threshold: 300,
+    debounceDelay: 250
+  })
+
+  // Simulate data loading for demonstration
+  useEffect(() => {
+    if (filterContext) {
+      setIsDataLoading(true)
+      const timer = setTimeout(() => {
+        setIsDataLoading(false)
+      }, 800)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [filterContext])
+
+  useEffect(() => {
+    setLoading(isDataLoading)
+  }, [isDataLoading, setLoading])
+
+  // Auto-switch chart type based on date selection
+  useEffect(() => {
+    if (comparisonDate) {
+      // Range mode - use line chart for trend view
+      setChartType('line')
+    } else {
+      // Single date mode - use bar chart for brand share view
+      setChartType('bar')
+    }
+  }, [comparisonDate])
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { 
@@ -94,14 +154,40 @@ function UnifiedDepthOfMentionSection() {
   const showComparison = !!comparisonDate
 
   return (
-    <div className="w-full">
-      {/* Unified Section Container */}
-      <UnifiedCard className="w-full">
+    <SkeletonWrapper
+      show={showSkeleton}
+      isVisible={isVisible}
+      skeleton={
+        <UnifiedCardSkeleton 
+          type="mixed" 
+          chartType={chartType === 'line' ? 'line' : 'bar'}
+          tableColumns={4}
+          tableRows={5}
+        />
+      }
+    >
+      <div className="w-full">
+        {/* Unified Section Container */}
+        <UnifiedCard className="w-full">
         <UnifiedCardContent className="p-6">
           {/* Header Section - Inside the box */}
           <div className="space-y-4 mb-6">
             <div>
-              <h2 className="text-foreground">Depth of Mention</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-foreground">Depth of Mention</h2>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-4 h-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <p className="text-sm leading-relaxed">
+                        Brands mentioned early in AI answers are more likely to be noticed, trusted, and clicked. A higher Depth of Mention means your brand dominates the narrative sooner.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <p className="body-text text-muted-foreground mt-1">Weight of your brand's mentions based on how early they appear</p>
             </div>
 
@@ -153,7 +239,19 @@ function UnifiedDepthOfMentionSection() {
             )}
           </div>
           </div>
+
+        {/* Empty State */}
+        {!hasData && (
+          <div className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <p className="text-muted-foreground mb-2">No depth of mention data available</p>
+              <p className="text-sm text-muted-foreground">Data will appear here once metrics are calculated</p>
+            </div>
+          </div>
+        )}
+
         {/* Container with full-height divider */}
+        {hasData && (
         <div className="relative">
           {/* Full-height vertical divider touching top and bottom */}
           <div className="absolute left-1/2 top-0 bottom-0 w-px bg-border/60 transform -translate-x-1/2"></div>
@@ -170,13 +268,14 @@ function UnifiedDepthOfMentionSection() {
                     variant="outline" 
                     size="sm" 
                     className="body-text bg-background border-border shadow-md hover:bg-muted"
+                    disabled={!!comparisonDate}
                   >
                     <Settings className="mr-2 h-4 w-4" />
                     Chart Config
                     <ChevronDown className="ml-2 h-3 w-3" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="w-full">
                   <DropdownMenuItem onClick={() => setChartType('bar')}>
                     Bar Chart
                   </DropdownMenuItem>
@@ -190,28 +289,32 @@ function UnifiedDepthOfMentionSection() {
             {/* Title Display */}
             <div className="space-y-2">
               <h3 className="text-foreground">Depth of Mention</h3>
-              <div className="text-2xl font-bold text-foreground">
-                {chartData.find(item => item.name === 'InnovateTech')?.score || '3.2'}%
+              <div className="text-xl font-semibold text-foreground">
+                {dashboardData?.metrics?.depthOfMention?.value || 0}%
               </div>
             </div>
 
             {/* Contained Chart */}
-            <div className="relative h-48 bg-gray-50 dark:bg-gray-900/20 rounded-lg p-3">
+            <div className="relative h-64 bg-gray-50 dark:bg-gray-900/20 rounded-lg p-4">
               {chartType === 'bar' && (
                 <>
                   {/* Y-axis labels on the left */}
-                  <div className="absolute left-2 top-3 bottom-3 flex flex-col justify-between caption text-muted-foreground">
-                    <span>8.2</span>
-                    <span>6.8</span>
-                    <span>5.9</span>
-                    <span>4.7</span>
-                    <span>3.2</span>
-                    <span>0</span>
+                  <div className="absolute left-2 top-4 bottom-3 flex flex-col justify-between caption text-muted-foreground">
+                    {(() => {
+                      const maxValue = Math.max(...currentChartData.map(d => d.score), 1)
+                      const step = maxValue / 5
+                      return [4, 3, 2, 1, 0].map(i => {
+                        const value = Math.round(i * step * 10) / 10
+                        return <span key={i}>{value}</span>
+                      })
+                    })()}
                   </div>
                   
                   {/* Chart bars area */}
                   <div className="ml-10 h-full flex items-end justify-between relative">
-                    {chartData.map((bar) => (
+                    {(() => {
+                      const maxValue = Math.max(...currentChartData.map(d => d.score), 1)
+                      return currentChartData.map((bar) => (
                       <div 
                         key={bar.name} 
                         className="flex flex-col items-center justify-end gap-2 flex-1 relative"
@@ -226,19 +329,15 @@ function UnifiedDepthOfMentionSection() {
                         }}
                         onMouseLeave={() => setHoveredBar(null)}
                       >
-                        {/* Score label above bar */}
-                        <div className="caption text-foreground text-center">
-                          {showComparison ? (
-                            <div className="space-y-1">
-                              <div className="text-foreground">{bar.score}</div>
-                              <div className="text-muted-foreground text-[10px]">
-                                {bar.comparisonScore}
-                              </div>
+                        {/* Score labels above bars - Only show when comparing */}
+                        {showComparison && (
+                          <div className="text-center mb-2">
+                            <div className="text-sm font-medium text-foreground">{bar.score}%</div>
+                            <div className="text-xs text-muted-foreground">
+                              {bar.comparisonScore}%
                             </div>
-                          ) : (
-                            bar.score.toString()
-                          )}
-                        </div>
+                          </div>
+                        )}
                         
                         {/* Bars container */}
                         <div className="flex items-end gap-1">
@@ -246,7 +345,7 @@ function UnifiedDepthOfMentionSection() {
                           <div 
                             className="w-4 rounded-t-sm transition-all duration-300 hover:opacity-80 cursor-pointer"
                             style={{
-                              height: `${(bar.score / 8.2) * 120}px`,
+                              height: `${(bar.score / maxValue) * 120}px`,
                               minHeight: '4px',
                               backgroundColor: bar.color
                             }}
@@ -257,7 +356,7 @@ function UnifiedDepthOfMentionSection() {
                             <div
                               className="w-4 rounded-t-sm opacity-70 transition-all duration-300 hover:opacity-90 cursor-pointer"
                               style={{
-                                height: `${(bar.comparisonScore / 8.2) * 120}px`,
+                                height: `${(bar.comparisonScore / maxValue) * 120}px`,
                                 minHeight: '2px',
                                 backgroundColor: bar.color,
                                 filter: 'brightness(0.7)'
@@ -268,11 +367,16 @@ function UnifiedDepthOfMentionSection() {
 
                         {/* Company name below bars */}
                         <div className="w-16 h-6 flex items-center justify-center">
-                          <span className="caption text-foreground text-center">{bar.name}</span>
+                          <img 
+                            src={getDynamicFaviconUrl(bar.name)} 
+                            alt={bar.name}
+                            className="w-4 h-4 rounded-sm"
+                            onError={handleFaviconError}
+                          />
                         </div>
                       </div>
-                    ))}
-
+                    ))
+                    })()}
                   </div>
                 </>
               )}
@@ -283,7 +387,7 @@ function UnifiedDepthOfMentionSection() {
                     <PieChart width={192} height={192}>
                       {/* Current period (outer ring) */}
                       <Pie
-                        data={chartData}
+                        data={currentChartData}
                         dataKey="score"
                         nameKey="name"
                         innerRadius={showComparison ? 55 : 40}
@@ -297,7 +401,7 @@ function UnifiedDepthOfMentionSection() {
                           setActiveIndex(-1)
                         }}
                       >
-                        {chartData.map((entry, index) => (
+                        {currentChartData.map((entry, index) => (
                           <Cell 
                             key={`cell-${index}`} 
                             fill={entry.color}
@@ -311,7 +415,7 @@ function UnifiedDepthOfMentionSection() {
                         <Label
                           content={({ viewBox }) => {
                             if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                              const activeData = chartData[activeIndex] || chartData[0]
+                              const activeData = currentChartData[activeIndex] || currentChartData[0]
                               return (
                                 <text
                                   x={viewBox.cx}
@@ -344,14 +448,14 @@ function UnifiedDepthOfMentionSection() {
                       {/* Comparison period (inner ring) - Only show when comparison is enabled */}
                       {showComparison && (
                         <Pie
-                          data={chartData}
+                          data={currentChartData}
                           dataKey="comparisonScore"
                           nameKey="name"
                           innerRadius={25}
                           outerRadius={45}
                           strokeWidth={2}
                         >
-                          {chartData.map((entry, index) => (
+                          {currentChartData.map((entry, index) => (
                             <Cell key={`comparison-cell-${index}`} fill={entry.color} opacity={0.7} />
                           ))}
                         </Pie>
@@ -361,7 +465,7 @@ function UnifiedDepthOfMentionSection() {
                   
                   {/* Legend */}
                   <div className="ml-4 space-y-1">
-                    {chartData.map((item, index) => (
+                    {currentChartData.map((item, index) => (
                       <div 
                         key={item.name} 
                         className="flex items-center gap-2 cursor-pointer"
@@ -370,6 +474,12 @@ function UnifiedDepthOfMentionSection() {
                         <div 
                           className="w-3 h-3 rounded-full" 
                           style={{ backgroundColor: item.color }}
+                        />
+                        <img
+                          src={getDynamicFaviconUrl(item.name)}
+                          alt={item.name}
+                          className="w-4 h-4 rounded-sm"
+                          onError={handleFaviconError}
                         />
                         <span className="caption text-foreground">{item.name}</span>
                         <span className="caption text-muted-foreground">
@@ -391,6 +501,89 @@ function UnifiedDepthOfMentionSection() {
                 </div>
               )}
 
+              {chartType === 'line' && (
+                <div className="h-full w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={trendData}
+                      margin={{
+                        top: 20,
+                        left: 12,
+                        right: 12,
+                      }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                      <XAxis
+                        dataKey="month"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        tickFormatter={(value) => value.slice(0, 6)}
+                        tick={{ fontSize: 12 }}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 12 }}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <RechartsTooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          color: 'hsl(var(--foreground))',
+                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                        }}
+                      />
+                      {currentChartData.map((item: any, index: number) => (
+                        <Line
+                          key={item.name}
+                          dataKey={item.name}
+                          type="monotone"
+                          stroke={item.color}
+                          strokeWidth={index === 0 ? 3 : 2}
+                          dot={{ r: index === 0 ? 4 : 3 }}
+                          activeDot={{ r: index === 0 ? 6 : 5 }}
+                        >
+                          {index === 0 && (
+                            <LabelList
+                              position="top"
+                              offset={12}
+                              className="fill-foreground"
+                              fontSize={12}
+                            />
+                          )}
+                        </Line>
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                  
+                  {/* Line Chart Legend */}
+                  <div className="mt-4 flex flex-wrap gap-4 justify-center">
+                    {currentChartData.map((item, index) => (
+                      <div 
+                        key={item.name} 
+                        className="flex items-center gap-2 cursor-pointer"
+                        onClick={() => setActivePlatform(item.name)}
+                      >
+                        <div 
+                          className="w-3 h-3 rounded-full" 
+                          style={{ backgroundColor: item.color }}
+                        />
+                        <img
+                          src={getDynamicFaviconUrl(item.name)}
+                          alt={item.name}
+                          className="w-4 h-4 rounded-sm"
+                          onError={handleFaviconError}
+                        />
+                        <span className="caption text-foreground">{item.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Hover Card */}
               {hoveredBar && chartType === 'bar' && (
                 <div 
@@ -406,14 +599,14 @@ function UnifiedDepthOfMentionSection() {
                     <div className="text-white font-semibold text-sm">{hoveredBar.name}</div>
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-gray-300">Current:</span>
-                      <span className="text-white font-medium">{hoveredBar.score}</span>
+                      <span className="text-gray-300 font-medium">{hoveredBar.score}</span>
                     </div>
                     {showComparison && (
                       <div className="flex justify-between items-center text-xs">
                         <span className="text-gray-300">{getComparisonLabel()}:</span>
                         <span className="text-gray-400">
                           {(() => {
-                            const platform = chartData.find(p => p.name === hoveredBar.name)
+                            const platform = currentChartData.find(p => p.name === hoveredBar.name)
                             return platform ? platform.comparisonScore.toString() : '0'
                           })()}
                         </span>
@@ -432,6 +625,7 @@ function UnifiedDepthOfMentionSection() {
           <div className="space-y-6 pl-8 relative">
             <div className="space-y-2">
               <h3 className="text-foreground">Depth of Mention Rank</h3>
+              <div className="text-xl font-semibold text-foreground">#{currentRankings.find(item => item.isOwner)?.rank || 5}</div>
             </div>
 
             {/* Simple Table */}
@@ -448,7 +642,7 @@ function UnifiedDepthOfMentionSection() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {rankings.map((item) => (
+                  {currentRankings.map((item) => (
                     <TableRow 
                       key={item.rank} 
                       className="border-border/60 hover:bg-muted/30 transition-colors"
@@ -456,6 +650,12 @@ function UnifiedDepthOfMentionSection() {
                       <TableCell className="py-3 px-3">
                         <div className="flex items-center gap-3">
                           <div className="flex items-center gap-2">
+                            <img
+                              src={getDynamicFaviconUrl(item.name)}
+                              alt={item.name}
+                              className="w-4 h-4 rounded-sm"
+                              onError={handleFaviconError}
+                            />
                             <span 
                               className="body-text font-medium" 
                               style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
@@ -529,7 +729,7 @@ function UnifiedDepthOfMentionSection() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {allRankings.map((item) => (
+                        {currentRankings.map((item) => (
                           <TableRow 
                             key={item.rank} 
                             className="border-border/60 hover:bg-muted/30 transition-colors"
@@ -537,6 +737,12 @@ function UnifiedDepthOfMentionSection() {
                             <TableCell className="py-3 px-3">
                               <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-2">
+                                  <img
+                                    src={getDynamicFaviconUrl(item.name)}
+                                    alt={item.name}
+                                    className="w-4 h-4 rounded-sm"
+                                    onError={handleFaviconError}
+                                  />
                                   <span 
                                     className="body-text font-medium" 
                                     style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
@@ -588,9 +794,11 @@ function UnifiedDepthOfMentionSection() {
           </div>
         </div>
         </div>
+        )}
         </UnifiedCardContent>
       </UnifiedCard>
     </div>
+    </SkeletonWrapper>
   )
 }
 

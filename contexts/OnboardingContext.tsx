@@ -36,6 +36,9 @@ export interface OnboardingData {
   region: string
   language: string
   analysisResults?: any // Store AI analysis results
+  generatedPrompts?: any[] // Store generated prompts
+  totalPrompts?: number // Store total number of prompts
+  analysisCompleted?: boolean // Flag to indicate analysis is complete
 }
 
 interface OnboardingContextType {
@@ -71,21 +74,27 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     // Try to load from localStorage (only on client)
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('onboarding-data')
+      console.log('🔍 OnboardingContext - Loading from localStorage:', saved)
       if (saved) {
         try {
           const parsed = JSON.parse(saved)
+          console.log('📝 OnboardingContext - Parsed data:', parsed)
           // Convert Set arrays back to Sets
-          return {
+          const restored = {
             ...parsed,
             selectedCompetitors: new Set(parsed.selectedCompetitors || []),
             selectedPersonas: new Set(parsed.selectedPersonas || []),
             selectedTopics: new Set(parsed.selectedTopics || [])
           }
+          console.log('✅ OnboardingContext - Restored data:', restored)
+          return restored
         } catch (e) {
+          console.log('❌ OnboardingContext - Error parsing localStorage, using defaults')
           return defaultData
         }
       }
     }
+    console.log('ℹ️ OnboardingContext - No saved data, using defaults')
     return defaultData
   })
 
@@ -93,8 +102,10 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null)
 
   const updateData = (updates: Partial<OnboardingData>) => {
+    console.log('🔄 OnboardingContext - Updating data:', updates)
     setData(prev => {
       const newData = { ...prev, ...updates }
+      console.log('📝 OnboardingContext - New data state:', newData)
       // Save to localStorage (convert Sets to arrays)
       if (typeof window !== 'undefined') {
         const toSave = {
@@ -103,7 +114,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
           selectedPersonas: Array.from(newData.selectedPersonas),
           selectedTopics: Array.from(newData.selectedTopics)
         }
+        console.log('💾 OnboardingContext - Saving to localStorage:', toSave)
         localStorage.setItem('onboarding-data', JSON.stringify(toSave))
+        console.log('✅ OnboardingContext - Data saved to localStorage')
       }
       return newData
     })

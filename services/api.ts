@@ -36,7 +36,9 @@ class ApiService {
   }
 
   async request(endpoint: string, options: RequestInit = {}) {
-    const url = `${API_BASE_URL}${endpoint}`
+    // Add cache-busting parameter to ensure fresh data
+    const separator = endpoint.includes('?') ? '&' : '?'
+    const url = `${API_BASE_URL}${endpoint}${separator}_t=${Date.now()}`
     const config: RequestInit = {
       headers: this.getHeaders(),
       ...options,
@@ -94,6 +96,11 @@ class ApiService {
       }
       throw error
     }
+  }
+
+  // Generic GET method
+  async get(endpoint: string) {
+    return this.request(endpoint, { method: 'GET' })
   }
 
   // Auth endpoints
@@ -180,7 +187,7 @@ class ApiService {
 
   // Generate prompts based on selected topics and personas
   async generatePrompts() {
-    return this.request('/prompts/generate', {
+    return this.request('/onboarding/generate-prompts', {
       method: 'POST',
     })
   }
@@ -197,11 +204,23 @@ class ApiService {
     })
   }
 
-  // Prompt Testing endpoints
+  // Test prompts with multi-LLM
   async testPrompts() {
     return this.request('/prompts/test', {
       method: 'POST',
     })
+  }
+
+  // Calculate metrics from test results
+  async calculateMetrics() {
+    return this.request('/metrics/calculate', {
+      method: 'POST',
+    })
+  }
+
+  // Get dashboard metrics
+  async getDashboardMetrics() {
+    return this.request('/metrics/dashboard')
   }
 
   async getPromptTests(promptId: string) {
@@ -227,10 +246,11 @@ class ApiService {
     return this.request(`/analytics/summary${params.toString() ? `?${params.toString()}` : ''}`)
   }
 
-  async getAnalyticsVisibility(dateFrom?: string, dateTo?: string) {
+  async getAnalyticsVisibility(dateFrom?: string, dateTo?: string, urlAnalysisId?: string) {
     const params = new URLSearchParams()
     if (dateFrom) params.append('dateFrom', dateFrom)
     if (dateTo) params.append('dateTo', dateTo)
+    if (urlAnalysisId) params.append('urlAnalysisId', urlAnalysisId)
     return this.request(`/analytics/visibility${params.toString() ? `?${params.toString()}` : ''}`)
   }
 
@@ -295,12 +315,6 @@ class ApiService {
   }
 
   // Metrics endpoints
-  async calculateMetrics() {
-    return this.request('/metrics/calculate', {
-      method: 'POST',
-    })
-  }
-
   async getMetricsDashboard(dateFrom?: string, dateTo?: string) {
     const params = new URLSearchParams()
     if (dateFrom) params.append('dateFrom', dateFrom)
@@ -319,6 +333,150 @@ class ApiService {
 
   async getUrlMetrics(id: string) {
     return this.request(`/url-analysis/${id}/metrics`)
+  }
+
+  // Performance Insights endpoints
+  async generateInsights(urlAnalysisId?: string) {
+    return this.request('/insights/generate', {
+      method: 'POST',
+      body: JSON.stringify({ urlAnalysisId }),
+    })
+  }
+
+  async getLatestInsights(urlAnalysisId?: string) {
+    const params = urlAnalysisId ? `?urlAnalysisId=${urlAnalysisId}` : ''
+    return this.request(`/insights/latest${params}`)
+  }
+
+  async getInsightsHistory(urlAnalysisId?: string, limit?: number) {
+    const params = new URLSearchParams()
+    if (urlAnalysisId) params.append('urlAnalysisId', urlAnalysisId)
+    if (limit) params.append('limit', limit.toString())
+    return this.request(`/insights/history${params.toString() ? `?${params.toString()}` : ''}`)
+  }
+
+  async getInsight(insightId: string) {
+    return this.request(`/insights/${insightId}`)
+  }
+
+  // Dashboard Metrics endpoints (new aggregated metrics)
+  async getAggregatedMetrics(options: {
+    dateFrom?: string
+    dateTo?: string
+    urlAnalysisId?: string
+    scope?: 'overall' | 'platform' | 'topic' | 'persona'
+  } = {}) {
+    const params = new URLSearchParams()
+    if (options.dateFrom) params.append('dateFrom', options.dateFrom)
+    if (options.dateTo) params.append('dateTo', options.dateTo)
+    if (options.urlAnalysisId) params.append('urlAnalysisId', options.urlAnalysisId)
+    if (options.scope) params.append('scope', options.scope)
+    
+    return this.request(`/metrics/aggregated${params.toString() ? `?${params.toString()}` : ''}`)
+  }
+
+  // ✅ NEW: Get all dashboard data in one call (includes AI insights)
+  async getDashboardAll(options: {
+    dateFrom?: string
+    dateTo?: string
+  } = {}) {
+    const params = new URLSearchParams()
+    if (options.dateFrom) params.append('dateFrom', options.dateFrom)
+    if (options.dateTo) params.append('dateTo', options.dateTo)
+    
+    return this.request(`/dashboard/all${params.toString() ? `?${params.toString()}` : ''}`)
+  }
+
+  // Competitors endpoints
+  async getCompetitors(urlAnalysisId?: string) {
+    // Backend route doesn't use urlAnalysisId, it uses userId from token
+    return this.request(`/competitors`)
+  }
+
+  async updateCompetitor(id: string, data: any) {
+    return this.request(`/competitors/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async createCompetitor(data: any) {
+    return this.request('/competitors', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deleteCompetitor(id: string) {
+    return this.request(`/competitors/${id}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // Topics endpoints
+  async getTopics(urlAnalysisId?: string) {
+    // Backend route doesn't use urlAnalysisId, it uses userId from token
+    return this.request(`/topics`)
+  }
+
+  async updateTopic(id: string, data: any) {
+    return this.request(`/topics/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async createTopic(data: any) {
+    return this.request('/topics', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deleteTopic(id: string) {
+    return this.request(`/topics/${id}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // Personas endpoints
+  async getPersonas(urlAnalysisId?: string) {
+    // Backend route doesn't use urlAnalysisId, it uses userId from token
+    return this.request(`/personas`)
+  }
+
+  async updatePersona(id: string, data: any) {
+    return this.request(`/personas/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async createPersona(data: any) {
+    return this.request('/personas', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    })
+  }
+
+  async deletePersona(id: string) {
+    return this.request(`/personas/${id}`, {
+      method: 'DELETE',
+    })
+  }
+
+  // Clusters endpoints
+  async getClusters(options: {
+    dateFrom?: string
+    dateTo?: string
+    urlAnalysisId?: string
+  } = {}) {
+    const params = new URLSearchParams()
+    if (options.dateFrom) params.append('dateFrom', options.dateFrom)
+    if (options.dateTo) params.append('dateTo', options.dateTo)
+    if (options.urlAnalysisId) params.append('urlAnalysisId', options.urlAnalysisId)
+    
+    return this.request(`/clusters${params.toString() ? `?${params.toString()}` : ''}`)
   }
 }
 

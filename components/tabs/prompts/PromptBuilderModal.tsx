@@ -22,6 +22,7 @@ import {
   Search,
   Layers
 } from 'lucide-react'
+import { getDynamicFaviconUrl, handleFaviconError } from '../../../lib/faviconUtils'
 
 interface PromptBuilderModalProps {
   children: React.ReactNode
@@ -33,9 +34,7 @@ export function PromptBuilderModal({ children, onGenerate }: PromptBuilderModalP
   const [isOpen, setIsOpen] = useState(false)
   const [topics, setTopics] = useState([{ id: 1, name: "Conversion Rate Optimization" }])
   const [promptsPerTopic, setPromptsPerTopic] = useState("10")
-  const [region, setRegion] = useState("us")
-  const [language, setLanguage] = useState("en-US")
-  const [platforms, setPlatforms] = useState(["chatgpt", "perplexity", "google", "microsoft"])
+  const [platforms, setPlatforms] = useState(["chatgpt", "perplexity", "gemini", "claude"])
   const [additionalInstructions, setAdditionalInstructions] = useState("")
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [platformSearch, setPlatformSearch] = useState("")
@@ -72,8 +71,6 @@ export function PromptBuilderModal({ children, onGenerate }: PromptBuilderModalP
     console.log('Generating prompts with:', {
       topics,
       promptsPerTopic,
-      region,
-      language,
       platforms,
       additionalInstructions,
       uploadedFile
@@ -89,32 +86,14 @@ export function PromptBuilderModal({ children, onGenerate }: PromptBuilderModalP
   }
 
   const platformData = [
-    { id: "chatgpt", name: "ChatGPT", icon: "🤖" },
-    { id: "perplexity", name: "Perplexity", icon: "🔍" },
-    { id: "google", name: "Google AI Overviews", icon: "🌐" },
-    { id: "microsoft", name: "Microsoft Copilot", icon: "🔵" }
+    { id: "chatgpt", name: "ChatGPT" },
+    { id: "perplexity", name: "Perplexity" },
+    { id: "gemini", name: "Gemini" },
+    { id: "claude", name: "Claude" }
   ]
 
-  const platformIcons = {
-    chatgpt: "🤖",
-    perplexity: "🔍",
-    google: "🌐",
-    microsoft: "🔵"
-  }
+  // Platform icons now use dynamic favicons
 
-  const regionFlags = {
-    us: "🇺🇸",
-    uk: "🇬🇧",
-    ca: "🇨🇦",
-    au: "🇦🇺"
-  }
-
-  const languageIcons = {
-    "en-US": "🇺🇸",
-    "en-GB": "🇬🇧", 
-    "es-ES": "🇪🇸",
-    "fr-FR": "🇫🇷"
-  }
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -124,25 +103,25 @@ export function PromptBuilderModal({ children, onGenerate }: PromptBuilderModalP
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">Prompt Builder</DialogTitle>
+          <p className="text-sm text-muted-foreground mt-2">
+            Configure your topics, platforms, and prompt sets to measure your brand's visibility across AI engines.
+          </p>
         </DialogHeader>
         
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-6">
           {/* Left Side - Description */}
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-semibold mb-3">Configure topics, regions, and platforms</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Select or create the topics to generate prompts that will refine the data you can analyze across Profound.
-              </p>
+              <h3 className="text-lg font-semibold mb-3">Configure topics and platforms</h3>
               <p className="text-sm text-muted-foreground">
-                Also, configure the regions, languages, and platforms that you would like to run the new prompts in.
+                Define the focus areas and LLM platforms where Rankly will generate prompts and benchmark your brand's presence in AI-generated answers.
               </p>
             </div>
 
             {/* Brand Context */}
             <div className="mt-8 p-4 bg-muted/50 rounded-lg">
               <p className="text-sm text-muted-foreground">
-                Help us understand your brand. The more context you share, the better we can track how you show up in AI-generated answers.
+                Help Rankly understand your brand context. The more details you share, the smarter your prompt generation and visibility tracking become.
               </p>
             </div>
           </div>
@@ -195,37 +174,6 @@ export function PromptBuilderModal({ children, onGenerate }: PromptBuilderModalP
               />
             </div>
 
-            {/* Region */}
-            <div>
-              <label className="text-sm font-medium mb-2 block">Region</label>
-              <Select value={region} onValueChange={setRegion}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="us">{regionFlags.us} United States</SelectItem>
-                  <SelectItem value="uk">{regionFlags.uk} United Kingdom</SelectItem>
-                  <SelectItem value="ca">{regionFlags.ca} Canada</SelectItem>
-                  <SelectItem value="au">{regionFlags.au} Australia</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Language */}
-            <div>
-              <label className="text-sm font-medium mb-2 block">Language</label>
-              <Select value={language} onValueChange={setLanguage}>
-                <SelectTrigger className="w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="en-US">{languageIcons["en-US"]} English (en-US)</SelectItem>
-                  <SelectItem value="en-GB">{languageIcons["en-GB"]} English (en-GB)</SelectItem>
-                  <SelectItem value="es-ES">{languageIcons["es-ES"]} Spanish (es-ES)</SelectItem>
-                  <SelectItem value="fr-FR">{languageIcons["fr-FR"]} French (fr-FR)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
 
             {/* Platforms */}
             <div>
@@ -238,8 +186,13 @@ export function PromptBuilderModal({ children, onGenerate }: PromptBuilderModalP
                       <span>{platforms.length} platforms</span>
                       <div className="flex gap-1">
                         {platforms.slice(0, 4).map((platformId) => (
-                          <div key={platformId} className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center text-xs">
-                            {platformIcons[platformId as keyof typeof platformIcons]}
+                          <div key={platformId} className="w-5 h-5 rounded-full bg-gray-100 flex items-center justify-center">
+                            <img 
+                              src={getDynamicFaviconUrl(platformId, 16)} 
+                              alt={platformId}
+                              className="w-4 h-4 rounded-sm"
+                              onError={handleFaviconError}
+                            />
                           </div>
                         ))}
                       </div>
@@ -274,8 +227,13 @@ export function PromptBuilderModal({ children, onGenerate }: PromptBuilderModalP
                             checked={platforms.includes(platform.id)}
                             onChange={() => togglePlatform(platform.id)}
                           />
-                          <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center text-sm">
-                            {platform.icon}
+                          <div className="w-8 h-8 rounded bg-gray-100 flex items-center justify-center">
+                            <img 
+                              src={getDynamicFaviconUrl(platform.id, 20)} 
+                              alt={platform.name}
+                              className="w-5 h-5 rounded-sm"
+                              onError={handleFaviconError}
+                            />
                           </div>
                           <span className="text-sm font-medium">{platform.name}</span>
                         </div>
@@ -322,19 +280,14 @@ export function PromptBuilderModal({ children, onGenerate }: PromptBuilderModalP
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between mt-8 pt-6 border-t">
-          <p className="text-sm text-muted-foreground">
-            Help us understand your brand. The more context you share, the better we can track how you show up in AI-generated answers.
-          </p>
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setIsOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleGenerate} className="gap-2">
-              <Sparkles className="w-4 h-4" />
-              Generate
-            </Button>
-          </div>
+        <div className="flex items-center justify-end mt-8 pt-6 border-t gap-3">
+          <Button variant="outline" onClick={() => setIsOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleGenerate} className="gap-2">
+            <Sparkles className="w-4 h-4" />
+            Generate Prompts
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

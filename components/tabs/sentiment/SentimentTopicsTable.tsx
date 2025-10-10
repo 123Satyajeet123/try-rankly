@@ -156,7 +156,7 @@ export function SentimentTopicsTable() {
               <ChevronDown className="ml-2 h-3 w-3" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="w-full">
             <DropdownMenuItem>Table View</DropdownMenuItem>
             <DropdownMenuItem>List View</DropdownMenuItem>
             <DropdownMenuItem>Compact View</DropdownMenuItem>

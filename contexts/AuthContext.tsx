@@ -63,6 +63,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         try {
           await refreshUser()
           console.log('✅ Google OAuth login successful')
+          
+          // Check if there's a step parameter to determine where to redirect
+          const step = urlParams.get('step')
+          if (step === '4') {
+            // Redirect to website analysis page after successful OAuth
+            window.location.href = '/onboarding/website'
+          } else {
+            // Check if user has existing analysis data
+            try {
+              const response = await apiService.getAggregatedMetrics({ scope: 'overall' })
+              if (response.success && response.data) {
+                console.log('✅ [AuthContext] Found existing analysis data, redirecting to dashboard')
+                window.location.href = '/dashboard'
+              } else {
+                console.log('ℹ️ [AuthContext] No existing analysis data, redirecting to onboarding')
+                window.location.href = '/onboarding/website'
+              }
+            } catch (error) {
+              console.log('ℹ️ [AuthContext] No existing analysis data (or error checking), redirecting to onboarding')
+              window.location.href = '/onboarding/website'
+            }
+          }
+          return
         } catch (err) {
           console.error('Failed to refresh user after Google OAuth:', err)
           logout()
@@ -75,10 +98,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Check for existing token in localStorage
       const existingToken = localStorage.getItem('authToken')
+      console.log('🔍 AuthContext - Checking existing token:', existingToken ? 'Token found' : 'No token')
       if (existingToken) {
         apiService.setToken(existingToken)
         try {
           await refreshUser()
+          console.log('✅ AuthContext - User refreshed successfully')
         } catch (err: any) {
           // Token is invalid or expired - clear it silently
           console.log('ℹ️ Stored token is invalid, clearing...')

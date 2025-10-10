@@ -1,15 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState } from 'react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Filter, Globe, ChevronDown, Users, Plus } from 'lucide-react'
-import { URLSelector } from '@/components/URLSelector'
-import { useAnalytics } from '@/contexts/AnalyticsContext'
+import { Filter, Globe, ChevronDown, Users } from 'lucide-react'
+import { useFilters } from '@/contexts/FilterContext'
+import { useTheme } from 'next-themes'
 
 interface TopNavProps {
   activeTab: string
@@ -17,21 +16,15 @@ interface TopNavProps {
 }
 
 export function TopNav({ activeTab, onTabChange }: TopNavProps) {
-  const router = useRouter()
-  const { setUrlAnalysisId, urlAnalysisId } = useAnalytics()
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['All Platforms'])
-  const [selectedTopics, setSelectedTopics] = useState<string[]>(['All Topics'])
-  const [selectedPersonas, setSelectedPersonas] = useState<string[]>(['All Personas'])
-  const [isMounted, setIsMounted] = useState(false)
-
-  // Prevent hydration mismatch by only rendering after mount
-  useEffect(() => {
-    setIsMounted(true)
-  }, [])
-
-  const handleStartNewAnalysis = () => {
-    router.push('/onboarding')
-  }
+  const { 
+    selectedPlatforms, 
+    selectedTopics, 
+    selectedPersonas, 
+    setSelectedPlatforms, 
+    setSelectedTopics, 
+    setSelectedPersonas 
+  } = useFilters()
+  const { theme } = useTheme()
   
   const tabs = [
     { id: 'visibility', label: 'Visibility' },
@@ -42,25 +35,35 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
 
   const topicOptions = [
     { value: 'All Topics', label: 'All Topics' },
-    { value: 'Marketing', label: 'Marketing' },
-    { value: 'Sales', label: 'Sales' },
-    { value: 'Support', label: 'Support' }
+    { value: 'Personalization', label: 'Personalization' },
+    { value: 'Conversion Rate Optimization', label: 'Conversion Rate Optimization' }
   ]
 
   const personaOptions = [
     { value: 'All Personas', label: 'All Personas' },
     { value: 'Marketing Manager', label: 'Marketing Manager' },
-    { value: 'Sales Rep', label: 'Sales Rep' },
-    { value: 'Customer Support', label: 'Customer Support' },
-    { value: 'Product Manager', label: 'Product Manager' }
+    { value: 'Growth Hacker', label: 'Growth Hacker' }
   ]
+
+  const getFaviconUrl = (platformName: string) => {
+    const isDarkMode = theme === 'dark'
+    const faviconMap = {
+      'ChatGPT': 'https://chat.openai.com/favicon.ico',
+      'Claude': 'https://claude.ai/favicon.ico',
+      'Gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
+      'Perplexity': 'https://www.perplexity.ai/favicon.ico',
+      'Grok': isDarkMode ? 'https://www.google.com/s2/favicons?domain=x.ai&sz=16&color=white' : 'https://grok.x.ai/favicon.ico'
+    }
+    return faviconMap[platformName as keyof typeof faviconMap] || `https://www.google.com/s2/favicons?domain=${platformName.toLowerCase()}.com&sz=16`
+  }
 
   const platformOptions = [
     { value: 'All Platforms', label: 'All Platforms' },
     { value: 'ChatGPT', label: 'ChatGPT' },
     { value: 'Claude', label: 'Claude' },
     { value: 'Gemini', label: 'Gemini' },
-    { value: 'Perplexity', label: 'Perplexity' }
+    { value: 'Perplexity', label: 'Perplexity' },
+    { value: 'Grok', label: 'Grok' }
   ]
 
   const handleTopicChange = (topic: string, checked: boolean) => {
@@ -168,64 +171,27 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
     return `${selectedPlatforms.length} selected`
   }
 
-  // Prevent hydration mismatch by not rendering until mounted
-  if (!isMounted) {
-    return (
-      <div className="relative">
-        <div className="pl-4 pt-4 flex justify-between items-center">
-          <div className="flex space-x-0">
-            {tabs.map((tab) => (
-              <div 
-                key={tab.id} 
-                className="relative px-4 py-2 body-text rounded-none border-0 bg-transparent text-gray-600"
-              >
-                {tab.label}
-              </div>
-            ))}
-          </div>
-          <div className="flex space-x-3 pr-4">
-            <div className="px-3 py-1 text-sm border rounded">New Analysis</div>
-            <div className="px-3 py-1 text-sm border rounded"># Topics</div>
-            <div className="px-3 py-1 text-sm border rounded">User Personas</div>
-            <div className="px-3 py-1 text-sm border rounded">All Platforms</div>
-          </div>
-        </div>
-        <div className="border-b border-gray-200 mt-2"></div>
-      </div>
-    )
-  }
-
   return (
     <div className="relative">
       {/* Navigation Tabs and Filter Controls - Same row */}
       <div className="pl-4 pt-4 flex justify-between items-center">
         <Tabs value={activeTab} onValueChange={onTabChange}>
           <TabsList className="bg-transparent p-0 h-auto border-0 flex space-x-0">
-            {tabs.map((tab) => (
-              <TabsTrigger
-                key={tab.id}
-                value={tab.id}
+          {tabs.map((tab) => (
+            <TabsTrigger 
+              key={tab.id} 
+              value={tab.id} 
                 className="relative px-4 py-2 body-text rounded-none border-0 bg-transparent hover:text-gray-900 text-gray-600 data-[state=active]:bg-transparent data-[state=active]:text-gray-900 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-gray-900 transition-colors"
-              >
-                {tab.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+            >
+              {tab.label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
 
-        {/* URL Selector and Filter controls - Top right */}
-        <div className="flex space-x-3 pr-4">
-          <URLSelector value={urlAnalysisId || undefined} onChange={setUrlAnalysisId} />
-          <Button
-            variant="default"
-            size="sm"
-            className="body-text"
-            onClick={handleStartNewAnalysis}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            New Analysis
-          </Button>
-
+        {/* Filter controls - Top right */}
+        {activeTab !== 'prompts' && (
+          <div className="flex space-x-3 pr-4">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="body-text">
@@ -234,7 +200,7 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
                 <ChevronDown className="ml-2 h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
+            <DropdownMenuContent align="end" className="w-full" onCloseAutoFocus={(e) => e.preventDefault()}>
               {topicOptions.map((option) => (
                 <DropdownMenuCheckboxItem
                   key={option.value}
@@ -256,7 +222,7 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
                 <ChevronDown className="ml-2 h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
+            <DropdownMenuContent align="end" className="w-full" onCloseAutoFocus={(e) => e.preventDefault()}>
               {personaOptions.map((option) => (
                 <DropdownMenuCheckboxItem
                   key={option.value}
@@ -278,7 +244,7 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
                 <ChevronDown className="ml-2 h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
+            <DropdownMenuContent align="end" className="w-full" onCloseAutoFocus={(e) => e.preventDefault()}>
               {platformOptions.map((option) => (
                 <DropdownMenuCheckboxItem
                   key={option.value}
@@ -286,16 +252,31 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
                   onCheckedChange={(checked) => handlePlatformChange(option.value, checked)}
                   onSelect={(e) => e.preventDefault()}
                 >
-                  {option.label}
+                  {option.value === 'All Platforms' ? (
+                    option.label
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <img
+                        src={getFaviconUrl(option.value)}
+                        alt={option.value}
+                        className="w-4 h-4 rounded-sm"
+                        onError={(e) => {
+                          e.currentTarget.src = `https://www.google.com/s2/favicons?domain=${option.value.toLowerCase()}.com&sz=16`
+                        }}
+                      />
+                      {option.label}
+                    </div>
+                  )}
                 </DropdownMenuCheckboxItem>
               ))}
             </DropdownMenuContent>
           </DropdownMenu>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Section Divider - Moved up */}
-      <div className="border-b border-gray-200 mt-2"></div>
+      <div className="border-b border-border/60 mt-2"></div>
     </div>
   )
 }

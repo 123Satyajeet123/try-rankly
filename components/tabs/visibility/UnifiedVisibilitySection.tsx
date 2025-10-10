@@ -6,62 +6,158 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Settings, ChevronDown, Calendar as CalendarIcon, ArrowUp, ArrowDown, Expand } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Label, Pie, PieChart, Sector, Cell } from 'recharts'
+import { Label, Pie, PieChart, Sector, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LabelList, Tooltip as RechartsTooltip } from 'recharts'
 import { PieSectorDataItem } from 'recharts/types/polar/Pie'
+import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
+import { useSkeletonLoader } from '@/hooks/useSkeletonLoader'
+import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
+import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
 
-const chartData = [
-  { name: 'DataFlow', score: 59.4, color: '#3B82F6', comparisonScore: 55.2 },
-  { name: 'CloudSync', score: 42.4, color: '#EF4444', comparisonScore: 38.7 },
-  { name: 'SmartAI', score: 37.2, color: '#8B5CF6', comparisonScore: 35.1 },
-  { name: 'TechCorp', score: 29.5, color: '#06B6D4', comparisonScore: 27.8 },
-  { name: 'InnovateTech', score: 24.0, color: '#10B981', comparisonScore: 22.3 },
-]
-
-const allRankings = [
-  { rank: 1, name: 'DataFlow', isOwner: false, rankChange: 0 },
-  { rank: 2, name: 'CloudSync', isOwner: false, rankChange: 1 },
-  { rank: 3, name: 'SmartAI', isOwner: false, rankChange: -1 },
-  { rank: 4, name: 'TechCorp', isOwner: false, rankChange: -1 },
-  { rank: 5, name: 'InnovateTech', isOwner: true, rankChange: 0 },
-  { rank: 6, name: 'NextGen Solutions', isOwner: false, rankChange: 1 },
-  { rank: 7, name: 'Future Systems', isOwner: false, rankChange: -1 },
-  { rank: 8, name: 'Digital Dynamics', isOwner: false, rankChange: 0 },
-  { rank: 9, name: 'CloudFirst Inc', isOwner: false, rankChange: 1 },
-  { rank: 10, name: 'AI Solutions Pro', isOwner: false, rankChange: -1 },
-  { rank: 11, name: 'TechVision Corp', isOwner: false, rankChange: 0 },
-  { rank: 12, name: 'Digital Edge', isOwner: false, rankChange: 1 },
-  { rank: 13, name: 'NextWave Technologies', isOwner: false, rankChange: -1 },
-  { rank: 14, name: 'Innovation Labs', isOwner: false, rankChange: 0 },
-  { rank: 15, name: 'Quantum Systems', isOwner: false, rankChange: 1 },
-]
+// Helper function to generate trend data from chart data
+const generateTrendData = (chartData: any[]) => {
+  // Generate 4 weeks of mock trend data based on current values
+  return [
+    { month: 'Week 1', ...Object.fromEntries(chartData.map(d => [d.name, d.score])) },
+    { month: 'Week 2', ...Object.fromEntries(chartData.map(d => [d.name, d.score])) },
+    { month: 'Week 3', ...Object.fromEntries(chartData.map(d => [d.name, d.score])) },
+    { month: 'Week 4', ...Object.fromEntries(chartData.map(d => [d.name, d.score])) },
+  ]
+}
 
 // Show top 5 by default, but include owned brand if it's not in top 5
-const getDisplayRankings = () => {
-  const top5 = allRankings.slice(0, 5)
-  const ownedBrand = allRankings.find(item => item.isOwner)
-  
+const getDisplayRankings = (filteredRankings: any[]) => {
+  const top5 = filteredRankings.slice(0, 5)
+  const ownedBrand = filteredRankings.find(item => item.isOwner)
+
   // If owned brand is not in top 5, replace the last item with owned brand
   if (ownedBrand && ownedBrand.rank > 5) {
     return [...top5.slice(0, 4), ownedBrand]
   }
-  
+
   return top5
 }
 
-const rankings = getDisplayRankings()
+interface UnifiedVisibilitySectionProps {
+  filterContext?: {
+    selectedTopics: string[]
+    selectedPersonas: string[]
+    selectedPlatforms: string[]
+  }
+  dashboardData?: any
+}
 
-function UnifiedVisibilitySection() {
+function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisibilitySectionProps) {
+  // Transform dashboard data to chart format
+  const getChartDataFromDashboard = () => {
+    console.log('🔍 [VisibilityChart] Dashboard data:', dashboardData?.metrics?.visibilityScore)
+
+    if (!dashboardData?.metrics?.visibilityScore?.data || dashboardData.metrics.visibilityScore.data.length === 0) {
+      console.log('⚠️ [VisibilityChart] No visibility score data available')
+      return []
+    }
+
+    const chartData = dashboardData.metrics.visibilityScore.data.map((item: any, index: number) => ({
+      name: item.name,
+      score: Math.round(item.value * 10) / 10, // Round to 1 decimal
+      color: item.fill || (index === 0 ? '#3B82F6' : '#E5E7EB'),
+      comparisonScore: Math.round(item.value * 10) / 10 // For now, use same value for comparison
+    }))
+
+    console.log('📊 [VisibilityChart] Transformed chart data:', chartData)
+    return chartData
+  }
+
+  const getRankingsFromDashboard = () => {
+    if (!dashboardData?.metrics?.competitors || dashboardData.metrics.competitors.length === 0) {
+      console.log('⚠️ [VisibilityRankings] No competitor data available')
+      return []
+    }
+
+    // ✅ Now using visibilityRank from backend (competitors already transformed with visibilityRank)
+    return dashboardData.metrics.competitors.map((competitor: any, index: number) => ({
+      rank: competitor.rank || (index + 1), // Uses visibilityRank from backend
+      name: competitor.name,
+      isOwner: index === 0, // First competitor is the primary brand
+      rankChange: competitor.change || 0,
+      score: competitor.score // Uses visibilityScore from backend
+    }))
+  }
+
+  // Apply filtering based on filter context
+  const getFilteredData = () => {
+    const baseChartData = getChartDataFromDashboard()
+    const baseRankings = getRankingsFromDashboard()
+
+    // Generate trend data from chart data
+    const trendData = baseChartData.length > 0 ? generateTrendData(baseChartData) : []
+
+    // Return data as-is for now - filtering will be handled by API
+    // The filterContext is used to fetch filtered data from the API in the Dashboard component
+    return {
+      chartData: baseChartData,
+      trendData: trendData,
+      allRankings: baseRankings
+    }
+  }
+
+  const { chartData: filteredChartData, trendData: filteredTrendData, allRankings: filteredRankings } = getFilteredData()
+  const rankings = getDisplayRankings(filteredRankings)
+
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
   const [chartType, setChartType] = useState('bar')
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [comparisonDate, setComparisonDate] = useState<Date | undefined>(undefined)
-  const [activePlatform, setActivePlatform] = useState(chartData[0].name)
+  const [activePlatform, setActivePlatform] = useState(filteredChartData[0]?.name || '')
   const [showExpandedRankings, setShowExpandedRankings] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
+
+  // Skeleton loading state
+  const [isDataLoading, setIsDataLoading] = useState(false)
+  const { showSkeleton, isVisible, setLoading } = useSkeletonLoader({
+    threshold: 300,
+    debounceDelay: 250
+  })
+
+  // Simulate data loading for demonstration
+  useEffect(() => {
+    // Simulate loading when filter context changes
+    if (filterContext) {
+      setIsDataLoading(true)
+      const timer = setTimeout(() => {
+        setIsDataLoading(false)
+      }, 800) // Simulate 800ms loading time
+      
+      return () => clearTimeout(timer)
+    }
+  }, [filterContext])
+
+  // Update skeleton loading state
+  useEffect(() => {
+    setLoading(isDataLoading)
+  }, [isDataLoading, setLoading])
+
+  // Auto-switch chart type based on date selection
+  useEffect(() => {
+    if (comparisonDate) {
+      // Range mode - use line chart for trend view
+      setChartType('line')
+    } else {
+      // Single date mode - use bar chart for brand share view
+      setChartType('bar')
+    }
+  }, [comparisonDate])
+
+  // Recalculate filtered data when filter context changes
+  useEffect(() => {
+    const { chartData: newFilteredChartData } = getFilteredData()
+    if (newFilteredChartData.length > 0 && newFilteredChartData[0]?.name !== activePlatform) {
+      setActivePlatform(newFilteredChartData[0].name)
+    }
+  }, [filterContext, dashboardData])
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { 
@@ -93,11 +189,39 @@ function UnifiedVisibilitySection() {
 
   const showComparison = !!comparisonDate
 
+  // Check if we have data to display
+  const hasData = filteredChartData.length > 0 || filteredRankings.length > 0
+
   return (
-    <div className="w-full">
-      {/* Unified Section Container */}
-      <UnifiedCard className="w-full">
+    <SkeletonWrapper
+      show={showSkeleton}
+      isVisible={isVisible}
+      skeleton={
+        <UnifiedCardSkeleton
+          type="mixed"
+          chartType={chartType === 'line' ? 'line' : 'bar'}
+          tableColumns={4}
+          tableRows={5}
+        />
+      }
+    >
+      <div className="w-full">
+        {/* Unified Section Container */}
+        <UnifiedCard className="w-full">
         <UnifiedCardContent className="p-6">
+
+          {/* Empty State */}
+          {!hasData && (
+            <div className="text-center py-12">
+              <div className="text-muted-foreground">
+                No visibility data available yet. Complete the onboarding process to see your metrics.
+              </div>
+            </div>
+          )}
+
+          {/* Main Content - Only show if we have data */}
+          {hasData && (
+            <>
           {/* Header Section - Inside the box */}
           <div className="space-y-4 mb-6">
             <div>
@@ -171,13 +295,14 @@ function UnifiedVisibilitySection() {
                     variant="outline" 
                     size="sm" 
                     className="body-text bg-background border-border shadow-md hover:bg-muted"
+                    disabled={!!comparisonDate}
                   >
                     <Settings className="mr-2 h-4 w-4" />
                     Chart Config
                     <ChevronDown className="ml-2 h-3 w-3" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
+                <DropdownMenuContent align="end" className="w-full">
                   <DropdownMenuItem onClick={() => setChartType('bar')}>
                     Bar Chart
                   </DropdownMenuItem>
@@ -192,7 +317,9 @@ function UnifiedVisibilitySection() {
             <div className="space-y-2">
               <h3 className="text-foreground">Visibility Score</h3>
               <div className="flex items-baseline gap-3">
-                <div className="metric text-2xl text-foreground">24%</div>
+                <div className="metric text-xl font-semibold text-foreground">
+                  {dashboardData?.metrics?.visibilityScore?.value || 0}%
+                </div>
                 {showComparison && (
                   <Badge variant="outline" className="caption h-5 px-2 border-green-500 text-green-500 bg-green-500/10">
                     +2.3%
@@ -202,22 +329,26 @@ function UnifiedVisibilitySection() {
             </div>
 
             {/* Contained Chart */}
-            <div className="relative h-48 bg-gray-50 dark:bg-gray-900/20 rounded-lg p-3">
+            <div className="relative h-64 bg-gray-50 dark:bg-gray-900/20 rounded-lg p-4">
               {chartType === 'bar' && (
                 <>
                   {/* Y-axis labels on the left */}
-                  <div className="absolute left-2 top-3 bottom-3 flex flex-col justify-between caption text-muted-foreground">
-                    <span>59.4%</span>
-                    <span>42.4%</span>
-                    <span>37.2%</span>
-                    <span>29.5%</span>
-                    <span>24%</span>
-                    <span>0%</span>
+                  <div className="absolute left-2 top-4 bottom-3 flex flex-col justify-between caption text-muted-foreground">
+                    {(() => {
+                      const maxValue = Math.max(...filteredChartData.map(d => d.score), 100)
+                      const step = maxValue / 5
+                      return [4, 3, 2, 1, 0].map(i => {
+                        const value = Math.round(i * step * 10) / 10
+                        return <span key={i}>{value}%</span>
+                      })
+                    })()}
                   </div>
                   
                   {/* Chart bars area */}
                   <div className="ml-10 h-full flex items-end justify-between relative">
-                    {chartData.map((bar) => (
+                    {(() => {
+                      const maxValue = Math.max(...filteredChartData.map(d => d.score), 100)
+                      return filteredChartData.map((bar) => (
                       <div 
                         key={bar.name} 
                         className="flex flex-col items-center justify-end gap-2 flex-1 relative"
@@ -232,19 +363,15 @@ function UnifiedVisibilitySection() {
                         }}
                         onMouseLeave={() => setHoveredBar(null)}
                       >
-                        {/* Score label above bar */}
-                        <div className="caption text-foreground text-center">
-                          {showComparison ? (
-                            <div className="space-y-1">
-                              <div className="text-foreground">{bar.score}%</div>
-                              <div className="text-muted-foreground text-[10px]">
-                                {bar.comparisonScore}%
-                              </div>
+                        {/* Score labels above bars - Only show when comparing */}
+                        {showComparison && (
+                          <div className="text-center mb-2">
+                            <div className="text-sm font-medium text-foreground">{bar.score}%</div>
+                            <div className="text-xs text-muted-foreground">
+                              {bar.comparisonScore}%
                             </div>
-                          ) : (
-                            bar.score + '%'
-                          )}
-                        </div>
+                          </div>
+                        )}
                         
                         {/* Bars container */}
                         <div className="flex items-end gap-1">
@@ -252,7 +379,7 @@ function UnifiedVisibilitySection() {
                           <div 
                             className="w-4 rounded-t-sm transition-all duration-300 hover:opacity-80 cursor-pointer"
                             style={{
-                              height: `${(bar.score / 59.4) * 120}px`,
+                              height: `${(bar.score / maxValue) * 120}px`,
                               minHeight: '4px',
                               backgroundColor: bar.color
                             }}
@@ -263,7 +390,7 @@ function UnifiedVisibilitySection() {
                             <div
                               className="w-4 rounded-t-sm opacity-70 transition-all duration-300 hover:opacity-90 cursor-pointer"
                               style={{
-                                height: `${(bar.comparisonScore / 59.4) * 120}px`,
+                                height: `${(bar.comparisonScore / maxValue) * 120}px`,
                                 minHeight: '2px',
                                 backgroundColor: bar.color,
                                 filter: 'brightness(0.7)'
@@ -274,11 +401,16 @@ function UnifiedVisibilitySection() {
 
                         {/* Company name below bars */}
                         <div className="w-16 h-6 flex items-center justify-center">
-                          <span className="caption text-foreground text-center">{bar.name}</span>
+                          <img 
+                            src={getDynamicFaviconUrl(bar.name)} 
+                            alt={bar.name}
+                            className="w-4 h-4 rounded-sm"
+                            onError={handleFaviconError}
+                          />
                         </div>
                       </div>
-                    ))}
-
+                    ))
+                    })()}
                   </div>
                 </>
               )}
@@ -289,7 +421,7 @@ function UnifiedVisibilitySection() {
                     <PieChart width={192} height={192}>
                       {/* Current period (outer ring) */}
                       <Pie
-                        data={chartData}
+                        data={filteredChartData}
                         dataKey="score"
                         nameKey="name"
                         innerRadius={showComparison ? 55 : 40}
@@ -303,7 +435,7 @@ function UnifiedVisibilitySection() {
                           setActiveIndex(-1)
                         }}
                       >
-                        {chartData.map((entry, index) => (
+                        {filteredChartData.map((entry, index) => (
                           <Cell 
                             key={`cell-${index}`} 
                             fill={entry.color}
@@ -317,7 +449,7 @@ function UnifiedVisibilitySection() {
                         <Label
                           content={({ viewBox }) => {
                             if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                              const activeData = chartData[activeIndex] || chartData[0]
+                              const activeData = filteredChartData[activeIndex] || filteredChartData[0]
                               return (
                                 <text
                                   x={viewBox.cx}
@@ -350,14 +482,14 @@ function UnifiedVisibilitySection() {
                       {/* Comparison period (inner ring) - Only show when comparison is enabled */}
                       {showComparison && (
                         <Pie
-                          data={chartData}
+                          data={filteredChartData}
                           dataKey="comparisonScore"
                           nameKey="name"
                           innerRadius={25}
                           outerRadius={45}
                           strokeWidth={2}
                         >
-                          {chartData.map((entry, index) => (
+                          {filteredChartData.map((entry, index) => (
                             <Cell key={`comparison-cell-${index}`} fill={entry.color} opacity={0.7} />
                           ))}
                         </Pie>
@@ -367,7 +499,7 @@ function UnifiedVisibilitySection() {
                   
                   {/* Legend */}
                   <div className="ml-4 space-y-1">
-                    {chartData.map((item, index) => (
+                    {filteredChartData.map((item, index) => (
                       <div 
                         key={item.name} 
                         className="flex items-center gap-2 cursor-pointer"
@@ -376,6 +508,12 @@ function UnifiedVisibilitySection() {
                         <div 
                           className="w-3 h-3 rounded-full" 
                           style={{ backgroundColor: item.color }}
+                        />
+                        <img
+                          src={getDynamicFaviconUrl(item.name)}
+                          alt={item.name}
+                          className="w-4 h-4 rounded-sm"
+                          onError={handleFaviconError}
                         />
                         <span className="caption text-foreground">{item.name}</span>
                         <span className="caption text-muted-foreground">
@@ -397,6 +535,90 @@ function UnifiedVisibilitySection() {
                 </div>
               )}
 
+              {chartType === 'line' && (
+                <div className="h-full w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={filteredTrendData}
+                      margin={{
+                        top: 20,
+                        left: 12,
+                        right: 12,
+                      }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                      <XAxis
+                        dataKey="month"
+                        tickLine={false}
+                        axisLine={false}
+                        tickMargin={8}
+                        tickFormatter={(value: string) => value.slice(0, 6)}
+                        tick={{ fontSize: 12 }}
+                      />
+                      <YAxis
+                        tick={{ fontSize: 12 }}
+                        tickLine={false}
+                        axisLine={false}
+                      />
+                      <RechartsTooltip
+                        contentStyle={{
+                          backgroundColor: 'hsl(var(--card))',
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          fontSize: '12px',
+                          color: 'hsl(var(--foreground))',
+                          boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                        }}
+                      />
+                      {/* Dynamic lines based on actual chart data */}
+                      {filteredChartData.map((item: any, index: number) => (
+                        <Line
+                          key={item.name}
+                          dataKey={item.name}
+                          type="monotone"
+                          stroke={item.color}
+                          strokeWidth={index === 0 ? 3 : 2}
+                          dot={{ r: index === 0 ? 4 : 3 }}
+                          activeDot={{ r: index === 0 ? 6 : 5 }}
+                        >
+                          {index === 0 && (
+                            <LabelList
+                              position="top"
+                              offset={12}
+                              className="fill-foreground"
+                              fontSize={12}
+                            />
+                          )}
+                        </Line>
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+
+                  {/* Line Chart Legend */}
+                  <div className="mt-4 flex flex-wrap gap-4 justify-center">
+                    {filteredChartData.map((item: any) => (
+                      <div
+                        key={item.name}
+                        className="flex items-center gap-2 cursor-pointer"
+                        onClick={() => setActivePlatform(item.name)}
+                      >
+                        <div
+                          className="w-3 h-3 rounded-full"
+                          style={{ backgroundColor: item.color }}
+                        />
+                        <img
+                          src={getDynamicFaviconUrl(item.name)}
+                          alt={item.name}
+                          className="w-4 h-4 rounded-sm"
+                          onError={handleFaviconError}
+                        />
+                        <span className="caption text-foreground">{item.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Hover Card */}
               {hoveredBar && chartType === 'bar' && (
                 <div 
@@ -412,14 +634,14 @@ function UnifiedVisibilitySection() {
                     <div className="text-white font-semibold text-sm">{hoveredBar.name}</div>
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-gray-300">Current:</span>
-                      <span className="text-white font-medium">{hoveredBar.score}</span>
+                      <span className="text-gray-300 font-medium">{hoveredBar.score}</span>
                     </div>
                     {showComparison && (
                       <div className="flex justify-between items-center text-xs">
                         <span className="text-gray-300">{getComparisonLabel()}:</span>
                         <span className="text-gray-400">
                           {(() => {
-                            const platform = chartData.find(p => p.name === hoveredBar.name)
+                            const platform = filteredChartData.find(p => p.name === hoveredBar.name)
                             return platform ? `${platform.comparisonScore}%` : '0%'
                           })()}
                         </span>
@@ -438,18 +660,19 @@ function UnifiedVisibilitySection() {
               <div className="space-y-6 pl-8 relative">
                 <div className="space-y-2">
                   <h3 className="text-foreground">Visibility Score Rank</h3>
+                  <div className="text-xl font-semibold text-foreground">#{rankings.find(item => item.isOwner)?.rank || 5}</div>
                 </div>
 
                 {/* Simple Table */}
                 <div className="space-y-2 pb-8 relative">
-                  <Table>
+                  <Table className="w-full">
                     <TableHeader>
                       <TableRow className="border-border/60">
-                        <TableHead className="caption text-muted-foreground py-2 px-3">
+                        <TableHead className="caption text-muted-foreground py-2 px-3 w-auto">
                           Company
                         </TableHead>
-                        <TableHead className="text-right caption text-muted-foreground py-2 px-3">
-                          Rank
+                        <TableHead className="text-right caption text-muted-foreground py-2 px-3 w-16">
+                          Visibility Score
                         </TableHead>
                       </TableRow>
                     </TableHeader>
@@ -459,9 +682,15 @@ function UnifiedVisibilitySection() {
                           key={item.rank} 
                           className="border-border/60 hover:bg-muted/30 transition-colors"
                         >
-                          <TableCell className="py-3 px-3">
+                          <TableCell className="py-3 px-3 w-auto">
                             <div className="flex items-center gap-3">
                               <div className="flex items-center gap-2">
+                                <img
+                                  src={getDynamicFaviconUrl(item.name)}
+                                  alt={item.name}
+                                  className="w-4 h-4 rounded-sm"
+                                  onError={handleFaviconError}
+                                />
                                 <span 
                                   className="body-text font-medium" 
                                   style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
@@ -471,7 +700,7 @@ function UnifiedVisibilitySection() {
                               </div>
                             </div>
                           </TableCell>
-                          <TableCell className="text-right py-3 px-3">
+                          <TableCell className="text-right py-3 px-3 w-16">
                             <div className="flex items-center justify-end gap-2">
                               <span className="body-text text-foreground">
                                 #{item.rank}
@@ -535,7 +764,7 @@ function UnifiedVisibilitySection() {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {allRankings.map((item) => (
+                            {filteredRankings.map((item) => (
                               <TableRow 
                                 key={item.rank} 
                                 className="border-border/60 hover:bg-muted/30 transition-colors"
@@ -543,6 +772,12 @@ function UnifiedVisibilitySection() {
                                 <TableCell className="py-3 px-3">
                                   <div className="flex items-center gap-3">
                                     <div className="flex items-center gap-2">
+                                      <img
+                                        src={getDynamicFaviconUrl(item.name)}
+                                        alt={item.name}
+                                        className="w-4 h-4 rounded-sm"
+                                        onError={handleFaviconError}
+                                      />
                                       <span 
                                         className="body-text font-medium" 
                                         style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
@@ -594,9 +829,12 @@ function UnifiedVisibilitySection() {
               </div>
         </div>
         </div>
+            </>
+          )}
         </UnifiedCardContent>
       </UnifiedCard>
     </div>
+    </SkeletonWrapper>
   )
 }
 

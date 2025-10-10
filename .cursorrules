@@ -1,0 +1,254 @@
+# Cursor Rules for Rankly Dashboard
+
+## Tech Stack
+- **Framework**: Next.js 15.5.4 with App Router
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS
+- **UI Components**: shadcn/ui
+- **Charts**: Recharts
+- **Icons**: Lucide React
+- **Date Handling**: date-fns
+- **State Management**: React Hooks (useState, useEffect)
+- **Database**: MongoDB Atlas (via MCP)
+
+## Code Style & Standards
+
+### TypeScript
+- Use strict TypeScript with proper type definitions
+- Define interfaces for all data structures
+- Use type assertions sparingly and with proper validation
+- Prefer `interface` over `type` for object definitions
+- Use generic types for reusable components
+- Always type function parameters and return values
+
+### React & Next.js
+- Use functional components with hooks
+- Implement proper error boundaries
+- Use Next.js App Router patterns
+- Leverage Server Components when possible
+- Use Client Components only when necessary (interactivity, state)
+- Implement proper loading states and error handling
+- Use proper key props for list items
+
+### Component Architecture
+- Follow atomic design principles
+- Create reusable, composable components
+- Use proper prop drilling or context when needed
+- Implement proper component composition
+- Keep components focused on single responsibility
+- Use proper naming conventions (PascalCase for components)
+
+### File Structure
+```
+src/
+├── app/                    # Next.js App Router
+├── components/             # Reusable components
+│   ├── ui/                # shadcn/ui components
+│   ├── layout/            # Layout components
+│   ├── tabs/              # Tab-specific components
+│   └── charts/            # Chart components
+├── lib/                   # Utility functions
+├── types/                 # TypeScript type definitions
+└── data/                  # Mock data and constants
+```
+
+### Styling Guidelines
+- Use Tailwind CSS utility classes
+- Follow mobile-first responsive design
+- Use CSS variables for theming
+- Implement proper dark mode support
+- Use consistent spacing (4px grid system)
+- Follow shadcn/ui design patterns
+
+### Component Patterns
+- Use shadcn/ui components as base
+- Implement proper accessibility (ARIA labels, keyboard navigation)
+- Use proper semantic HTML elements
+- Implement proper focus management
+- Use proper color contrast ratios
+
+### State Management
+- Use useState for local component state
+- Use useEffect for side effects
+- Implement proper cleanup in useEffect
+- Use useCallback and useMemo for performance optimization
+- Avoid unnecessary re-renders
+
+### Data Fetching
+- Use proper loading and error states
+- Implement proper data validation
+- Use TypeScript for API response types
+- Handle edge cases and empty states
+- Implement proper caching strategies
+
+### Performance
+- Use React.memo for expensive components
+- Implement proper lazy loading
+- Use dynamic imports for code splitting
+- Optimize bundle size
+- Use proper image optimization
+
+### Testing
+- Write unit tests for utility functions
+- Test component behavior and interactions
+- Use proper test data and mocks
+- Test error scenarios and edge cases
+
+### Code Quality
+- Use ESLint and Prettier for code formatting
+- Follow consistent naming conventions
+- Write self-documenting code
+- Use proper comments for complex logic
+- Keep functions small and focused
+
+### Security
+- Sanitize user inputs
+- Use proper authentication patterns
+- Implement proper CORS policies
+- Use environment variables for sensitive data
+- Validate data on both client and server
+
+### Accessibility
+- Use proper ARIA labels and roles
+- Implement keyboard navigation
+- Ensure proper color contrast
+- Use semantic HTML elements
+- Test with screen readers
+
+### Database & API
+- Use proper MongoDB query patterns
+- Implement proper error handling
+- Use connection pooling
+- Implement proper indexing
+- Use aggregation pipelines efficiently
+
+### Error Handling
+- Implement proper error boundaries
+- Use try-catch blocks appropriately
+- Provide meaningful error messages
+- Log errors properly
+- Handle network failures gracefully
+
+### Documentation
+- Document complex algorithms
+- Use JSDoc for function documentation
+- Maintain README files
+- Document API endpoints
+- Keep documentation up to date
+
+## Specific Patterns for This Project
+
+### Dashboard Components
+- Use UnifiedCard for consistent card styling
+- Implement proper chart configurations
+- Use proper data visualization patterns
+- Implement comparison functionality
+- Handle date range selections properly
+
+### Chart Components
+- Use Recharts for data visualization
+- Implement proper responsive charts
+- Use consistent color schemes
+- Handle empty data states
+- Implement proper tooltips and legends
+
+### Table Components
+- Use shadcn/ui Table components
+- Implement proper sorting and filtering
+- Handle pagination efficiently
+- Use proper loading states
+- Implement expandable rows when needed
+
+### Modal Components
+- Use shadcn/ui Dialog components
+- Implement proper focus management
+- Handle escape key and backdrop clicks
+- Use proper ARIA attributes
+- Implement proper animations
+
+## Code Examples
+
+### Component Structure
+```typescript
+'use client'
+
+import { useState, useEffect } from 'react'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+
+interface ComponentProps {
+  title: string
+  data: DataType[]
+  onAction: (item: DataType) => void
+}
+
+export function Component({ title, data, onAction }: ComponentProps) {
+  const [isLoading, setIsLoading] = useState(false)
+
+  useEffect(() => {
+    // Side effects here
+    return () => {
+      // Cleanup here
+    }
+  }, [])
+
+  return (
+    <Card>
+      <CardContent className="p-6">
+        <h2 className="text-lg font-semibold">{title}</h2>
+        {/* Component content */}
+      </CardContent>
+    </Card>
+  )
+}
+```
+
+### Data Types
+```typescript
+interface RankingData {
+  rank: number
+  name: string
+  score: number
+  change?: number
+  isOwner: boolean
+}
+
+interface ChartData {
+  name: string
+  value: number
+  color: string
+  comparisonValue?: number
+}
+```
+
+### Styling Patterns
+```typescript
+// Use consistent class patterns
+const buttonVariants = {
+  primary: "bg-blue-600 hover:bg-blue-700 text-white",
+  secondary: "bg-gray-200 hover:bg-gray-300 text-gray-900",
+  outline: "border border-gray-300 hover:bg-gray-50"
+}
+
+// Use proper responsive classes
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+```
+
+## Best Practices
+1. Always use TypeScript strict mode
+2. Implement proper error boundaries
+3. Use semantic HTML elements
+4. Follow accessibility guidelines
+5. Optimize for performance
+6. Write clean, readable code
+7. Use proper naming conventions
+8. Implement proper loading states
+9. Handle edge cases gracefully
+10. Test thoroughly
+
+## Tools & Commands
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run lint` - Run ESLint
+- `npm run type-check` - Run TypeScript compiler
+- `npx shadcn-ui@latest add [component]` - Add shadcn/ui components

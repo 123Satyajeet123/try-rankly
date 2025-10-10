@@ -2,8 +2,12 @@
 
 import React, { useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { ThemeToggle } from './ThemeToggle'
+import { useAuth } from '@/contexts/AuthContext'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from '@/components/ui/dropdown-menu'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { LogOut, User } from 'lucide-react'
 
 interface LayoutProps {
   children: React.ReactNode
@@ -12,9 +16,23 @@ interface LayoutProps {
 
 function Layout({ children, showNav = true }: LayoutProps) {
   const pathname = usePathname()
+  const router = useRouter()
+  const { user, logout } = useAuth()
   const [isSidebarOpen, setIsSidebarOpen] = useState(true)
 
   const isOnboarding = pathname === '/' || pathname === '/onboarding'
+
+  const handleLogout = () => {
+    logout()
+    router.push('/')
+  }
+
+  const getUserInitials = () => {
+    if (!user) return 'U'
+    const firstInitial = user.firstName?.charAt(0).toUpperCase() || ''
+    const lastInitial = user.lastName?.charAt(0).toUpperCase() || ''
+    return firstInitial + lastInitial || user.email?.charAt(0).toUpperCase() || 'U'
+  }
 
   // For onboarding page, don't show the layout header
   if (isOnboarding) {
@@ -112,11 +130,43 @@ function Layout({ children, showNav = true }: LayoutProps) {
               </Link>
             </div>
 
-            {!showNav && (
-              <div className="flex items-center gap-4">
-                <ThemeToggle />
-              </div>
-            )}
+            <div className="flex items-center gap-4">
+              {!showNav && <ThemeToggle />}
+              
+              {/* User Profile Dropdown */}
+              {user && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger className="focus:outline-none">
+                    <Avatar className="h-9 w-9 cursor-pointer hover:ring-2 hover:ring-primary transition-all">
+                      <AvatarFallback className="bg-primary text-primary-foreground text-sm font-medium">
+                        {getUserInitials()}
+                      </AvatarFallback>
+                    </Avatar>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <div className="flex items-center justify-start gap-2 p-2">
+                      <div className="flex flex-col space-y-1">
+                        <p className="text-sm font-medium leading-none">
+                          {user.firstName && user.lastName 
+                            ? `${user.firstName} ${user.lastName}`
+                            : user.email}
+                        </p>
+                        {user.firstName && user.lastName && (
+                          <p className="text-xs leading-none text-muted-foreground">
+                            {user.email}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-950">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      <span>Log out</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </div>
         </header>
 

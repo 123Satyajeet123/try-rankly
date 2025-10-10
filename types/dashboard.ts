@@ -8,6 +8,21 @@ export interface Competitor {
   rank: number
   change: number // percentage change
   trend: 'up' | 'down' | 'stable'
+  // ✅ Sentiment data for sentiment analysis
+  sentimentScore?: number
+  sentimentBreakdown?: {
+    positive: number
+    neutral: number
+    negative: number
+    mixed: number
+  }
+  // ✅ Citation data for citation analysis
+  citationShare?: number
+  citationRank?: number
+  brandCitationsTotal?: number
+  earnedCitationsTotal?: number
+  socialCitationsTotal?: number
+  totalCitations?: number
 }
 
 export interface Metric {
@@ -31,6 +46,12 @@ export interface ChartDataPoint {
 export interface TopicRanking {
   id: string
   topic: string
+  competitors: Competitor[]
+}
+
+export interface PersonaRanking {
+  id: string
+  persona: string
   competitors: Competitor[]
 }
 
@@ -66,8 +87,13 @@ export interface VisibilityMetrics {
   visibilityScore: Metric
   shareOfVoice: Metric
   averagePosition: Metric
+  depthOfMention: Metric
+  sentiment: Metric
+  citationShare: Metric
   topicRankings: TopicRanking[]
   competitors: Competitor[]
+  // ✅ Add platform-specific metrics for detailed citation analysis
+  platformMetrics?: any[]
 }
 
 export interface DashboardData {
