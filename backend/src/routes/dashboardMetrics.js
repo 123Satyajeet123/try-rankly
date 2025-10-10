@@ -9,6 +9,7 @@ const express = require('express');
 const jwt = require('jsonwebtoken');
 const AggregatedMetrics = require('../models/AggregatedMetrics');
 const PromptTest = require('../models/PromptTest');
+const PerformanceInsights = require('../models/PerformanceInsights');
 const router = express.Router();
 
 // Middleware to verify JWT token
@@ -275,15 +276,59 @@ router.get('/all', authenticateToken, async (req, res) => {
 
     const userBrandName = 'US Bank'; // TODO: Get from user profile
 
+    // ✅ Get latest AI-powered Performance Insights
+    let aiInsights = null;
+    try {
+      const latestInsights = await PerformanceInsights.findOne({
+        userId: req.userId
+      }).sort({ generatedAt: -1 }).lean();
+
+      if (latestInsights) {
+        // Separate insights by category
+        const whatsWorking = latestInsights.insights.filter(i => i.category === 'whats_working');
+        const needsAttention = latestInsights.insights.filter(i => i.category === 'needs_attention');
+        
+        aiInsights = {
+          whatsWorking,
+          needsAttention,
+          all: latestInsights.insights,
+          summary: latestInsights.summary,
+          metadata: {
+            id: latestInsights._id,
+            generatedAt: latestInsights.generatedAt,
+            model: latestInsights.model,
+            totalTests: latestInsights.metricsSnapshot.totalTests
+          }
+        };
+        
+        console.log('✅ AI Insights included in dashboard response:', aiInsights.all.length, 'insights');
+      } else {
+        console.log('⚠️ No AI insights found for user');
+      }
+    } catch (error) {
+      console.error('⚠️ Error fetching AI insights for dashboard:', error.message);
+      // Continue without insights - non-critical
+    }
+
     res.json({
       success: true,
       data: {
+        // Core metrics
+        overall: overall,
+        platforms: platforms,
+        topics: topics,
+        personas: personas,
+        
+        // Formatted data for components
         visibility: formatVisibilityData(overall, userBrandName),
         depthOfMention: formatDepthData(overall, userBrandName),
         averagePosition: formatAveragePositionData(overall, userBrandName),
         topicRankings: formatTopicRankings(topics, userBrandName),
         personaRankings: formatPersonaRankings(personas, userBrandName),
         performanceInsights: formatPerformanceInsights(overall, userBrandName),
+        
+        // ✅ AI-Powered Performance Insights
+        aiInsights: aiInsights,
         
         // Platform-level data
         platforms: platforms.map(p => ({

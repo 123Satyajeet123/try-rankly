@@ -214,3 +214,5 @@ Depth: (420 / 11,200) × 100 = 3.75%
 **Does this Depth of Mention calculation look correct now?** 
 
 The exponential decay rewards brands mentioned early in responses! 🎯
+
+

@@ -19,13 +19,31 @@ app.use(cors({
   credentials: true
 }));
 
-// Rate limiting
+// Rate limiting - More lenient for development
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  max: 1000, // limit each IP to 1000 requests per windowMs (increased from 100)
+  message: 'Too many requests from this IP, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip rate limiting for development
+  skip: (req) => {
+    return process.env.NODE_ENV === 'development' && req.ip === '127.0.0.1';
+  }
 });
-app.use(limiter);
+
+// Apply rate limiting to all routes except auth in development
+if (process.env.NODE_ENV === 'production') {
+  app.use(limiter);
+} else {
+  // In development, only apply to non-auth routes
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api/auth')) {
+      return next(); // Skip rate limiting for auth routes in development
+    }
+    return limiter(req, res, next);
+  });
+}
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
@@ -112,6 +130,7 @@ const analyticsRoutes = require('./routes/analytics');
 const urlAnalysisRoutes = require('./routes/urlAnalysis');
 const clustersRoutes = require('./routes/clusters');
 const insightsRoutes = require('./routes/insights');
+const dashboardMetricsRoutes = require('./routes/dashboardMetrics');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -126,6 +145,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/url-analysis', urlAnalysisRoutes);
 app.use('/api/clusters', clustersRoutes);
 app.use('/api/insights', insightsRoutes);
+app.use('/api/dashboard', dashboardMetricsRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -144,7 +164,8 @@ app.use('*', (req, res) => {
       'GET /api/topics',
       'GET /api/personas',
       'GET /api/prompts',
-      'GET /api/analytics/*'
+      'GET /api/analytics/*',
+      'GET /api/dashboard/all'
     ]
   });
 });

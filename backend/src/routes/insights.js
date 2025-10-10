@@ -280,3 +280,5 @@ router.get('/:insightId', authenticateToken, async (req, res) => {
 });
 
 module.exports = router;
+
+

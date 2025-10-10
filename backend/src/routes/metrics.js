@@ -39,7 +39,7 @@ router.post('/calculate', authenticateToken, async (req, res) => {
 
     const { dateFrom, dateTo, forceRefresh } = req.body;
 
-    const results = await metricsAggregation.calculateAllMetrics(req.userId, {
+    const results = await metricsAggregation.calculateMetrics(req.userId, {
       dateFrom: dateFrom ? new Date(dateFrom) : undefined,
       dateTo: dateTo ? new Date(dateTo) : undefined,
       forceRefresh
@@ -56,6 +56,73 @@ router.post('/calculate', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: error.message || 'Failed to calculate metrics'
+    });
+  }
+});
+
+/**
+ * GET /api/metrics/aggregated
+ * Get aggregated metrics by scope (overall, platform, topic, persona)
+ */
+router.get('/aggregated', authenticateToken, async (req, res) => {
+  try {
+    const { scope, dateFrom, dateTo, urlAnalysisId } = req.query;
+
+    const query = {
+      userId: req.userId
+    };
+
+    if (scope) {
+      query.scope = scope;
+    }
+
+    if (urlAnalysisId) {
+      query.urlAnalysisId = urlAnalysisId;
+    }
+
+    if (dateFrom || dateTo) {
+      query.dateFrom = { $gte: dateFrom ? new Date(dateFrom) : new Date(0) };
+      query.dateTo = { $lte: dateTo ? new Date(dateTo) : new Date() };
+    }
+
+    const metrics = await AggregatedMetrics.find(query)
+      .sort({ lastCalculated: -1 })
+      .lean();
+
+    if (!metrics || metrics.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: 'No metrics found. Please run calculations first.'
+      });
+    }
+
+    // If scope is specified, return single metric or array
+    if (scope === 'overall') {
+      const overallMetric = metrics.find(m => m.scope === 'overall');
+      if (!overallMetric) {
+        return res.status(404).json({
+          success: false,
+          message: 'No overall metrics found. Please run calculations first.'
+        });
+      }
+      return res.json({
+        success: true,
+        data: overallMetric
+      });
+    } else {
+      // Return array of metrics for the specified scope
+      const scopedMetrics = metrics.filter(m => m.scope === scope);
+      return res.json({
+        success: true,
+        data: scopedMetrics
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ [API ERROR] Get aggregated metrics failed:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to get metrics'
     });
   }
 });

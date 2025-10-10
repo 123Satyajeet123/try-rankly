@@ -19,6 +19,8 @@ const AggregatedMetrics = require('../models/AggregatedMetrics');
 const UrlAnalysis = require('../models/UrlAnalysis');
 const Topic = require('../models/Topic');
 const Persona = require('../models/Persona');
+const PerformanceInsights = require('../models/PerformanceInsights');
+const insightsGenerationService = require('./insightsGenerationService');
 
 class MetricsAggregationService {
   constructor() {
@@ -71,13 +73,78 @@ class MetricsAggregationService {
         persona: await this.aggregatePersona(userId, tests, filters)
       };
 
+      const totalCalculations = 
+        (results.overall ? 1 : 0) + 
+        results.platform.length + 
+        results.topic.length + 
+        results.persona.length;
+
       console.log('✅ Metrics aggregation complete');
       console.log('   Overall:', results.overall ? 'saved' : 'skipped');
       console.log('   Platforms:', results.platform.length, 'saved');
       console.log('   Topics:', results.topic.length, 'saved');
       console.log('   Personas:', results.persona.length, 'saved');
+      console.log('   Total calculations:', totalCalculations);
 
-      return { success: true, results };
+      // ✅ Generate AI-powered Performance Insights after metrics aggregation
+      let insightsGenerated = false;
+      if (results.overall) {
+        try {
+          console.log('🧠 Generating AI-powered Performance Insights...');
+          
+          const context = {
+            brandName: results.overall.brandMetrics?.[0]?.brandName || 'Your Brand',
+            userId,
+            urlAnalysisId: results.overall.urlAnalysisId,
+            totalPrompts: results.overall.totalPrompts,
+            totalResponses: results.overall.totalResponses
+          };
+
+          const insightsResult = await insightsGenerationService.generateInsights(
+            { overall: results.overall, platforms: results.platform, topics: results.topic, personas: results.persona },
+            context
+          );
+
+          console.log(`✅ AI Insights generated: ${insightsResult.insights.length} insights`);
+          console.log('   What\'s Working:', insightsResult.insights.filter(i => i.category === 'whats_working').length);
+          console.log('   Needs Attention:', insightsResult.insights.filter(i => i.category === 'needs_attention').length);
+          
+          // ✅ Save insights to database
+          const performanceInsights = new PerformanceInsights({
+            userId,
+            urlAnalysisId: results.overall.urlAnalysisId,
+            model: insightsResult.metadata.model,
+            metricsSnapshot: {
+              totalTests: results.overall.totalResponses || 0,
+              totalBrands: results.overall.totalBrands || 0,
+              totalPrompts: results.overall.totalPrompts || 0,
+              dateRange: {
+                from: results.overall.dateFrom,
+                to: results.overall.dateTo
+              }
+            },
+            insights: insightsResult.insights,
+            summary: insightsResult.summary
+          });
+
+          await performanceInsights.save();
+          console.log('💾 AI Insights saved to database');
+          console.log('   Insights ID:', performanceInsights._id);
+          
+          insightsGenerated = true;
+          
+        } catch (error) {
+          console.error('⚠️ AI Insights generation failed (non-critical):', error.message);
+          // Don't fail the entire process if insights generation fails
+        }
+      }
+
+      return { 
+        success: true, 
+        results,
+        totalCalculations,
+        insightsGenerated
+      };
 
     } catch (error) {
       console.error('❌ Metrics aggregation error:', error);
@@ -286,7 +353,7 @@ class MetricsAggregationService {
     const brandData = {
       brandId: brandName.toLowerCase().replace(/\s+/g, '-'),
       brandName,
-      totalAppearances: 0,
+      totalAppearances: 0, // Will be set from uniquePromptIds.size
       totalMentions: 0,
       firstPositions: [],
       sentences: [],
@@ -308,7 +375,10 @@ class MetricsAggregationService {
         neutral: 0,
         negative: 0,
         mixed: 0
-      }
+      },
+      
+      // ✅ Track unique prompts (not tests)
+      uniquePromptIds: new Set()
     };
 
     // Store total words in ALL responses for depth calculation denominator
@@ -322,7 +392,11 @@ class MetricsAggregationService {
       const brandMetric = test.brandMetrics?.find(bm => bm.brandName === brandName);
 
       if (brandMetric && brandMetric.mentioned) {
-        brandData.totalAppearances++;
+        // ✅ Track unique prompts (same prompt tested on different platforms counts as 1)
+        if (test.promptId) {
+          brandData.uniquePromptIds.add(test.promptId.toString());
+        }
+        
         brandData.totalMentions += brandMetric.mentionCount || 0;
 
         // First positions
@@ -365,15 +439,30 @@ class MetricsAggregationService {
       }
     });
 
-    // Calculate aggregated metrics using formulas
+    // ✅ Set totalAppearances to count of unique prompts
+    brandData.totalAppearances = brandData.uniquePromptIds.size;
+    
+    console.log(`     ✅ Total unique prompts where ${brandName} appears: ${brandData.totalAppearances}`);
+    console.log(`     📊 Total mentions across all tests: ${brandData.totalMentions}`);
 
-    // 1. Average Position = Sum of positions / Count of appearances
+    // Calculate total unique prompts in the dataset (for visibility score denominator)
+    const totalPrompts = new Set(tests.map(t => t.promptId?.toString()).filter(Boolean)).size;
+
+    // 1. Visibility Score = (# of prompts where brand appears / total prompts) × 100
+    // Formula: VisibilityScore(b) = (# of prompts where Brand b appears / Total prompts) × 100
+    const visibilityScore = totalPrompts > 0
+      ? parseFloat(((brandData.totalAppearances / totalPrompts) * 100).toFixed(2))
+      : 0;
+    
+    console.log(`     📈 Visibility Score: ${visibilityScore}% (${brandData.totalAppearances} / ${totalPrompts} unique prompts)`);
+
+    // 2. Average Position = Sum of positions / Count of appearances
     // Formula: AvgPos(b) = (Σ positions of Brand b) / (# of tests where Brand b appears)
     const avgPosition = brandData.firstPositions.length > 0
       ? parseFloat((brandData.firstPositions.reduce((a, b) => a + b, 0) / brandData.firstPositions.length).toFixed(2))
       : 0;
 
-    // 2. Depth of Mention = Weighted word count with exponential decay
+    // 3. Depth of Mention = Weighted word count with exponential decay
     // Formula: Depth(b) = (Σ [words in Brand b sentences × exp(− pos(sentence)/totalSentences)] / (Σ words in all responses) × 100
     let depthOfMention = 0;
     if (brandData.sentences.length > 0 && totalWordsAllResponses > 0) {
@@ -389,30 +478,34 @@ class MetricsAggregationService {
       depthOfMention = parseFloat(((weightedWordCount / totalWordsAllResponses) * 100).toFixed(4));
     }
 
-    // 3. Citation Share = % of tests where brand was cited
+    // 4. Citation Share = % of tests where brand was cited
     const citationShare = brandData.totalAppearances > 0
       ? parseFloat(((brandData.citationCount / brandData.totalAppearances) * 100).toFixed(2))
       : 0;
 
-    // 4. Sentiment Score = Average sentiment score
+    // 5. Sentiment Score = Average sentiment score
     const sentimentScore = brandData.sentimentScores.length > 0
       ? parseFloat((brandData.sentimentScores.reduce((a, b) => a + b, 0) / brandData.sentimentScores.length).toFixed(2))
       : 0;
 
-    // 5. Sentiment Share = % positive mentions
+    // 6. Sentiment Share = % positive mentions
     const totalSentimentCounts = Object.values(brandData.sentimentCounts).reduce((a, b) => a + b, 0);
     const sentimentShare = totalSentimentCounts > 0
       ? parseFloat(((brandData.sentimentCounts.positive / totalSentimentCounts) * 100).toFixed(2))
       : 0;
 
-    // 6. Share of Voice = (brand mentions / total mentions) × 100
+    // 7. Share of Voice = (brand mentions / total mentions) × 100
     // Will be calculated after we know total mentions across all brands
 
     return {
       brandId: brandData.brandId,
       brandName: brandData.brandName,
 
-      // Primary metric
+      // Visibility Score (primary metric)
+      visibilityScore,
+      visibilityRank: 0, // Assigned later
+
+      // Total mentions metric
       totalMentions: brandData.totalMentions,
       mentionRank: 0, // Assigned later
 
@@ -468,9 +561,10 @@ class MetricsAggregationService {
     });
 
     // Assign ranks for each metric
-    // Higher is better: mentions, depth, share of voice, citation share
+    // Higher is better: visibility, mentions, depth, share of voice, citation share
     // Lower is better: average position
 
+    this.assignRanksByMetric(brandMetrics, 'visibilityScore', 'visibilityRank', true);
     this.assignRanksByMetric(brandMetrics, 'totalMentions', 'mentionRank', true);
     this.assignRanksByMetric(brandMetrics, 'depthOfMention', 'depthRank', true);
     this.assignRanksByMetric(brandMetrics, 'shareOfVoice', 'shareOfVoiceRank', true);

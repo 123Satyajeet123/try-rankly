@@ -4,6 +4,11 @@ const BrandMetricsSchema = new mongoose.Schema({
   brandId: { type: String, required: true },
   brandName: { type: String, required: true },
 
+  // Visibility Score (primary metric)
+  visibilityScore: { type: Number, required: true }, // Percentage (0-100)
+  visibilityRank: { type: Number, required: true },
+  visibilityRankChange: { type: Number },
+
   // Primary ranking metric
   totalMentions: { type: Number, required: true },
   mentionRank: { type: Number, required: true },
