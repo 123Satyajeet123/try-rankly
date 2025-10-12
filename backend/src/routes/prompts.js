@@ -283,6 +283,11 @@ router.post('/generate', authenticateToken, async (req, res) => {
     }));
 
     // Generate prompts using AI service
+    // Configurable via PROMPTS_PER_QUERY_TYPE env variable
+    const promptsPerQueryType = parseInt(process.env.PROMPTS_PER_QUERY_TYPE) || 3;
+    
+    console.log(`📊 Generating ${promptsPerQueryType} prompts per query type (${promptsPerQueryType * 5} per combination)`);
+    
     const generatedPrompts = await generatePrompts({
       topics,
       personas,
@@ -290,7 +295,8 @@ router.post('/generate', authenticateToken, async (req, res) => {
       language: 'English',
       websiteUrl: latestAnalysis.url,
       brandContext: latestAnalysis.brandContext || '',
-      competitors: competitorData
+      competitors: competitorData,
+      promptsPerQueryType
     });
 
     console.log(`✨ Generated ${generatedPrompts.length} prompts`);
@@ -391,13 +397,16 @@ router.post('/test', authenticateToken, async (req, res) => {
       });
     }
     
-    console.log(`📊 [START] Testing prompts across 4 LLMs (limited to 2 for testing)...`);
+    // Get test limit from environment variable or use default
+    const maxPromptsToTest = parseInt(process.env.MAX_PROMPTS_TO_TEST) || 20;
+    
+    console.log(`📊 [START] Testing prompts across 4 LLMs (limit: ${maxPromptsToTest})...`);
     const testStartTime = Date.now();
     
     // Start testing (this will take time)
     const results = await promptTestingService.testAllPrompts(userId, {
-      batchSize: 2, // Process 2 prompts at a time
-      testLimit: 2  // TESTING: Only test 2 prompts to save API costs
+      batchSize: 5, // Process 5 prompts at a time
+      testLimit: maxPromptsToTest  // Configurable via MAX_PROMPTS_TO_TEST env variable
     });
     
     const testDuration = ((Date.now() - testStartTime) / 1000).toFixed(2);
@@ -543,6 +552,322 @@ router.get('/tests/all', authenticateToken, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to get test results'
+    });
+  }
+});
+
+// Get prompts tab data with topics/personas and individual prompts
+router.get('/dashboard', async (req, res) => {
+  try {
+    const userId = '68e9892f5e894a9df4c401ce'; // Hardcoded for now
+    
+    console.log('📊 [PROMPTS DASHBOARD] Fetching prompts tab data for user:', userId);
+    
+    // Helper functions for mathematical calculations with edge case handling
+    const calculateResponseLevelMetrics = (test) => {
+      // Calculate visibility score for this response (brand mentioned = 100%, not mentioned = 0%)
+      const visibilityScore = test.scorecard?.brandMentioned ? 100 : 0;
+      
+      // Calculate depth of mention from brandMetrics data
+      let depthOfMention = 0;
+      if (test.brandMetrics && test.brandMetrics.length > 0 && test.responseMetadata) {
+        const brandMetric = test.brandMetrics.find(bm => bm.brandName === 'HDFC Bank');
+        if (brandMetric && brandMetric.totalWordCount && test.responseMetadata.totalWords) {
+          // Edge case: prevent division by zero
+          depthOfMention = test.responseMetadata.totalWords > 0 
+            ? (brandMetric.totalWordCount / test.responseMetadata.totalWords) * 100 
+            : 0;
+        }
+      }
+      
+      // Calculate average position (brand position from scorecard)
+      const avgPosition = test.scorecard?.brandPosition || 0;
+      
+      // Calculate citation share for this response
+      let citationShare = 0;
+      if (test.scorecard?.totalCitations && test.scorecard?.totalCitations > 0) {
+        citationShare = (test.scorecard.brandCitations / test.scorecard.totalCitations) * 100;
+      }
+      
+      return {
+        visibilityScore,
+        depthOfMention,
+        avgPosition,
+        citationShare,
+        totalCitations: test.scorecard?.totalCitations || 0,
+        brandCitations: test.scorecard?.brandCitations || 0
+      };
+    };
+    
+    const calculateAverage = (values) => {
+      // Edge case: empty array
+      if (!values || values.length === 0) return 0;
+      
+      // Filter out invalid values (null, undefined, NaN)
+      const validValues = values.filter(v => v !== null && v !== undefined && !isNaN(v));
+      
+      // Edge case: no valid values
+      if (validValues.length === 0) return 0;
+      
+      const sum = validValues.reduce((acc, val) => acc + val, 0);
+      return Math.round((sum / validValues.length) * 100) / 100; // Round to 2 decimal places
+    };
+    
+    const calculateBrandMentionRate = (responseMetrics) => {
+      // Edge case: empty array
+      if (!responseMetrics || responseMetrics.length === 0) return 0;
+      
+      const mentionedCount = responseMetrics.filter(rm => rm.visibilityScore > 0).length;
+      return Math.round((mentionedCount / responseMetrics.length) * 100);
+    };
+
+    const calculatePromptRanks = (prompts) => {
+      if (!prompts || prompts.length === 0) return prompts;
+      
+      // Sort prompts by different metrics to calculate ranks
+      const sortedByVisibility = [...prompts].sort((a, b) => b.metrics.visibilityScore - a.metrics.visibilityScore);
+      const sortedByDepth = [...prompts].sort((a, b) => b.metrics.depthOfMention - a.metrics.depthOfMention);
+      const sortedByPosition = [...prompts].sort((a, b) => a.metrics.avgPosition - b.metrics.avgPosition);
+      const sortedByCitation = [...prompts].sort((a, b) => b.metrics.citationShare - a.metrics.citationShare);
+      
+      // Add ranks to each prompt
+      return prompts.map(prompt => {
+        const visibilityRank = sortedByVisibility.findIndex(p => p.id === prompt.id) + 1;
+        const depthRank = sortedByDepth.findIndex(p => p.id === prompt.id) + 1;
+        const positionRank = sortedByPosition.findIndex(p => p.id === prompt.id) + 1;
+        const citationRank = sortedByCitation.findIndex(p => p.id === prompt.id) + 1;
+        
+        return {
+          ...prompt,
+          metrics: {
+            ...prompt.metrics,
+            visibilityRank,
+            depthRank,
+            avgPositionRank: positionRank,
+            citationShareRank: citationRank
+          }
+        };
+      });
+    };
+    
+    // Get topics and personas
+    const topics = await Topic.find({ userId }).lean();
+    const personas = await Persona.find({ userId }).lean();
+    
+    // Get aggregated metrics for topics and personas
+    const AggregatedMetrics = require('../models/AggregatedMetrics');
+    const topicMetrics = await AggregatedMetrics.find({ 
+      userId, 
+      scope: 'topic' 
+    }).lean();
+    
+    const personaMetrics = await AggregatedMetrics.find({ 
+      userId, 
+      scope: 'persona' 
+    }).lean();
+    
+    // Get individual prompt test results for metrics
+    const promptTests = await PromptTest.find({ 
+      userId, 
+      status: 'completed' 
+    })
+    .populate('promptId', 'text queryType topicId personaId')
+    .populate('topicId', 'name')
+    .populate('personaId', 'type')
+    .lean();
+    
+    // Process topics data using existing calculated metrics from aggregatedmetrics
+    const processedTopics = topics.map(topic => {
+      // Find the aggregated metrics for this topic (scope: 'topic')
+      const topicAggregatedMetrics = topicMetrics.find(m => m.scopeValue === topic.name);
+      const hdfcMetrics = topicAggregatedMetrics?.brandMetrics?.find(bm => bm.brandId === 'hdfc-bank');
+      
+      // Get all prompt tests for this topic to group by prompt
+      const topicPromptTests = promptTests.filter(test => 
+        test.topicId && test.topicId.name === topic.name
+      );
+      
+      // Group by prompt ID to aggregate response-level metrics across LLMs
+      const promptGroups = {};
+      topicPromptTests.forEach(test => {
+        const promptId = test.promptId?._id?.toString();
+        if (!promptId) return;
+        
+        if (!promptGroups[promptId]) {
+          promptGroups[promptId] = {
+            prompt: test.promptId,
+            tests: [],
+            responseMetrics: []
+          };
+        }
+        
+        promptGroups[promptId].tests.push(test);
+        
+        // Calculate response-level metrics for this LLM test
+        const responseMetrics = calculateResponseLevelMetrics(test);
+        promptGroups[promptId].responseMetrics.push(responseMetrics);
+      });
+      
+      // Calculate aggregated metrics for each unique prompt
+      const aggregatedPrompts = Object.values(promptGroups).map(group => {
+        const responseMetrics = group.responseMetrics;
+        
+        // Calculate averages across all LLM responses for this prompt
+        const avgVisibilityScore = calculateAverage(responseMetrics.map(rm => rm.visibilityScore));
+        const avgDepthOfMention = calculateAverage(responseMetrics.map(rm => rm.depthOfMention));
+        const avgPosition = calculateAverage(responseMetrics.map(rm => rm.avgPosition));
+        const avgCitationShare = calculateAverage(responseMetrics.map(rm => rm.citationShare));
+        const brandMentionRate = calculateBrandMentionRate(responseMetrics);
+        
+        return {
+          id: group.prompt._id,
+          text: group.prompt.text || 'N/A',
+          queryType: group.prompt.queryType || 'N/A',
+          totalTests: responseMetrics.length,
+          metrics: {
+            visibilityScore: avgVisibilityScore,
+            depthOfMention: avgDepthOfMention,
+            avgPosition: avgPosition,
+            brandMentioned: brandMentionRate > 0,
+            brandMentionRate: brandMentionRate,
+            citationShare: avgCitationShare,
+            totalCitations: responseMetrics.reduce((sum, rm) => sum + rm.totalCitations, 0),
+            brandCitations: responseMetrics.reduce((sum, rm) => sum + rm.brandCitations, 0)
+          }
+        };
+      });
+      
+      // Calculate ranks for individual prompts within this topic
+      const rankedPrompts = calculatePromptRanks(aggregatedPrompts);
+      
+      return {
+        id: topic._id,
+        name: topic.name,
+        type: 'topic',
+        totalPrompts: rankedPrompts.length,
+        metrics: {
+          visibilityScore: hdfcMetrics?.visibilityScore || 0,
+          visibilityRank: hdfcMetrics?.visibilityRank || 0,
+          depthOfMention: hdfcMetrics?.depthOfMention || 0,
+          depthRank: hdfcMetrics?.depthRank || 0,
+          avgPosition: hdfcMetrics?.avgPosition || 0,
+          avgPositionRank: hdfcMetrics?.avgPositionRank || 0,
+          citationShare: hdfcMetrics?.citationShare || 0,
+          citationShareRank: hdfcMetrics?.citationShareRank || 0
+        },
+        prompts: rankedPrompts
+      };
+    });
+    
+    // Process personas data using existing calculated metrics from aggregatedmetrics
+    const processedPersonas = personas.map(persona => {
+      // Find the aggregated metrics for this persona (scope: 'persona')
+      const personaAggregatedMetrics = personaMetrics.find(m => m.scopeValue === persona.type);
+      const hdfcMetrics = personaAggregatedMetrics?.brandMetrics?.find(bm => bm.brandId === 'hdfc-bank');
+      
+      // Get all prompt tests for this persona to group by prompt
+      const personaPromptTests = promptTests.filter(test => 
+        test.personaId && test.personaId.type === persona.type
+      );
+      
+      // Group by prompt ID to aggregate response-level metrics across LLMs
+      const promptGroups = {};
+      personaPromptTests.forEach(test => {
+        const promptId = test.promptId?._id?.toString();
+        if (!promptId) return;
+        
+        if (!promptGroups[promptId]) {
+          promptGroups[promptId] = {
+            prompt: test.promptId,
+            tests: [],
+            responseMetrics: []
+          };
+        }
+        
+        promptGroups[promptId].tests.push(test);
+        
+        // Calculate response-level metrics for this LLM test
+        const responseMetrics = calculateResponseLevelMetrics(test);
+        promptGroups[promptId].responseMetrics.push(responseMetrics);
+      });
+      
+      // Calculate aggregated metrics for each unique prompt
+      const aggregatedPrompts = Object.values(promptGroups).map(group => {
+        const responseMetrics = group.responseMetrics;
+        
+        // Calculate averages across all LLM responses for this prompt
+        const avgVisibilityScore = calculateAverage(responseMetrics.map(rm => rm.visibilityScore));
+        const avgDepthOfMention = calculateAverage(responseMetrics.map(rm => rm.depthOfMention));
+        const avgPosition = calculateAverage(responseMetrics.map(rm => rm.avgPosition));
+        const avgCitationShare = calculateAverage(responseMetrics.map(rm => rm.citationShare));
+        const brandMentionRate = calculateBrandMentionRate(responseMetrics);
+        
+        return {
+          id: group.prompt._id,
+          text: group.prompt.text || 'N/A',
+          queryType: group.prompt.queryType || 'N/A',
+          totalTests: responseMetrics.length,
+          metrics: {
+            visibilityScore: avgVisibilityScore,
+            depthOfMention: avgDepthOfMention,
+            avgPosition: avgPosition,
+            brandMentioned: brandMentionRate > 0,
+            brandMentionRate: brandMentionRate,
+            citationShare: avgCitationShare,
+            totalCitations: responseMetrics.reduce((sum, rm) => sum + rm.totalCitations, 0),
+            brandCitations: responseMetrics.reduce((sum, rm) => sum + rm.brandCitations, 0)
+          }
+        };
+      });
+      
+      // Calculate ranks for individual prompts within this persona
+      const rankedPrompts = calculatePromptRanks(aggregatedPrompts);
+      
+      return {
+        id: persona._id,
+        name: persona.type,
+        type: 'persona',
+        totalPrompts: rankedPrompts.length,
+        metrics: {
+          visibilityScore: hdfcMetrics?.visibilityScore || 0,
+          visibilityRank: hdfcMetrics?.visibilityRank || 0,
+          depthOfMention: hdfcMetrics?.depthOfMention || 0,
+          depthRank: hdfcMetrics?.depthRank || 0,
+          avgPosition: hdfcMetrics?.avgPosition || 0,
+          avgPositionRank: hdfcMetrics?.avgPositionRank || 0,
+          citationShare: hdfcMetrics?.citationShare || 0,
+          citationShareRank: hdfcMetrics?.citationShareRank || 0
+        },
+        prompts: rankedPrompts
+      };
+    });
+    
+    // Combine and sort all items
+    const allItems = [...processedTopics, ...processedPersonas]
+      .filter(item => item.totalPrompts > 0) // Only show items with prompts
+      .sort((a, b) => b.metrics.visibilityScore - a.metrics.visibilityScore);
+    
+    const totalPrompts = allItems.reduce((sum, item) => sum + item.totalPrompts, 0);
+    
+    console.log(`✅ [PROMPTS DASHBOARD] Found ${allItems.length} items with ${totalPrompts} total prompts`);
+    
+    res.json({
+      success: true,
+      data: {
+        items: allItems,
+        summary: {
+          totalPrompts,
+          totalTopics: processedTopics.filter(t => t.totalPrompts > 0).length,
+          totalPersonas: processedPersonas.filter(p => p.totalPrompts > 0).length
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ [PROMPTS DASHBOARD] Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch prompts dashboard data'
     });
   }
 });

@@ -131,13 +131,13 @@ export default function LLMPlatformsPage() {
         
         try {
           // STEP 1: Test prompts with all LLMs
-          console.log('🧪 [Step 1/3] Starting multi-LLM testing...')
+          console.log('🧪 [Step 1/2] Starting multi-LLM testing...')
           setButtonText('Testing with LLMs...')
           const testResponse = await apiService.testPrompts()
-          console.log('✅ [Step 1/3] Multi-LLM testing completed:', testResponse.data)
+          console.log('✅ [Step 1/2] Multi-LLM testing completed:', testResponse.data)
           
-          // STEP 2: Calculate and aggregate metrics from test results
-          console.log('📊 [Step 2/3] Calculating and aggregating metrics...')
+          // STEP 2: Calculate and aggregate metrics from test results (includes AI insights generation)
+          console.log('📊 [Step 2/2] Calculating and aggregating metrics...')
           setButtonText('Calculating metrics...')
           const metricsResponse = await apiService.calculateMetrics()
           
@@ -147,28 +147,18 @@ export default function LLMPlatformsPage() {
           
           console.log('✅ [Step 2/3] Metrics calculated and aggregated:', metricsResponse.data)
           console.log(`   📈 Total metric sets: ${metricsResponse.data.totalCalculations || 'N/A'}`)
+          console.log(`   🧠 AI Insights generated: ${metricsResponse.data.insightsGenerated ? 'Yes' : 'No'}`)
           
-          // STEP 3: Generate AI-powered performance insights
-          console.log('🧠 [Step 3/3] Generating performance insights...')
-          setButtonText('Generating insights...')
-          const insightsResponse = await apiService.generateInsights()
-          
-          if (!insightsResponse.success) {
-            throw new Error('Insights generation failed: ' + (insightsResponse.message || 'Unknown error'))
-          }
-          
-          console.log('✅ [Step 3/3] Performance insights generated:', insightsResponse.data)
-          console.log(`   🎯 Total insights: ${insightsResponse.data.insights?.length || 0}`)
+          // Insights are automatically generated during metrics aggregation
+          // No separate step needed
           
           // All steps completed successfully!
           console.log('🎉 All processing complete! Ready for dashboard.')
           
-          // Show "See Results" button
-          setTimeout(() => {
-            setIsGenerating(false)
-            setButtonText('See Results')
-            setShowResults(true)
-          }, 1000)
+          // Show "See Results" button only after API calls complete
+          setIsGenerating(false)
+          setButtonText('See Results')
+          setShowResults(true)
           
         } catch (processingError) {
           console.error('❌ Processing failed:', processingError)

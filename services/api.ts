@@ -478,6 +478,16 @@ class ApiService {
     
     return this.request(`/clusters${params.toString() ? `?${params.toString()}` : ''}`)
   }
+
+  // Analysis endpoints
+  async getAnalyses() {
+    return this.request('/metrics/analyses')
+  }
+
+  // Prompts Dashboard endpoint - Get topics/personas with their prompts and metrics
+  async getPromptsDashboard() {
+    return this.request('/prompts/dashboard')
+  }
 }
 
 export default new ApiService()

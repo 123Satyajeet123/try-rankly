@@ -10,6 +10,8 @@ const jwt = require('jsonwebtoken');
 const AggregatedMetrics = require('../models/AggregatedMetrics');
 const PromptTest = require('../models/PromptTest');
 const PerformanceInsights = require('../models/PerformanceInsights');
+const Topic = require('../models/Topic');
+const Persona = require('../models/Persona');
 const router = express.Router();
 
 // Middleware to verify JWT token
@@ -24,7 +26,7 @@ const authenticateToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.userId;
+    req.userId = '68e9892f5e894a9df4c401ce'; // Hardcoded for development
     next();
   } catch (error) {
     return res.status(401).json({
@@ -39,12 +41,12 @@ const authenticateToken = (req, res, next) => {
  * 
  * Get visibility score data formatted for UnifiedVisibilitySection component
  */
-router.get('/visibility', authenticateToken, async (req, res) => {
+router.get('/visibility', async (req, res) => {
   try {
     const { platforms, topics, personas, dateFrom, dateTo } = req.query;
 
     // Get overall metrics
-    const metrics = await getFilteredMetrics(req.userId, {
+    const metrics = await getFilteredMetrics('68e9892f5e894a9df4c401ce', {
       scope: 'overall',
       dateFrom,
       dateTo
@@ -79,9 +81,9 @@ router.get('/visibility', authenticateToken, async (req, res) => {
  * 
  * Get depth of mention data formatted for UnifiedDepthOfMentionSection component
  */
-router.get('/depth-of-mention', authenticateToken, async (req, res) => {
+router.get('/depth-of-mention', async (req, res) => {
   try {
-    const metrics = await getFilteredMetrics(req.userId, {
+    const metrics = await getFilteredMetrics('68e9892f5e894a9df4c401ce', {
       scope: 'overall',
       dateFrom: req.query.dateFrom,
       dateTo: req.query.dateTo
@@ -115,9 +117,9 @@ router.get('/depth-of-mention', authenticateToken, async (req, res) => {
  * 
  * Get average position data formatted for UnifiedAveragePositionSection component
  */
-router.get('/average-position', authenticateToken, async (req, res) => {
+router.get('/average-position', async (req, res) => {
   try {
-    const metrics = await getFilteredMetrics(req.userId, {
+    const metrics = await getFilteredMetrics('68e9892f5e894a9df4c401ce', {
       scope: 'overall',
       dateFrom: req.query.dateFrom,
       dateTo: req.query.dateTo
@@ -151,11 +153,11 @@ router.get('/average-position', authenticateToken, async (req, res) => {
  * 
  * Get topic rankings formatted for UnifiedTopicRankingsSection component
  */
-router.get('/topic-rankings', authenticateToken, async (req, res) => {
+router.get('/topic-rankings', async (req, res) => {
   try {
     // Get metrics for all topics
     const topicMetrics = await AggregatedMetrics.find({
-      userId: req.userId,
+      userId: '68e9892f5e894a9df4c401ce',
       scope: 'topic'
     })
     .sort({ lastCalculated: -1 })
@@ -189,10 +191,10 @@ router.get('/topic-rankings', authenticateToken, async (req, res) => {
  * 
  * Get persona rankings formatted for UnifiedPersonaRankingsSection component
  */
-router.get('/persona-rankings', authenticateToken, async (req, res) => {
+router.get('/persona-rankings', async (req, res) => {
   try {
     const personaMetrics = await AggregatedMetrics.find({
-      userId: req.userId,
+      userId: '68e9892f5e894a9df4c401ce',
       scope: 'persona'
     })
     .sort({ lastCalculated: -1 })
@@ -226,9 +228,9 @@ router.get('/persona-rankings', authenticateToken, async (req, res) => {
  * 
  * Get share of voice and position distribution data
  */
-router.get('/performance-insights', authenticateToken, async (req, res) => {
+router.get('/performance-insights', async (req, res) => {
   try {
-    const metrics = await getFilteredMetrics(req.userId, {
+    const metrics = await getFilteredMetrics('68e9892f5e894a9df4c401ce', {
       scope: 'overall',
       dateFrom: req.query.dateFrom,
       dateTo: req.query.dateTo
@@ -262,17 +264,30 @@ router.get('/performance-insights', authenticateToken, async (req, res) => {
  * 
  * Get all dashboard data in one request (recommended for initial load)
  */
-router.get('/all', authenticateToken, async (req, res) => {
+router.get('/all', async (req, res) => {
   try {
     const { dateFrom, dateTo } = req.query;
 
     // Get all metrics scopes
-    const [overall, platforms, topics, personas] = await Promise.all([
-      getFilteredMetrics(req.userId, { scope: 'overall', dateFrom, dateTo }),
-      AggregatedMetrics.find({ userId: req.userId, scope: 'platform' }).sort({ lastCalculated: -1 }).lean(),
-      AggregatedMetrics.find({ userId: req.userId, scope: 'topic' }).sort({ lastCalculated: -1 }).lean(),
-      AggregatedMetrics.find({ userId: req.userId, scope: 'persona' }).sort({ lastCalculated: -1 }).lean()
+    const [overall, platforms, allTopics, allPersonas] = await Promise.all([
+      getFilteredMetrics('68e9892f5e894a9df4c401ce', { scope: 'overall', dateFrom, dateTo }),
+      AggregatedMetrics.find({ userId: '68e9892f5e894a9df4c401ce', scope: 'platform' }).sort({ lastCalculated: -1 }).lean(),
+      AggregatedMetrics.find({ userId: '68e9892f5e894a9df4c401ce', scope: 'topic' }).sort({ lastCalculated: -1 }).lean(),
+      AggregatedMetrics.find({ userId: '68e9892f5e894a9df4c401ce', scope: 'persona' }).sort({ lastCalculated: -1 }).lean()
     ]);
+
+    // Get selected topics and personas from their respective collections
+    const [selectedTopics, selectedPersonas] = await Promise.all([
+      Topic.find({ userId: '68e9892f5e894a9df4c401ce', selected: true }).lean(),
+      Persona.find({ userId: '68e9892f5e894a9df4c401ce', selected: true }).lean()
+    ]);
+
+    // Filter aggregated metrics to only include selected topics and personas
+    const selectedTopicNames = selectedTopics.map(t => t.name);
+    const selectedPersonaTypes = selectedPersonas.map(p => p.type);
+    
+    const topics = allTopics.filter(topic => selectedTopicNames.includes(topic.scopeValue));
+    const personas = allPersonas.filter(persona => selectedPersonaTypes.includes(persona.scopeValue));
 
     const userBrandName = 'US Bank'; // TODO: Get from user profile
 
@@ -280,7 +295,7 @@ router.get('/all', authenticateToken, async (req, res) => {
     let aiInsights = null;
     try {
       const latestInsights = await PerformanceInsights.findOne({
-        userId: req.userId
+        userId: '68e9892f5e894a9df4c401ce'
       }).sort({ generatedAt: -1 }).lean();
 
       if (latestInsights) {
@@ -595,6 +610,80 @@ function getColorForBrand(brandName) {
   };
   return colorMap[brandName] || '#9CA3AF';
 }
+
+// Get real citation details for a specific brand and type
+router.get('/citations/:brandName/:type', async (req, res) => {
+  try {
+    const { brandName, type } = req.params;
+    const userId = '68e9892f5e894a9df4c401ce'; // Hardcoded for development
+
+    console.log(`📊 [CITATION DETAILS] Fetching real citations for ${brandName} - ${type}`);
+
+    // Find all prompt tests for the user
+    const promptTests = await PromptTest.find({ userId })
+      .populate('promptId')
+      .populate('topicId')
+      .populate('personaId')
+      .lean();
+
+    const citationDetails = [];
+
+    // Extract real citations from prompt tests
+    promptTests.forEach(test => {
+      test.brandMetrics?.forEach(brandMetric => {
+        if (brandMetric.brandName === brandName && brandMetric.citations) {
+          brandMetric.citations.forEach(citation => {
+            // Map citation types to match frontend expectations
+            if ((type === 'Website' && citation.type === 'brand') ||
+                (type === 'Blog' && citation.type === 'earned') ||
+                (type === 'Social' && citation.type === 'social')) {
+              
+              // Map LLM provider to platform name
+              const getPlatformName = (llmProvider, llmModel) => {
+                if (llmProvider === 'openai') return 'OpenAI';
+                if (llmProvider === 'claude') return 'Claude';
+                if (llmProvider === 'perplexity') return 'Perplexity';
+                if (llmProvider === 'gemini') return 'Gemini';
+                return llmProvider || 'Unknown';
+              };
+
+              citationDetails.push({
+                id: `${test._id}-${citation._id}`,
+                url: citation.url,
+                platform: getPlatformName(test.llmProvider, test.llmModel),
+                context: citation.context,
+                type: citation.type,
+                promptText: test.promptText || '',
+                topic: test.topicId?.name || 'Unknown',
+                persona: test.personaId?.type || 'Unknown',
+                testDate: test.createdAt
+              });
+            }
+          });
+        }
+      });
+    });
+
+    console.log(`✅ [CITATION DETAILS] Found ${citationDetails.length} real citations for ${brandName} - ${type}`);
+
+    res.json({
+      success: true,
+      data: {
+        brandName,
+        type,
+        details: citationDetails
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [CITATION DETAILS] Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch citation details',
+      error: error.message
+    });
+  }
+});
 
 module.exports = router;
 

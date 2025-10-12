@@ -9,6 +9,10 @@ const axios = require('axios');
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
+// Configuration: Number of prompts to generate per query type
+// For stress testing, increase this value (e.g., 5 = 25 total prompts per combination)
+const PROMPTS_PER_QUERY_TYPE = parseInt(process.env.PROMPTS_PER_QUERY_TYPE) || 3;
+
 /**
  * Generate prompts for all topic-persona combinations
  * @param {Object} params - Generation parameters
@@ -19,6 +23,7 @@ const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
  * @param {String} params.websiteUrl - User's website URL
  * @param {String} params.brandContext - Website brand context
  * @param {Array} params.competitors - Competitor information
+ * @param {Number} params.promptsPerQueryType - Number of prompts to generate per query type (default: 3 for stress testing)
  * @returns {Promise<Array>} Array of generated prompts
  */
 async function generatePrompts({
@@ -28,7 +33,8 @@ async function generatePrompts({
   language = 'English',
   websiteUrl = '',
   brandContext = '',
-  competitors = []
+  competitors = [],
+  promptsPerQueryType = 3 // Generate 3 prompts per query type = 15 total per combination
 }) {
   try {
     console.log('🎯 Starting prompt generation...');
@@ -47,7 +53,7 @@ async function generatePrompts({
     // Generate prompts for each topic-persona combination
     for (const topic of topics) {
       for (const persona of personas) {
-        console.log(`Generating prompts for: ${topic.name} × ${persona.type}`);
+        console.log(`Generating prompts for: ${topic.name} × ${persona.type} (${promptsPerQueryType} per query type)`);
     console.log('🔍 Topic object:', { id: topic.id, _id: topic._id, name: topic.name });
     console.log('🔍 Persona object:', { id: persona.id, _id: persona._id, type: persona.type });
         
@@ -58,7 +64,8 @@ async function generatePrompts({
           language,
           websiteUrl,
           brandContext,
-          competitors
+          competitors,
+          promptsPerQueryType
         });
 
         allPrompts.push(...prompts);
@@ -75,7 +82,15 @@ async function generatePrompts({
 }
 
 /**
- * Generate 5 prompts for a specific topic-persona combination
+ * Utility function to wait for a specified time
+ */
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * Generate prompts for a specific topic-persona combination
+ * @param {Number} promptsPerQueryType - Number of prompts per query type
  */
 async function generatePromptsForCombination({
   topic,
@@ -84,10 +99,14 @@ async function generatePromptsForCombination({
   language,
   websiteUrl,
   brandContext,
-  competitors
-}) {
+  competitors,
+  promptsPerQueryType = 3
+}, retryCount = 0) {
+  const maxRetries = 3;
+  const baseDelay = 2000; // 2 seconds base delay
+  
   try {
-    const systemPrompt = buildSystemPrompt();
+    const systemPrompt = buildSystemPrompt(promptsPerQueryType);
     const userPrompt = buildUserPrompt({
       topic,
       persona,
@@ -95,12 +114,14 @@ async function generatePromptsForCombination({
       language,
       websiteUrl,
       brandContext,
-      competitors
+      competitors,
+      promptsPerQueryType
     });
 
     console.log(`🔍 Prompt generation context for ${topic.name} × ${persona.type}:`);
     console.log(`   Brand: ${brandContext?.companyName || 'Unknown'}`);
     console.log(`   URL: ${websiteUrl}`);
+    console.log(`   Prompts per query type: ${promptsPerQueryType} (Total: ${promptsPerQueryType * 5})`);
 
     const response = await axios.post(
       OPENROUTER_API_URL,
@@ -124,13 +145,54 @@ async function generatePromptsForCombination({
       }
     );
 
+    // Check if response structure is valid
+    if (!response.data || !response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
+      console.error(`❌ Invalid response structure for prompt generation:`, response.data);
+      throw new Error('Invalid response from AI service');
+    }
+
     const content = response.data.choices[0].message.content;
-    const prompts = parsePromptsFromResponse(content, topic, persona);
+    
+    // Check if content looks like an error message (not JSON)
+    if (typeof content === 'string' && (
+      content.toLowerCase().includes('too many requests') ||
+      content.toLowerCase().includes('rate limit') ||
+      content.toLowerCase().includes('error') ||
+      content.toLowerCase().includes('unauthorized') ||
+      content.toLowerCase().includes('forbidden') ||
+      content.startsWith('Too many') ||
+      content.startsWith('Rate limit') ||
+      content.startsWith('Error:') ||
+      content.startsWith('Unauthorized') ||
+      content.startsWith('Forbidden')
+    )) {
+      console.error(`❌ API returned error message instead of JSON for prompt generation:`, content);
+      throw new Error(`AI service returned error: ${content}`);
+    }
+    
+    const prompts = parsePromptsFromResponse(content, topic, persona, promptsPerQueryType);
 
     return prompts;
 
   } catch (error) {
     console.error(`Error generating prompts for ${topic.name} × ${persona.type}:`, error.message);
+    
+    // Handle rate limiting with retry logic
+    if (error.response?.status === 429 && retryCount < maxRetries) {
+      const delay = baseDelay * Math.pow(2, retryCount); // Exponential backoff
+      console.warn(`   Rate limit exceeded - retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries + 1})`);
+      await sleep(delay);
+      return generatePromptsForCombination({
+        topic,
+        persona,
+        region,
+        language,
+        websiteUrl,
+        brandContext,
+        competitors
+      }, retryCount + 1);
+    }
+    
     throw new Error(`Failed to generate prompts: ${error.message}`);
   }
 }
@@ -138,38 +200,48 @@ async function generatePromptsForCombination({
 /**
  * Build system prompt for AI
  */
-function buildSystemPrompt() {
+function buildSystemPrompt(promptsPerQueryType = 3) {
+  const totalPrompts = promptsPerQueryType * 5;
+  
   return `You are an expert at creating natural, human-like search queries for Answer Engine Optimization (AEO) analysis.
 
-Your task is to generate 5 diverse, realistic prompts that test brand visibility in LLM responses (ChatGPT, Claude, Gemini, Perplexity).
+Your task is to generate ${totalPrompts} diverse, realistic prompts that test brand visibility in LLM responses (ChatGPT, Claude, Gemini, Perplexity).
 
-CRITICAL: Generate prompts across these 5 AEO-critical query types:
+CRITICAL: Generate ${promptsPerQueryType} DIFFERENT prompts for EACH of these 5 AEO-critical query types:
 
 1. **Navigational** (Brand Presence Check): Direct queries about the brand itself
-   - Examples: "What is [Brand]?", "How does [Brand] work?", "Features of [Brand]"
+   - Examples: "What is [Brand]?", "How does [Brand] work?", "Features of [Brand]", "Tell me about [Brand]"
+   - Generate ${promptsPerQueryType} VARIED navigational prompts
 
 2. **Commercial Investigation** (Category Competition): Market/category exploration where brand should appear
-   - Examples: "Best [category] tools in 2025", "Top alternatives to [competitor]", "Compare [category] solutions"
+   - Examples: "Best [category] tools in 2025", "Top alternatives to [competitor]", "Compare [category] solutions", "Leading [category] platforms"
+   - Generate ${promptsPerQueryType} VARIED commercial investigation prompts
 
 3. **Transactional** (Action-Oriented): Ready-to-buy or conversion queries
-   - Examples: "Where to sign up for [category tool]", "Pricing for [brand vs competitor]", "Discount codes for [category]"
+   - Examples: "Where to sign up for [category tool]", "Pricing for [brand vs competitor]", "Discount codes for [category]", "How to purchase [category]"
+   - Generate ${promptsPerQueryType} VARIED transactional prompts
 
 4. **Comparative** (Brand vs Competitor): Direct brand comparison queries
-   - Examples: "Compare [Brand] vs [Competitor]", "Which is better: [Brand] or [Competitor]", "Pros and cons of [Brand]"
+   - Examples: "Compare [Brand] vs [Competitor]", "Which is better: [Brand] or [Competitor]", "Pros and cons of [Brand]", "[Brand] versus [Competitor] features"
+   - Generate ${promptsPerQueryType} VARIED comparative prompts
 
 5. **Reputational** (Trust & Credibility): Reviews, reliability, trust signals
-   - Examples: "Is [Brand] safe to use?", "Reviews of [Brand]", "What do users say about [Brand]?"
+   - Examples: "Is [Brand] safe to use?", "Reviews of [Brand]", "What do users say about [Brand]?", "[Brand] customer feedback", "Is [Brand] reliable?"
+   - Generate ${promptsPerQueryType} VARIED reputational prompts
 
 Requirements:
 - Write from the persona's perspective (their role, challenges, industry context)
 - Make prompts conversational and natural (like real human queries)
-- Generate EXACTLY ONE prompt per query type (5 prompts total)
-- Each prompt should be 1-2 sentences long
+- Generate EXACTLY ${promptsPerQueryType} prompts per query type (${totalPrompts} prompts total)
+- Each prompt should be 1-2 sentences long and UNIQUE
+- Vary the phrasing, angle, and specificity for each prompt within a query type
 - Use the provided brand name, competitors, and topic context
 
 Output format:
-Return ONLY a JSON array of 5 prompt strings (one per query type, in order), nothing else.
-Example: ["navigational prompt", "commercial investigation prompt", "transactional prompt", "comparative prompt", "reputational prompt"]`;
+Return ONLY a JSON array of ${totalPrompts} prompt strings in this exact order:
+[${promptsPerQueryType} navigational, ${promptsPerQueryType} commercial investigation, ${promptsPerQueryType} transactional, ${promptsPerQueryType} comparative, ${promptsPerQueryType} reputational]
+
+Example for ${promptsPerQueryType}=3: ["nav1", "nav2", "nav3", "comm1", "comm2", "comm3", "trans1", "trans2", "trans3", "comp1", "comp2", "comp3", "rep1", "rep2", "rep3"]`;
 }
 
 /**
@@ -182,7 +254,8 @@ function buildUserPrompt({
   language,
   websiteUrl,
   brandContext,
-  competitors
+  competitors,
+  promptsPerQueryType = 3
 }) {
   const competitorContext = competitors.length > 0
     ? `\n\nCompetitors in the space: ${competitors.map(c => c.name).join(', ')}`
@@ -219,7 +292,9 @@ function buildUserPrompt({
     }
   }
 
-  return `Generate 5 AEO-focused prompts for brand visibility testing:
+  const totalPrompts = promptsPerQueryType * 5;
+  
+  return `Generate ${totalPrompts} AEO-focused prompts for brand visibility testing:
 
 BRAND/WEBSITE: ${brandName}${websiteUrl ? ` (${websiteUrl})` : ''}${brandInfo}
 
@@ -234,21 +309,21 @@ ${persona.goals ? `Goals: ${persona.goals.join(', ')}` : ''}
 
 TARGET: ${region}, ${language}${competitorContext}
 
-Generate EXACTLY 5 prompts (one per query type):
-1. Navigational: Direct query about ${brandName}
-2. Commercial Investigation: Category/market query where ${brandName} should appear
-3. Transactional: Action/buying intent query related to the category
-4. Comparative: ${brandName} vs competitor comparison
-5. Reputational: Trust/review query about ${brandName}
+Generate EXACTLY ${totalPrompts} prompts (${promptsPerQueryType} per query type):
+1. Navigational (${promptsPerQueryType} prompts): Direct queries about ${brandName} - vary the angle and specificity
+2. Commercial Investigation (${promptsPerQueryType} prompts): Category/market queries where ${brandName} should appear - use different phrasings
+3. Transactional (${promptsPerQueryType} prompts): Action/buying intent queries - vary from general to specific
+4. Comparative (${promptsPerQueryType} prompts): ${brandName} vs competitor comparisons - use different competitors if available
+5. Reputational (${promptsPerQueryType} prompts): Trust/review queries about ${brandName} - ask from different trust angles
 
-Write from ${persona.type}'s perspective. Make it natural and conversational.
-Return ONLY the JSON array of 5 prompts.`;
+Write from ${persona.type}'s perspective. Make each prompt unique, natural and conversational.
+Return ONLY the JSON array of ${totalPrompts} prompts in the order specified above.`;
 }
 
 /**
  * Parse prompts from AI response
  */
-function parsePromptsFromResponse(content, topic, persona) {
+function parsePromptsFromResponse(content, topic, persona, promptsPerQueryType = 3) {
   try {
     // Try to extract JSON from the response
     const jsonMatch = content.match(/\[[\s\S]*\]/);
@@ -257,19 +332,28 @@ function parsePromptsFromResponse(content, topic, persona) {
     }
 
     const promptTexts = JSON.parse(jsonMatch[0]);
+    const expectedCount = promptsPerQueryType * 5;
 
-    if (!Array.isArray(promptTexts) || promptTexts.length !== 5) {
-      throw new Error('Expected array of 5 prompts');
+    if (!Array.isArray(promptTexts) || promptTexts.length !== expectedCount) {
+      throw new Error(`Expected array of ${expectedCount} prompts, got ${promptTexts.length}`);
     }
 
-    // AEO query types (in order)
-    const queryTypes = [
+    // AEO query types (each repeated promptsPerQueryType times)
+    const baseQueryTypes = [
       'Navigational',
       'Commercial Investigation', 
       'Transactional',
       'Comparative',
       'Reputational'
     ];
+    
+    // Create the queryTypes array by repeating each type promptsPerQueryType times
+    const queryTypes = [];
+    for (const type of baseQueryTypes) {
+      for (let i = 0; i < promptsPerQueryType; i++) {
+        queryTypes.push(type);
+      }
+    }
 
     // Create prompt objects with metadata
     const prompts = promptTexts.map((text, index) => ({

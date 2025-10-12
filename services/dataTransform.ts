@@ -535,7 +535,10 @@ export function transformAggregatedMetricsToDashboardData(
       competitorsBySov: transformBrandMetricsToCompetitors(allCompetitors, 'shareOfVoice'),
       competitorsByCitation: transformBrandMetricsToCompetitors(allCompetitors, 'citation'),
       // ✅ Add platform-specific metrics for detailed citation analysis
-      platformMetrics: platformMetrics
+      platformMetrics: platformMetrics,
+      // ✅ Add topics and personas data for sentiment breakdown
+      topics: topicMetrics,
+      personas: personaMetrics
     },
     filters: {
       platforms: transformCompetitorsToPlatforms(competitors),

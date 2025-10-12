@@ -21,7 +21,11 @@ class PromptTestingService {
       perplexity: 'perplexity/sonar-pro'
     };
 
+    // Configuration: Max prompts to test (controls API costs and testing time)
+    this.maxPromptsToTest = parseInt(process.env.MAX_PROMPTS_TO_TEST) || 20;
+
     console.log('📋 [LLM MODELS] Configured:', this.llmModels);
+    console.log(`🎯 [TEST LIMIT] Max prompts to test: ${this.maxPromptsToTest}`);
     console.log('🧪 PromptTestingService initialized (deterministic scoring)');
   }
 
@@ -38,27 +42,30 @@ class PromptTestingService {
       console.log(`📅 Timestamp: ${new Date().toISOString()}`);
       console.log(`${'='.repeat(60)}\n`);
       
-      // Fetch all active prompts for the user (LIMIT TO 2 FOR TESTING)
+      // Fetch ALL active prompts for the user first
       console.log(`🔍 [QUERY] Fetching active prompts for user ${userId}...`);
       
       // IMPORTANT: Only fetch prompts that have topicId, personaId, and queryType
-      const prompts = await Prompt.find({ 
+      const allPrompts = await Prompt.find({ 
         userId, 
         status: 'active',
         topicId: { $exists: true, $ne: null },
         personaId: { $exists: true, $ne: null },
         queryType: { $exists: true, $ne: null }
       })
-      .limit(options.testLimit || 50) // Test up to 50 prompts (remove artificial limitation)
       .populate('topicId')
       .populate('personaId')
       .lean();
       
       console.log(`🔍 [FILTER] Only fetching prompts with topicId, personaId, and queryType`);
+      console.log(`✅ [QUERY] Found ${allPrompts.length} total prompts in database`);
       
-      console.log(`⚠️  [TESTING MODE] Limited to ${options.testLimit || 2} prompts to save API costs`);
+      // Apply smart sampling to get a balanced subset
+      const testLimit = options.testLimit || this.maxPromptsToTest;
+      const prompts = this.samplePrompts(allPrompts, testLimit);
       
-      console.log(`✅ [QUERY] Found ${prompts.length} prompts in database`);
+      console.log(`🎲 [SAMPLING] Selected ${prompts.length} prompts to test (limit: ${testLimit})`);
+      console.log(`⚠️  [TESTING MODE] Testing ${prompts.length}/${allPrompts.length} prompts to control API costs`);
       
       if (prompts.length === 0) {
         console.error('❌ [ERROR] No prompts found for testing');
@@ -307,8 +314,31 @@ Be thorough, accurate, and helpful in your responses.`;
         }
       );
 
+      // Check if response structure is valid
+      if (!response.data || !response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
+        console.error(`❌ Invalid response structure for LLM call (${llmProvider}):`, response.data);
+        throw new Error('Invalid response from AI service');
+      }
+
       const responseTime = Date.now() - startTime;
       const content = response.data.choices[0].message.content;
+      
+      // Check if content looks like an error message
+      if (typeof content === 'string' && (
+        content.toLowerCase().includes('too many requests') ||
+        content.toLowerCase().includes('rate limit') ||
+        content.toLowerCase().includes('error') ||
+        content.toLowerCase().includes('unauthorized') ||
+        content.toLowerCase().includes('forbidden') ||
+        content.startsWith('Too many') ||
+        content.startsWith('Rate limit') ||
+        content.startsWith('Error:') ||
+        content.startsWith('Unauthorized') ||
+        content.startsWith('Forbidden')
+      )) {
+        console.error(`❌ API returned error message instead of response for ${llmProvider}:`, content);
+        throw new Error(`AI service returned error: ${content}`);
+      }
       const tokensUsed = response.data.usage?.total_tokens || 0;
 
       // Extract citations from response
@@ -407,19 +437,44 @@ Be thorough, accurate, and helpful in your responses.`;
     const brandParts = brandName.toLowerCase().split(/\s+/);
     const coreBrandName = brandParts.slice(0, Math.min(2, brandParts.length)).join('').replace(/[^a-z0-9]/g, '');
     
-    // Check if it's a direct brand link
-    if (urlLower.includes(coreBrandName + '.com') || 
-        urlLower.includes(coreBrandName + '.io') ||
-        urlLower.includes(coreBrandName + '.ai') ||
-        urlLower.includes(coreBrandName + '.in') ||
-        urlLower.includes('://' + coreBrandName) ||
-        urlLower.includes('www.' + coreBrandName)) {
+    // Extract domain from URL to check if it's actually the brand's domain
+    let domain = '';
+    
+    // First, clean up any trailing punctuation that might be in the URL
+    const cleanUrl = url.replace(/[)\\].,;!?]+$/, '');
+    
+    try {
+      const urlObj = new URL(cleanUrl);
+      domain = urlObj.hostname.toLowerCase();
+    } catch (e) {
+      // If URL parsing fails, fall back to regex matching
+      const match = cleanUrl.toLowerCase().match(/(?:https?:\/\/)?(?:www\.)?([^\/\\)]+)/);
+      if (match) {
+        domain = match[1].replace(/[)\\].,;!?]+$/, ''); // Clean trailing punctuation from domain
+      }
+    }
+    
+    // Check if the domain itself is the brand domain (not just contains it in path)
+    const brandDomains = [
+      coreBrandName + '.com',
+      'www.' + coreBrandName + '.com',
+      coreBrandName + '.io',
+      'www.' + coreBrandName + '.io',
+      coreBrandName + '.ai',
+      'www.' + coreBrandName + '.ai',
+      coreBrandName + '.in',
+      'www.' + coreBrandName + '.in',
+      coreBrandName,
+      'www.' + coreBrandName
+    ];
+    
+    if (brandDomains.includes(domain)) {
       return 'brand';
     }
     
     // Check if it's social media
     const socialDomains = ['twitter.com', 'linkedin.com', 'facebook.com', 'instagram.com', 'youtube.com'];
-    if (socialDomains.some(domain => urlLower.includes(domain))) {
+    if (socialDomains.some(socialDomain => domain.includes(socialDomain))) {
       return 'social';
     }
     
@@ -863,6 +918,59 @@ Be thorough, accurate, and helpful in your responses.`;
   /**
    * Get brand context for scoring
    */
+  /**
+   * Smart sampling: Select a balanced subset of prompts
+   * Ensures even distribution across query types, topics, and personas
+   * @param {Array} prompts - All available prompts
+   * @param {number} limit - Maximum number of prompts to select
+   * @returns {Array} - Sampled prompts
+   */
+  samplePrompts(prompts, limit) {
+    if (prompts.length <= limit) {
+      console.log(`   ℹ️  All ${prompts.length} prompts will be tested (under limit of ${limit})`);
+      return prompts;
+    }
+
+    // Group prompts by query type for balanced sampling
+    const promptsByQueryType = {};
+    prompts.forEach(prompt => {
+      const queryType = prompt.queryType || 'Unknown';
+      if (!promptsByQueryType[queryType]) {
+        promptsByQueryType[queryType] = [];
+      }
+      promptsByQueryType[queryType].push(prompt);
+    });
+
+    const queryTypes = Object.keys(promptsByQueryType);
+    const promptsPerQueryType = Math.floor(limit / queryTypes.length);
+    const remainder = limit % queryTypes.length;
+
+    console.log(`   📊 Sampling strategy:`);
+    console.log(`      - Total prompts: ${prompts.length}`);
+    console.log(`      - Limit: ${limit}`);
+    console.log(`      - Query types: ${queryTypes.length} (${queryTypes.join(', ')})`);
+    console.log(`      - Per query type: ${promptsPerQueryType} (+ ${remainder} for top types)`);
+
+    const sampledPrompts = [];
+
+    // Sample evenly from each query type
+    queryTypes.forEach((queryType, index) => {
+      const typePrompts = promptsByQueryType[queryType];
+      // Add 1 extra to first few types to handle remainder
+      const sampleCount = index < remainder ? promptsPerQueryType + 1 : promptsPerQueryType;
+      
+      // Randomly sample from this query type
+      const shuffled = typePrompts.sort(() => Math.random() - 0.5);
+      const sampled = shuffled.slice(0, Math.min(sampleCount, typePrompts.length));
+      
+      console.log(`      - ${queryType}: ${sampled.length}/${typePrompts.length} prompts`);
+      sampledPrompts.push(...sampled);
+    });
+
+    console.log(`   ✅ Final sample: ${sampledPrompts.length} prompts selected`);
+    return sampledPrompts;
+  }
+
   async getBrandContext(userId) {
     try {
       const UrlAnalysis = require('../models/UrlAnalysis');

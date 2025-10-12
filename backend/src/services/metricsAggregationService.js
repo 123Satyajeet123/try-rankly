@@ -420,12 +420,12 @@ class MetricsAggregationService {
         else if (brandMetric.rankPosition === 2) brandData.count2nd++;
         else if (brandMetric.rankPosition === 3) brandData.count3rd++;
         
-        // Citation data
-        brandData.brandCitations += test.scorecard?.brandCitations || 0;
-        brandData.earnedCitations += test.scorecard?.earnedCitations || 0;
-        brandData.socialCitations += test.scorecard?.socialCitations || 0;
-        brandData.totalCitations += test.scorecard?.totalCitations || 0;
-        if (test.scorecard?.totalCitations > 0) {
+        // Citation data - get from brandMetrics.citationMetrics, not scorecard
+        brandData.brandCitations += brandMetric.citationMetrics?.brandCitations || 0;
+        brandData.earnedCitations += brandMetric.citationMetrics?.earnedCitations || 0;
+        brandData.socialCitations += brandMetric.citationMetrics?.socialCitations || 0;
+        brandData.totalCitations += brandMetric.citationMetrics?.totalCitations || 0;
+        if (brandMetric.citationMetrics?.totalCitations > 0) {
           brandData.citationCount++;
         }
         

@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { UnifiedCard, UnifiedCardContent } from '@/components/ui/unified-card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { ChevronDown, ChevronRight, ArrowUpDown } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { ChevronDown, ChevronRight, ArrowUpDown, TrendingUp, Minus, TrendingDown } from 'lucide-react'
 import { useSkeletonLoading } from '@/components/ui/with-skeleton-loading'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
@@ -30,83 +31,108 @@ export function SentimentBreakdownSection({ filterContext, dashboardData }: Sent
 
   // Process dashboard data to extract sentiment breakdown
   const processTopicData = () => {
-    if (!dashboardData?.topicMetrics) return []
+    console.log('🔍 [processTopicData] Starting...')
+    console.log('🔍 [processTopicData] dashboardData:', dashboardData)
+    console.log('🔍 [processTopicData] dashboardData?.metrics:', dashboardData?.metrics)
+    console.log('🔍 [processTopicData] dashboardData?.metrics?.topics:', dashboardData?.metrics?.topics)
     
-    return dashboardData.topicMetrics.map((topic: any) => {
-      const sentiment = topic.sentiment || { positive: 0, negative: 0, neutral: 0 }
-      const total = sentiment.positive + sentiment.negative + sentiment.neutral
+    if (!dashboardData?.metrics?.topics) {
+      console.log('🔍 [processTopicData] No topics data found in dashboardData.metrics.topics')
+      return []
+    }
+    
+    return dashboardData.metrics.topics.map((topic: any) => {
+      // Aggregate sentiment across all brands for this topic
+      let aggregatedSentiment = { positive: 0, negative: 0, neutral: 0, mixed: 0 }
+      
+      if (topic.brandMetrics && topic.brandMetrics.length > 0) {
+        topic.brandMetrics.forEach((brand: any) => {
+          if (brand.sentimentBreakdown) {
+            aggregatedSentiment.positive += brand.sentimentBreakdown.positive || 0
+            aggregatedSentiment.negative += brand.sentimentBreakdown.negative || 0
+            aggregatedSentiment.neutral += brand.sentimentBreakdown.neutral || 0
+            aggregatedSentiment.mixed += brand.sentimentBreakdown.mixed || 0
+          }
+        })
+      }
+      
+      const total = aggregatedSentiment.positive + aggregatedSentiment.negative + aggregatedSentiment.neutral + aggregatedSentiment.mixed
       const sentimentSplit = total > 0 ? {
-        positive: Math.round((sentiment.positive / total) * 100),
-        negative: Math.round((sentiment.negative / total) * 100),
-        neutral: Math.round((sentiment.neutral / total) * 100)
+        positive: Math.round((aggregatedSentiment.positive / total) * 100),
+        negative: Math.round((aggregatedSentiment.negative / total) * 100),
+        neutral: Math.round((aggregatedSentiment.neutral / total) * 100)
       } : { positive: 0, negative: 0, neutral: 0 }
 
-      // Get prompts for this topic
-      const prompts = (topic.prompts || []).map((prompt: any) => {
-        const promptSentiment = prompt.sentiment || { positive: 0, negative: 0, neutral: 0 }
-        const promptTotal = promptSentiment.positive + promptSentiment.negative + promptSentiment.neutral
-        const promptSplit = promptTotal > 0 ? {
-          positive: Math.round((promptSentiment.positive / promptTotal) * 100),
-          negative: Math.round((promptSentiment.negative / promptTotal) * 100),
-          neutral: Math.round((promptSentiment.neutral / promptTotal) * 100)
-        } : { positive: 0, negative: 0, neutral: 0 }
-
-        return {
-          id: prompt._id || prompt.id,
-          text: prompt.promptText || prompt.text || 'Unknown prompt',
-          sentimentSplit: promptSplit
-        }
-      })
+      // For now, we'll use empty prompts array since individual prompt sentiment isn't available in the current API structure
+      const prompts: any[] = []
 
       return {
         id: topic._id || topic.id,
-        topic: topic.topicName || topic.name || 'Unknown Topic',
+        topic: topic.scopeValue || 'Unknown Topic',
         sentimentSplit,
-        prompts
+        prompts,
+        totalSentiment: total
       }
     })
   }
 
   const processPersonaData = () => {
-    if (!dashboardData?.personaMetrics) return []
+    console.log('🔍 [processPersonaData] Starting...')
+    console.log('🔍 [processPersonaData] dashboardData:', dashboardData)
+    console.log('🔍 [processPersonaData] dashboardData?.metrics:', dashboardData?.metrics)
+    console.log('🔍 [processPersonaData] dashboardData?.metrics?.personas:', dashboardData?.metrics?.personas)
     
-    return dashboardData.personaMetrics.map((persona: any) => {
-      const sentiment = persona.sentiment || { positive: 0, negative: 0, neutral: 0 }
-      const total = sentiment.positive + sentiment.negative + sentiment.neutral
+    if (!dashboardData?.metrics?.personas) {
+      console.log('🔍 [processPersonaData] No personas data found in dashboardData.metrics.personas')
+      return []
+    }
+    
+    return dashboardData.metrics.personas.map((persona: any) => {
+      // Aggregate sentiment across all brands for this persona
+      let aggregatedSentiment = { positive: 0, negative: 0, neutral: 0, mixed: 0 }
+      
+      if (persona.brandMetrics && persona.brandMetrics.length > 0) {
+        persona.brandMetrics.forEach((brand: any) => {
+          if (brand.sentimentBreakdown) {
+            aggregatedSentiment.positive += brand.sentimentBreakdown.positive || 0
+            aggregatedSentiment.negative += brand.sentimentBreakdown.negative || 0
+            aggregatedSentiment.neutral += brand.sentimentBreakdown.neutral || 0
+            aggregatedSentiment.mixed += brand.sentimentBreakdown.mixed || 0
+          }
+        })
+      }
+      
+      const total = aggregatedSentiment.positive + aggregatedSentiment.negative + aggregatedSentiment.neutral + aggregatedSentiment.mixed
       const sentimentSplit = total > 0 ? {
-        positive: Math.round((sentiment.positive / total) * 100),
-        negative: Math.round((sentiment.negative / total) * 100),
-        neutral: Math.round((sentiment.neutral / total) * 100)
+        positive: Math.round((aggregatedSentiment.positive / total) * 100),
+        negative: Math.round((aggregatedSentiment.negative / total) * 100),
+        neutral: Math.round((aggregatedSentiment.neutral / total) * 100)
       } : { positive: 0, negative: 0, neutral: 0 }
 
-      // Get prompts for this persona
-      const prompts = (persona.prompts || []).map((prompt: any) => {
-        const promptSentiment = prompt.sentiment || { positive: 0, negative: 0, neutral: 0 }
-        const promptTotal = promptSentiment.positive + promptSentiment.negative + promptSentiment.neutral
-        const promptSplit = promptTotal > 0 ? {
-          positive: Math.round((promptSentiment.positive / promptTotal) * 100),
-          negative: Math.round((promptSentiment.negative / promptTotal) * 100),
-          neutral: Math.round((promptSentiment.neutral / promptTotal) * 100)
-        } : { positive: 0, negative: 0, neutral: 0 }
-
-        return {
-          id: prompt._id || prompt.id,
-          text: prompt.promptText || prompt.text || 'Unknown prompt',
-          sentimentSplit: promptSplit
-        }
-      })
+      // For now, we'll use empty prompts array since individual prompt sentiment isn't available in the current API structure
+      const prompts: any[] = []
 
       return {
         id: persona._id || persona.id,
-        topic: persona.personaName || persona.name || 'Unknown Persona',
+        topic: persona.scopeValue || 'Unknown Persona',
         sentimentSplit,
-        prompts
+        prompts,
+        totalSentiment: total
       }
     })
   }
 
   const topicsData = processTopicData()
   const personasData = processPersonaData()
+
+  // Debug logging
+  console.log('🔍 [SentimentBreakdownSection] Component rendered')
+  console.log('🔍 [SentimentBreakdownSection] dashboardData:', dashboardData)
+  console.log('🔍 [SentimentBreakdownSection] dashboardData?.metrics:', dashboardData?.metrics)
+  console.log('🔍 [SentimentBreakdownSection] dashboardData?.metrics?.topics:', dashboardData?.metrics?.topics)
+  console.log('🔍 [SentimentBreakdownSection] dashboardData?.metrics?.personas:', dashboardData?.metrics?.personas)
+  console.log('🔍 [SentimentBreakdownSection] topicsData:', topicsData)
+  console.log('🔍 [SentimentBreakdownSection] personasData:', personasData)
 
   const handleSortChange = (newSortBy: 'topics' | 'personas') => {
     setSortBy(newSortBy)
@@ -127,45 +153,96 @@ export function SentimentBreakdownSection({ filterContext, dashboardData }: Sent
     setExpandedTopics(newExpanded)
   }
 
-  const SentimentBar = ({ sentimentSplit }: { sentimentSplit: { positive: number; negative: number; neutral: number } }) => {
+  const SentimentBar = ({ sentimentSplit, totalResponses }: { 
+    sentimentSplit: { positive: number; negative: number; neutral: number }
+    totalResponses?: number 
+  }) => {
     const total = sentimentSplit.positive + sentimentSplit.negative + sentimentSplit.neutral
     const positiveWidth = (sentimentSplit.positive / total) * 100
     const negativeWidth = (sentimentSplit.negative / total) * 100
     const neutralWidth = (sentimentSplit.neutral / total) * 100
 
+    // Calculate actual counts from percentages
+    const positiveCount = Math.round((sentimentSplit.positive / 100) * (totalResponses || total))
+    const neutralCount = Math.round((sentimentSplit.neutral / 100) * (totalResponses || total))
+    const negativeCount = Math.round((sentimentSplit.negative / 100) * (totalResponses || total))
+
     return (
-      <div className="relative flex h-6 bg-gray-200 rounded-full overflow-hidden">
-        <div 
-          className="bg-green-500 h-full flex items-center justify-center" 
-          style={{ width: `${positiveWidth}%` }}
-        >
-          {sentimentSplit.positive > 10 && (
-            <span className="text-xs font-medium text-white">
-              {sentimentSplit.positive}%
-            </span>
-          )}
-        </div>
-        <div 
-          className="bg-red-500 h-full flex items-center justify-center" 
-          style={{ width: `${negativeWidth}%` }}
-        >
-          {sentimentSplit.negative > 10 && (
-            <span className="text-xs font-medium text-white">
-              {sentimentSplit.negative}%
-            </span>
-          )}
-        </div>
-        <div 
-          className="bg-blue-500 h-full flex items-center justify-center" 
-          style={{ width: `${neutralWidth}%` }}
-        >
-          {sentimentSplit.neutral > 10 && (
-            <span className="text-xs font-medium text-white">
-              {sentimentSplit.neutral}%
-            </span>
-          )}
-        </div>
-      </div>
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="relative flex h-6 bg-gray-200 rounded-full overflow-hidden cursor-pointer">
+              <div 
+                className="bg-green-500 h-full flex items-center justify-center hover:bg-green-600 transition-colors" 
+                style={{ width: `${positiveWidth}%` }}
+              >
+                {sentimentSplit.positive > 10 && (
+                  <span className="text-xs font-medium text-white">
+                    {sentimentSplit.positive}%
+                  </span>
+                )}
+              </div>
+              <div 
+                className="bg-red-500 h-full flex items-center justify-center hover:bg-red-600 transition-colors" 
+                style={{ width: `${negativeWidth}%` }}
+              >
+                {sentimentSplit.negative > 10 && (
+                  <span className="text-xs font-medium text-white">
+                    {sentimentSplit.negative}%
+                  </span>
+                )}
+              </div>
+              <div 
+                className="bg-blue-500 h-full flex items-center justify-center hover:bg-blue-600 transition-colors" 
+                style={{ width: `${neutralWidth}%` }}
+              >
+                {sentimentSplit.neutral > 10 && (
+                  <span className="text-xs font-medium text-white">
+                    {sentimentSplit.neutral}%
+                  </span>
+                )}
+              </div>
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="top" className="max-w-xs">
+            <div className="space-y-2">
+              <div className="font-semibold text-sm mb-2">Sentiment Breakdown</div>
+              
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-green-500 rounded-full flex-shrink-0"></div>
+                <TrendingUp className="w-3 h-3 text-green-500" />
+                <span className="text-sm">Positive:</span>
+                <span className="text-sm font-medium">{sentimentSplit.positive}%</span>
+                <span className="text-xs text-muted-foreground">({positiveCount} responses)</span>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-blue-500 rounded-full flex-shrink-0"></div>
+                <Minus className="w-3 h-3 text-blue-500" />
+                <span className="text-sm">Neutral:</span>
+                <span className="text-sm font-medium">{sentimentSplit.neutral}%</span>
+                <span className="text-xs text-muted-foreground">({neutralCount} responses)</span>
+              </div>
+              
+              <div className="flex items-center space-x-2">
+                <div className="w-3 h-3 bg-red-500 rounded-full flex-shrink-0"></div>
+                <TrendingDown className="w-3 h-3 text-red-500" />
+                <span className="text-sm">Negative:</span>
+                <span className="text-sm font-medium">{sentimentSplit.negative}%</span>
+                <span className="text-xs text-muted-foreground">({negativeCount} responses)</span>
+              </div>
+              
+              {totalResponses && (
+                <div className="pt-2 border-t border-border">
+                  <div className="text-xs text-muted-foreground">
+                    Total: {totalResponses} responses analyzed
+                  </div>
+                </div>
+              )}
+            </div>
+          </TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
     )
   }
 
@@ -237,10 +314,11 @@ export function SentimentBreakdownSection({ filterContext, dashboardData }: Sent
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortData(getCurrentData()).map((item) => (
-              <>
+            {sortData(getCurrentData()).length > 0 ? (
+              sortData(getCurrentData()).map((item) => (
+              <React.Fragment key={item.id}>
                 {/* Topic Row */}
-                <TableRow key={item.id} className="border-border/60 hover:bg-muted/30 transition-colors">
+                <TableRow className="border-border/60 hover:bg-muted/30 transition-colors">
                   <TableCell className="py-3 px-3">
                     <div className="flex items-center gap-2">
                       <Button
@@ -260,26 +338,62 @@ export function SentimentBreakdownSection({ filterContext, dashboardData }: Sent
                   </TableCell>
                   <TableCell className="py-3 px-3">
                     <div className="w-32">
-                      <SentimentBar sentimentSplit={item.sentimentSplit} />
+                      <SentimentBar sentimentSplit={item.sentimentSplit} totalResponses={item.totalSentiment} />
+                    </div>
+                    {item.totalSentiment > 0 && (
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {item.totalSentiment} total responses
+                      </div>
+                    )}
+                    <div className="flex items-center space-x-3 mt-1 text-xs text-muted-foreground">
+                      <div className="flex items-center space-x-1">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span>Positive</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                        <span>Neutral</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                        <span>Negative</span>
+                      </div>
                     </div>
                   </TableCell>
                 </TableRow>
 
                 {/* Expanded Prompts */}
-                {expandedTopics.has(item.id) && item.prompts.map((prompt: any) => (
-                  <TableRow key={prompt.id} className="border-border/60 hover:bg-muted/20 transition-colors bg-muted/10">
-                    <TableCell className="py-2 px-3 pl-12">
-                      <span className="text-sm text-muted-foreground">{prompt.text}</span>
-                    </TableCell>
-                    <TableCell className="py-2 px-3">
-                      <div className="w-32">
-                        <SentimentBar sentimentSplit={prompt.sentimentSplit} />
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </>
-            ))}
+                {expandedTopics.has(item.id) && (
+                  item.prompts.length > 0 ? (
+                    item.prompts.map((prompt: any) => (
+                      <TableRow key={prompt.id} className="border-border/60 hover:bg-muted/20 transition-colors bg-muted/10">
+                        <TableCell className="py-2 px-3 pl-12">
+                          <span className="text-sm text-muted-foreground">{prompt.text}</span>
+                        </TableCell>
+                        <TableCell className="py-2 px-3">
+                          <div className="w-32">
+                            <SentimentBar sentimentSplit={prompt.sentimentSplit} />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow className="border-border/60 bg-muted/10">
+                      <TableCell colSpan={2} className="py-2 px-3 pl-12">
+                        <span className="text-sm text-muted-foreground">Individual prompt sentiment data not available</span>
+                      </TableCell>
+                    </TableRow>
+                  )
+                )}
+              </React.Fragment>
+            ))
+            ) : (
+              <TableRow>
+                <TableCell colSpan={2} className="py-8 text-center text-muted-foreground">
+                  No sentiment data available for {sortBy === 'topics' ? 'topics' : 'personas'}
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </UnifiedCardContent>

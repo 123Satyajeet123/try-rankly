@@ -91,7 +91,7 @@ class WebsiteAnalysisService {
       });
 
       // Wait a bit for dynamic content to load
-      await page.waitForTimeout(2000);
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Extract website data
       const websiteData = await page.evaluate(() => {
@@ -349,8 +349,15 @@ Identify 3-4 primary user personas:
     return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'personas');
   }
 
-  // Call OpenRouter API with error handling
-  async callOpenRouter(prompt, model = 'perplexity/sonar-pro', analysisType = 'general') {
+  // Utility function to wait for a specified time
+  async sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  // Call OpenRouter API with error handling and retry logic
+  async callOpenRouter(prompt, model = 'perplexity/sonar-pro', analysisType = 'general', retryCount = 0) {
+    const maxRetries = 3;
+    const baseDelay = 2000; // 2 seconds base delay
     try {
       const systemPrompt = SYSTEM_PROMPTS[analysisType] || SYSTEM_PROMPTS.brandContext;
       
@@ -379,7 +386,32 @@ Identify 3-4 primary user personas:
         timeout: 60000 // 60 second timeout
       });
 
+      // Check if response structure is valid
+      if (!response.data || !response.data.choices || !response.data.choices[0] || !response.data.choices[0].message) {
+        console.error(`❌ Invalid response structure for ${analysisType}:`, response.data);
+        console.warn(`⚠️  Returning default response for ${analysisType}`);
+        return this.getDefaultResponse(analysisType);
+      }
+
       let content = response.data.choices[0].message.content;
+      
+      // Check if content looks like an error message (not JSON)
+      if (typeof content === 'string' && (
+        content.toLowerCase().includes('too many requests') ||
+        content.toLowerCase().includes('rate limit') ||
+        content.toLowerCase().includes('error') ||
+        content.toLowerCase().includes('unauthorized') ||
+        content.toLowerCase().includes('forbidden') ||
+        content.startsWith('Too many') ||
+        content.startsWith('Rate limit') ||
+        content.startsWith('Error:') ||
+        content.startsWith('Unauthorized') ||
+        content.startsWith('Forbidden')
+      )) {
+        console.error(`❌ API returned error message instead of JSON for ${analysisType}:`, content);
+        console.warn(`⚠️  Returning default response for ${analysisType}`);
+        return this.getDefaultResponse(analysisType);
+      }
       
       // Remove markdown code blocks if present (Perplexity sometimes wraps JSON)
       content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
@@ -397,7 +429,17 @@ Identify 3-4 primary user personas:
         return normalized;
       } catch (parseError) {
         console.warn(`Failed to parse JSON for ${analysisType}:`, parseError.message);
-        console.warn(`   Content preview: ${content.substring(0, 100)}...`);
+        console.warn(`   Content preview: ${content.substring(0, 200)}...`);
+        
+        // Check if the content looks like an error message
+        if (content.toLowerCase().includes('too many requests') || 
+            content.toLowerCase().includes('rate limit') ||
+            content.startsWith('Too many') ||
+            content.startsWith('Rate limit')) {
+          console.error(`❌ Detected rate limiting error in content for ${analysisType}:`, content.substring(0, 100));
+          console.warn(`⚠️  Returning default response for ${analysisType}`);
+          return this.getDefaultResponse(analysisType);
+        }
         
         // Try to extract JSON from response
         const jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -422,6 +464,20 @@ Identify 3-4 primary user personas:
       if (error.response) {
         console.error('   Response status:', error.response.status);
         console.error('   Response data:', JSON.stringify(error.response.data, null, 2));
+        
+        // Handle specific HTTP status codes with retry logic
+        if (error.response.status === 429 && retryCount < maxRetries) {
+          const delay = baseDelay * Math.pow(2, retryCount); // Exponential backoff
+          console.warn(`   Rate limit exceeded - retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries + 1})`);
+          await this.sleep(delay);
+          return this.callOpenRouter(prompt, model, analysisType, retryCount + 1);
+        } else if (error.response.status === 429) {
+          console.error('   Rate limit exceeded - max retries reached, returning default response');
+        } else if (error.response.status === 401) {
+          console.error('   Unauthorized - check API key');
+        } else if (error.response.status === 403) {
+          console.error('   Forbidden - check API permissions');
+        }
       }
       console.warn(`⚠️  Returning default response for ${analysisType}`);
       return this.getDefaultResponse(analysisType);

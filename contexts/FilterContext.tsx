@@ -6,9 +6,11 @@ interface FilterContextType {
   selectedTopics: string[]
   selectedPersonas: string[]
   selectedPlatforms: string[]
+  selectedAnalysisId: string | null
   setSelectedTopics: React.Dispatch<React.SetStateAction<string[]>>
   setSelectedPersonas: React.Dispatch<React.SetStateAction<string[]>>
   setSelectedPlatforms: React.Dispatch<React.SetStateAction<string[]>>
+  setSelectedAnalysisId: React.Dispatch<React.SetStateAction<string | null>>
 }
 
 const FilterContext = createContext<FilterContextType | undefined>(undefined)
@@ -17,15 +19,18 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   const [selectedTopics, setSelectedTopics] = useState<string[]>(['All Topics'])
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>(['All Personas'])
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['All Platforms'])
+  const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(null)
 
   return (
     <FilterContext.Provider value={{
       selectedTopics,
       selectedPersonas,
       selectedPlatforms,
+      selectedAnalysisId,
       setSelectedTopics,
       setSelectedPersonas,
-      setSelectedPlatforms
+      setSelectedPlatforms,
+      setSelectedAnalysisId
     }}>
       {children}
     </FilterContext.Provider>

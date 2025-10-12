@@ -185,3 +185,6 @@ height: `${(bar.score / maxValue) * 120}px`
 *Fixed on: October 10, 2025*
 
 
+
+
+

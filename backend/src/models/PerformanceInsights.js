@@ -135,3 +135,6 @@ PerformanceInsightsSchema.index({ 'insights.category': 1, 'insights.impact': 1 }
 module.exports = mongoose.model('PerformanceInsights', PerformanceInsightsSchema);
 
 
+
+
+

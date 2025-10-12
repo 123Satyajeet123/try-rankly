@@ -16,6 +16,7 @@ interface DashboardFilters {
   platforms?: string[]
   topics?: string[]
   personas?: string[]
+  selectedAnalysisId?: string | null
 }
 
 interface DashboardServiceResponse<T> {
@@ -82,7 +83,8 @@ class DashboardService {
       // ✅ Use new /api/dashboard/all endpoint (includes AI insights)
       const dashboardResponse = await apiService.getDashboardAll({
         dateFrom: filters.dateFrom,
-        dateTo: filters.dateTo
+        dateTo: filters.dateTo,
+        urlAnalysisId: filters.selectedAnalysisId || filters.urlAnalysisId
       }).catch(e => {
         console.error('❌ [DashboardService] Failed to fetch dashboard/all:', e)
         return { success: false, data: null }

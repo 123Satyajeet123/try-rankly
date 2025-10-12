@@ -16,6 +16,7 @@ import { useSkeletonLoader } from '@/hooks/useSkeletonLoader'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { SidebarSkeleton } from '@/components/layout/SidebarSkeleton'
 import { TopNavSkeleton } from '@/components/layout/TopNavSkeleton'
+import { AnalysisSelector } from '@/components/analysis/AnalysisSelector'
 import dashboardService from '@/services/dashboardService'
 import { DashboardData } from '@/types/dashboard'
 
@@ -31,7 +32,7 @@ export function Dashboard({ initialTab }: DashboardProps) {
   const [isPromptBuilderFullScreen, setIsPromptBuilderFullScreen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { selectedTopics, selectedPersonas, selectedPlatforms } = useFilters()
+  const { selectedTopics, selectedPersonas, selectedPlatforms, selectedAnalysisId, setSelectedAnalysisId } = useFilters()
   
   // Redirect to signin if not authenticated
   useEffect(() => {
@@ -63,7 +64,8 @@ export function Dashboard({ initialTab }: DashboardProps) {
         const filters = {
           platforms: selectedPlatforms,
           topics: selectedTopics,
-          personas: selectedPersonas
+          personas: selectedPersonas,
+          selectedAnalysisId: selectedAnalysisId
         }
         
         const response = await dashboardService.getDashboardData(filters)
@@ -85,7 +87,7 @@ export function Dashboard({ initialTab }: DashboardProps) {
     }
 
     loadDashboardData()
-  }, [selectedTopics, selectedPersonas, selectedPlatforms])
+  }, [selectedTopics, selectedPersonas, selectedPlatforms, selectedAnalysisId])
 
   // Simulate global loading when filters change
   useEffect(() => {
@@ -285,6 +287,16 @@ export function Dashboard({ initialTab }: DashboardProps) {
         {/* Top Navigation - hidden when Prompt Builder is full screen */}
         {!isPromptBuilderFullScreen && (
           <TopNav activeTab={activeTab} onTabChange={setActiveTab} />
+        )}
+
+        {/* Analysis Selector - hidden when Prompt Builder is full screen */}
+        {!isPromptBuilderFullScreen && (
+          <div className="border-b border-border bg-background px-6 py-3">
+            <AnalysisSelector 
+              selectedAnalysisId={selectedAnalysisId}
+              onAnalysisChange={setSelectedAnalysisId}
+            />
+          </div>
         )}
 
         {/* Content Area */}

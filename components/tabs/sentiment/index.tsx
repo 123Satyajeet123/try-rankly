@@ -1,9 +1,6 @@
 // Sentiment Tab Components
-export { SentimentAnalysisSection } from './SentimentAnalysisSection'
-export { SentimentTopicsTable } from './SentimentTopicsTable'
 export { UnifiedSentimentSection } from './UnifiedSentimentSection'
 export { SentimentBreakdownSection } from './SentimentBreakdownSection'
-export { UnifiedPerformanceInsightsSection } from '../visibility/UnifiedPerformanceInsightsSection'
 
 // Sentiment Tab Main Component
 import { UnifiedSentimentSection } from './UnifiedSentimentSection'
@@ -32,3 +29,6 @@ export function SentimentTab({ filterContext, dashboardData }: SentimentTabProps
     </div>
   )
 }
+
+// Export SentimentTab as default export
+export { SentimentTab }

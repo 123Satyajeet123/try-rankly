@@ -51,6 +51,14 @@ router.post('/generate', authenticateToken, async (req, res) => {
         message: 'No aggregated metrics found. Please run metrics aggregation first.'
       });
     }
+
+    // Check if we have enough data for meaningful insights
+    if (!overall.brandMetrics || overall.brandMetrics.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Insufficient data for insights generation. Please run more prompt tests first.'
+      });
+    }
     
     aggregatedMetrics.overall = overall;
     

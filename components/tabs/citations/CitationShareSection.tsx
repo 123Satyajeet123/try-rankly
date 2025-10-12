@@ -460,7 +460,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                     <PieChart width={192} height={192}>
                       {/* Current period (outer ring) */}
                       <Pie
-                        data={filteredChartData}
+                        data={chartData}
                         dataKey="score"
                         nameKey="name"
                         innerRadius={showComparison ? 55 : 40}
@@ -474,7 +474,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                           setActiveIndex(-1)
                         }}
                       >
-                        {filteredChartData.map((entry, index) => (
+                        {chartData.map((entry, index) => (
                           <Cell 
                             key={`cell-${index}`} 
                             fill={entry.color}
@@ -488,7 +488,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                         <Label
                           content={({ viewBox }) => {
                             if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                              const activeData = filteredChartData[activeIndex] || filteredChartData[0]
+                              const activeData = chartData[activeIndex] || chartData[0]
                               return (
                                 <text
                                   x={viewBox.cx}
@@ -521,14 +521,14 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                       {/* Comparison period (inner ring) - Only show when comparison is enabled */}
                       {showComparison && (
                         <Pie
-                          data={filteredChartData}
+                          data={chartData}
                           dataKey="comparisonScore"
                           nameKey="name"
                           innerRadius={25}
                           outerRadius={45}
                           strokeWidth={2}
                         >
-                          {filteredChartData.map((entry, index) => (
+                          {chartData.map((entry, index) => (
                             <Cell key={`comparison-cell-${index}`} fill={entry.color} opacity={0.7} />
                           ))}
                         </Pie>

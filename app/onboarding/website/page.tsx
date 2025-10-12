@@ -87,13 +87,10 @@ export default function WebsitePage() {
       return
     }
 
-    // Keep loading state true for the entire duration of loaders
-    // Initial loader: 3s + 4 sequential loaders: 8s = 11s total
-    // Only if API call was successful
+    // Only enable button after API call completes successfully
+    // No artificial delay - button becomes available when data is ready
     if (analysisSuccess) {
-      setTimeout(() => {
-        setIsAnalyzing(false)
-      }, 11000) // 11 seconds total for all loaders to complete
+      setIsAnalyzing(false)
     }
   }
 

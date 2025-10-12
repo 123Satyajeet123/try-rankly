@@ -282,6 +282,61 @@ router.get('/persona/:persona', authenticateToken, async (req, res) => {
 });
 
 /**
+ * GET /api/metrics/analyses
+ * Get list of all analyses (URL analyses) for the user
+ */
+router.get('/analyses', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    // Get all URL analyses for the user
+    const UrlAnalysis = require('../models/UrlAnalysis');
+    const analyses = await UrlAnalysis.find({ userId })
+      .select('url domain createdAt updatedAt status')
+      .sort({ createdAt: -1 })
+      .lean();
+
+    // For each analysis, get the latest metrics to show summary
+    const analysesWithMetrics = await Promise.all(
+      analyses.map(async (analysis) => {
+        const latestMetrics = await AggregatedMetrics.findOne({
+          userId,
+          urlAnalysisId: analysis._id,
+          scope: 'overall'
+        })
+        .sort({ lastCalculated: -1 })
+        .lean();
+
+        return {
+          id: analysis._id,
+          url: analysis.url,
+          domain: analysis.domain,
+          createdAt: analysis.createdAt,
+          updatedAt: analysis.updatedAt,
+          status: analysis.status,
+          hasData: !!latestMetrics,
+          totalPrompts: latestMetrics?.totalPrompts || 0,
+          totalBrands: latestMetrics?.brandMetrics?.length || 0,
+          lastCalculated: latestMetrics?.lastCalculated || null
+        };
+      })
+    );
+
+    res.json({
+      success: true,
+      data: analysesWithMetrics
+    });
+
+  } catch (error) {
+    console.error('❌ Get analyses error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get analyses'
+    });
+  }
+});
+
+/**
  * GET /api/metrics/dashboard
  * Get all metrics formatted for dashboard display
  */

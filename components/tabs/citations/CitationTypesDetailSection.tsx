@@ -10,6 +10,7 @@ import { useState, useEffect } from 'react'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { getDynamicFaviconUrl, handleFaviconError } from '../../../lib/faviconUtils'
 import { useSkeletonLoading } from '@/components/ui/with-skeleton-loading'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
@@ -91,28 +92,76 @@ const getDetailedCitationData = (dashboardData: any) => {
       })
     }
 
-    // Earned citations data (currently 0 for all brands)
+    // Earned citations data with platform-specific breakdown
     if (earnedCitations > 0) {
+      const earnedPlatforms = []
+      const earnedShares = []
+      const earnedRanks = []
+
+      // Process platform-specific earned citation data
+      platformData.forEach((platformDoc: any) => {
+        const platformName = platformDoc.scopeValue
+        
+        if (platformDoc.brandMetrics && platformDoc.brandMetrics.length > 0) {
+          const brandMetric = platformDoc.brandMetrics.find((bm: any) => bm.brandName === competitor.name)
+          if (brandMetric && brandMetric.earnedCitationsTotal > 0) {
+            earnedPlatforms.push(platformName)
+            earnedShares.push({
+              platform: platformName,
+              percentage: Math.round((brandMetric.earnedCitationsTotal / earnedCitations) * 100 * 10) / 10
+            })
+            earnedRanks.push({
+              platform: platformName,
+              rank: brandMetric.citationShareRank || 1
+            })
+          }
+        }
+      })
+
       earnedData.push({
         name: competitor.name,
         type: 'Blog',
-        platforms: [],
-        citationShares: [],
-        citationRanks: [],
+        platforms: earnedPlatforms,
+        citationShares: earnedShares,
+        citationRanks: earnedRanks,
         totalCitations: earnedCitations,
         isOwner: index === 0,
         favicon: getDynamicFaviconUrl(competitor.name)
       })
     }
 
-    // Social citations data (currently 0 for all brands)
+    // Social citations data with platform-specific breakdown
     if (socialCitations > 0) {
+      const socialPlatforms = []
+      const socialShares = []
+      const socialRanks = []
+
+      // Process platform-specific social citation data
+      platformData.forEach((platformDoc: any) => {
+        const platformName = platformDoc.scopeValue
+        
+        if (platformDoc.brandMetrics && platformDoc.brandMetrics.length > 0) {
+          const brandMetric = platformDoc.brandMetrics.find((bm: any) => bm.brandName === competitor.name)
+          if (brandMetric && brandMetric.socialCitationsTotal > 0) {
+            socialPlatforms.push(platformName)
+            socialShares.push({
+              platform: platformName,
+              percentage: Math.round((brandMetric.socialCitationsTotal / socialCitations) * 100 * 10) / 10
+            })
+            socialRanks.push({
+              platform: platformName,
+              rank: brandMetric.citationShareRank || 1
+            })
+          }
+        }
+      })
+
       socialData.push({
         name: competitor.name,
         type: 'Social',
-        platforms: [],
-        citationShares: [],
-        citationRanks: [],
+        platforms: socialPlatforms,
+        citationShares: socialShares,
+        citationRanks: socialRanks,
         totalCitations: socialCitations,
         isOwner: index === 0,
         favicon: getDynamicFaviconUrl(competitor.name)
@@ -131,6 +180,21 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
     earned: false,
     social: false
   })
+  const [expandedCitationDetails, setExpandedCitationDetails] = useState<{ [key: string]: boolean }>({})
+  const [citationDetails, setCitationDetails] = useState<{ [key: string]: any[] }>({})
+  const [isSheetOpen, setIsSheetOpen] = useState(false)
+  const [selectedCitation, setSelectedCitation] = useState<any>(null)
+
+  // Platform favicon mapping
+  const getPlatformFavicon = (platform: string) => {
+    const faviconMap: { [key: string]: string } = {
+      'OpenAI': 'https://openai.com/favicon.ico',
+      'Claude': 'https://claude.ai/favicon.ico',
+      'Perplexity': 'https://www.perplexity.ai/favicon.ico',
+      'Gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_aurora_33f86dc0c0257da337c63.svg'
+    };
+    return faviconMap[platform] || 'https://www.google.com/favicon.ico';
+  };
 
   // Skeleton loading
   const { showSkeleton, isVisible } = useSkeletonLoading(filterContext)
@@ -158,6 +222,50 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
     }))
   }
 
+  const toggleCitationDetails = async (brandName: string, type: string) => {
+    // Fetch real citation details from the API
+    try {
+      console.log(`📊 [CITATION DETAILS] Fetching real citations for ${brandName} - ${type}`)
+      
+      const response = await fetch(`http://localhost:5000/api/dashboard/citations/${encodeURIComponent(brandName)}/${encodeURIComponent(type)}`)
+      const result = await response.json()
+      
+      if (result.success) {
+        console.log(`✅ [CITATION DETAILS] Found ${result.data.details.length} real citations`)
+        setSelectedCitation({
+          brandName,
+          type,
+          details: result.data.details
+        })
+        setIsSheetOpen(true)
+      } else {
+        console.error('❌ [CITATION DETAILS] Failed to fetch:', result.message)
+        // Fallback to empty state
+        setSelectedCitation({
+          brandName,
+          type,
+          details: []
+        })
+        setIsSheetOpen(true)
+      }
+    } catch (error) {
+      console.error('❌ [CITATION DETAILS] Error fetching real citations:', error)
+      // Fallback to empty state
+      setSelectedCitation({
+        brandName,
+        type,
+        details: []
+      })
+      setIsSheetOpen(true)
+    }
+  }
+
+  // Mock data generation function removed - now using real data from API
+
+  // Mock URL generation function removed - now using real URLs from database
+
+  // Mock context generation function removed - now using real contexts from database
+
   const getPlatformColor = (platform: string) => {
     return platformColors[platform] || '#6B7280'
   }
@@ -172,30 +280,28 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
             className="w-4 h-4 rounded-sm"
             onError={handleFaviconError}
           />
-          <div>
-            <div className="font-medium text-foreground">{item.name}</div>
-            <div className="text-xs text-muted-foreground">({item.type})</div>
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-foreground">{item.name}</span>
+            <span className="text-xs text-muted-foreground bg-muted/50 px-2 py-0.5 rounded">
+              {item.type}
+            </span>
           </div>
         </div>
       </TableCell>
       
       <TableCell className="py-3 px-3">
-        <div className="flex items-center gap-2">
-          {item.platforms.map((platform: string, idx: number) => {
-            const platformColor = getPlatformColor(platform)
-            return (
-              <div key={idx} className="flex items-center gap-1">
-                <img 
-                  src={getDynamicFaviconUrl(platform, 16)} 
-                  alt={platform}
-                  className="w-4 h-4 rounded-sm"
-                  onError={handleFaviconError}
-                  style={{ border: `1px solid ${platformColor}` }}
-                />
-                <span className="text-xs capitalize">{platform}</span>
-              </div>
-            )
-          })}
+        <div className="flex items-center gap-3">
+          {item.platforms.map((platform: string, idx: number) => (
+            <div key={idx} className="flex items-center gap-1">
+              <img 
+                src={getDynamicFaviconUrl(platform, 16)} 
+                alt={platform}
+                className="w-4 h-4"
+                onError={handleFaviconError}
+              />
+              <span className="text-xs capitalize">{platform}</span>
+            </div>
+          ))}
           {item.platforms.length === 0 && (
             <span className="text-muted-foreground">-</span>
           )}
@@ -203,22 +309,18 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
       </TableCell>
       
       <TableCell className="py-3 px-3">
-        <div className="space-y-1">
-          {item.citationShares.map((share: any, idx: number) => {
-            const platformColor = getPlatformColor(share.platform)
-            return (
-              <div key={idx} className="flex items-center gap-1">
-                <img 
-                  src={getDynamicFaviconUrl(share.platform, 16)} 
-                  alt={share.platform}
-                  className="w-4 h-4 rounded-sm"
-                  onError={handleFaviconError}
-                  style={{ border: `1px solid ${platformColor}` }}
-                />
-                <span className="text-xs font-medium">{share.percentage}%</span>
-              </div>
-            )
-          })}
+        <div className="flex items-center gap-3">
+          {item.citationShares.map((share: any, idx: number) => (
+            <div key={idx} className="flex items-center gap-1">
+              <img 
+                src={getDynamicFaviconUrl(share.platform, 16)} 
+                alt={share.platform}
+                className="w-4 h-4"
+                onError={handleFaviconError}
+              />
+              <span className="text-xs font-medium">{share.percentage}%</span>
+            </div>
+          ))}
           {item.citationShares.length === 0 && (
             <span className="text-muted-foreground">-</span>
           )}
@@ -226,22 +328,18 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
       </TableCell>
       
       <TableCell className="py-3 px-3">
-        <div className="space-y-1">
-          {item.citationRanks.map((rank: any, idx: number) => {
-            const platformColor = getPlatformColor(rank.platform)
-            return (
-              <div key={idx} className="flex items-center gap-1">
-                <img 
-                  src={getDynamicFaviconUrl(rank.platform, 16)} 
-                  alt={rank.platform}
-                  className="w-4 h-4 rounded-sm"
-                  onError={handleFaviconError}
-                  style={{ border: `1px solid ${platformColor}` }}
-                />
-                <span className="text-xs font-medium">#{rank.rank}</span>
-              </div>
-            )
-          })}
+        <div className="flex items-center gap-3">
+          {item.citationRanks.map((rank: any, idx: number) => (
+            <div key={idx} className="flex items-center gap-1">
+              <img 
+                src={getDynamicFaviconUrl(rank.platform, 16)} 
+                alt={rank.platform}
+                className="w-4 h-4"
+                onError={handleFaviconError}
+              />
+              <span className="text-xs font-medium">#{rank.rank}</span>
+            </div>
+          ))}
           {item.citationRanks.length === 0 && (
             <span className="text-muted-foreground">-</span>
           )}
@@ -249,13 +347,19 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
       </TableCell>
       
       <TableCell className="py-3 px-3">
-        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
-          <ExternalLink className="w-3 h-3 mr-1" />
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="h-6 px-2 text-xs text-[#2563EB] hover:text-[#2563EB] hover:bg-[#2563EB]/10"
+          onClick={() => toggleCitationDetails(item.name, item.type)}
+        >
           View
+          <ExternalLink className="w-3 h-3 ml-1" />
         </Button>
       </TableCell>
     </TableRow>
   )
+
 
   if (showSkeleton) {
     return (
@@ -266,6 +370,7 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
   }
 
   return (
+    <>
     <UnifiedCard className="h-full">
       <UnifiedCardContent className="p-6">
         {/* Header */}
@@ -303,10 +408,10 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
             <TableHeader>
               <TableRow className="bg-muted/30">
                 <TableHead className="py-3 px-3 font-semibold">Citation Type</TableHead>
-                <TableHead className="py-3 px-3 font-semibold">Platform(s)</TableHead>
-                <TableHead className="py-3 px-3 font-semibold">Citation Share</TableHead>
-                <TableHead className="py-3 px-3 font-semibold">Citation Rank</TableHead>
-                <TableHead className="py-3 px-3 font-semibold">Subjective Impression</TableHead>
+                <TableHead className="py-3 px-3 font-semibold text-center">Platform(s)</TableHead>
+                <TableHead className="py-3 px-3 font-semibold text-center">Citation Share</TableHead>
+                <TableHead className="py-3 px-3 font-semibold text-center">Citation Rank</TableHead>
+                <TableHead className="py-3 px-3 font-semibold text-center">Subjective Impression</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -315,15 +420,12 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
                 <TableCell colSpan={5} className="p-0">
                   <Button
                     variant="ghost"
-                    className="w-full justify-between p-3 h-auto font-semibold hover:bg-muted/50"
+                    className="w-full justify-start p-3 h-auto font-semibold hover:bg-muted/50"
                     onClick={() => toggleSection('brand')}
                   >
                     <span className="flex items-center gap-2">
                       <ChevronRight className={`w-4 h-4 transition-transform ${expandedSections.brand ? 'rotate-90' : ''}`} />
                       Brand
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {citationData.brand.length} items
                     </span>
                   </Button>
                 </TableCell>
@@ -343,15 +445,12 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
                 <TableCell colSpan={5} className="p-0">
                   <Button
                     variant="ghost"
-                    className="w-full justify-between p-3 h-auto font-semibold hover:bg-muted/50"
+                    className="w-full justify-start p-3 h-auto font-semibold hover:bg-muted/50"
                     onClick={() => toggleSection('earned')}
                   >
                     <span className="flex items-center gap-2">
                       <ChevronRight className={`w-4 h-4 transition-transform ${expandedSections.earned ? 'rotate-90' : ''}`} />
                       Earned
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {citationData.earned.length} items
                     </span>
                   </Button>
                 </TableCell>
@@ -371,15 +470,12 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
                 <TableCell colSpan={5} className="p-0">
                   <Button
                     variant="ghost"
-                    className="w-full justify-between p-3 h-auto font-semibold hover:bg-muted/50"
+                    className="w-full justify-start p-3 h-auto font-semibold hover:bg-muted/50"
                     onClick={() => toggleSection('social')}
                   >
                     <span className="flex items-center gap-2">
                       <ChevronRight className={`w-4 h-4 transition-transform ${expandedSections.social ? 'rotate-90' : ''}`} />
                       Social
-                    </span>
-                    <span className="text-sm text-muted-foreground">
-                      {citationData.social.length} items
                     </span>
                   </Button>
                 </TableCell>
@@ -398,5 +494,96 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
         </div>
       </UnifiedCardContent>
     </UnifiedCard>
+
+    {/* Citation Details Sheet */}
+    <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+      <SheetContent className="!w-[80vw] sm:!w-[75vw] lg:!w-[70vw] !max-w-none overflow-y-auto">
+        <SheetHeader>
+          <div className="flex justify-between items-center">
+            <div>
+              <SheetTitle className="flex items-center gap-2">
+                <ExternalLink className="w-5 h-5" />
+                Citation Details
+              </SheetTitle>
+              <SheetDescription>
+                Detailed citations for: <span className="font-semibold">{selectedCitation?.brandName}</span>
+                {selectedCitation?.type && (
+                  <Badge variant="outline" className="ml-2 text-xs">
+                    {selectedCitation.type}
+                  </Badge>
+                )}
+              </SheetDescription>
+            </div>
+          </div>
+        </SheetHeader>
+
+        {selectedCitation && (
+          <div className="mt-4 space-y-3">
+            {/* Citation overview - more compact */}
+            <div className="p-3 bg-muted/50 rounded-lg">
+              <h4 className="font-semibold text-sm mb-1">Citation Overview</h4>
+              <p className="text-xs text-muted-foreground">
+                {selectedCitation.details.length} citation{selectedCitation.details.length !== 1 ? 's' : ''} found across {new Set(selectedCitation.details.map((d: any) => d.platform)).size} platform{new Set(selectedCitation.details.map((d: any) => d.platform)).size !== 1 ? 's' : ''}
+              </p>
+            </div>
+
+            {/* Citations list - more compact */}
+            <div className="space-y-2">
+              <h4 className="font-semibold text-sm">Individual Citations</h4>
+              {selectedCitation.details.map((detail: any, index: number) => (
+                <div key={detail.id} className="p-3 bg-background/50 rounded-lg border border-border/40 hover:bg-background/80 transition-colors">
+                  <div className="flex items-start gap-2">
+                    <img 
+                      src={getPlatformFavicon(detail.platform)} 
+                      alt={detail.platform}
+                      className="w-4 h-4 mt-0.5 flex-shrink-0"
+                      onError={handleFaviconError}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-sm font-medium text-foreground capitalize">{detail.platform}</span>
+                        <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
+                          {detail.type}
+                        </Badge>
+                        {detail.topic && (
+                          <Badge variant="outline" className="text-xs px-1.5 py-0.5">
+                            {detail.topic}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-sm font-medium text-foreground mb-1 line-clamp-2">
+                        {detail.context}
+                      </div>
+                      <div className="text-xs text-muted-foreground mb-1 line-clamp-1">
+                        Prompt: {detail.promptText}
+                      </div>
+                      <a 
+                        href={detail.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 truncate block hover:underline cursor-pointer"
+                        onClick={(e) => {
+                          e.preventDefault()
+                          window.open(detail.url, '_blank')
+                        }}
+                      >
+                        <ExternalLink className="w-3 h-3 inline mr-1" />
+                        {detail.url}
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {selectedCitation.details.length === 0 && (
+                <div className="text-center py-6 text-muted-foreground text-sm">
+                  No citation details available
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+    </>
   )
 }

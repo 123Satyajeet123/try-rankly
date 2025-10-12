@@ -51,6 +51,20 @@ interface UnifiedVisibilitySectionProps {
 }
 
 function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisibilitySectionProps) {
+  // Color palette for different brands
+  const brandColors = [
+    '#3B82F6', // Blue
+    '#EF4444', // Red  
+    '#10B981', // Green
+    '#F59E0B', // Yellow
+    '#8B5CF6', // Purple
+    '#06B6D4', // Cyan
+    '#F97316', // Orange
+    '#EC4899', // Pink
+    '#84CC16', // Lime
+    '#6366F1', // Indigo
+  ]
+
   // Transform dashboard data to chart format
   const getChartDataFromDashboard = () => {
     console.log('🔍 [VisibilityChart] Dashboard data:', dashboardData?.metrics?.visibilityScore)
@@ -63,7 +77,7 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
     const chartData = dashboardData.metrics.visibilityScore.data.map((item: any, index: number) => ({
       name: item.name,
       score: Math.round(item.value * 10) / 10, // Round to 1 decimal
-      color: item.fill || (index === 0 ? '#3B82F6' : '#E5E7EB'),
+      color: item.fill || brandColors[index % brandColors.length], // Use different color for each brand
       comparisonScore: Math.round(item.value * 10) / 10 // For now, use same value for comparison
     }))
 

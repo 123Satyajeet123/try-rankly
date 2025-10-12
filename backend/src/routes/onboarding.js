@@ -629,6 +629,9 @@ router.post('/generate-prompts', authenticateToken, async (req, res) => {
     }
 
     // Prepare data for prompt generation
+    // Configurable via PROMPTS_PER_QUERY_TYPE env variable for stress testing
+    const promptsPerQueryType = parseInt(process.env.PROMPTS_PER_QUERY_TYPE) || 3;
+    
     const promptData = {
       topics: selectedTopics.map(topic => ({
         name: topic.name,
@@ -649,13 +652,16 @@ router.post('/generate-prompts', authenticateToken, async (req, res) => {
         name: comp.name,
         url: comp.url,
         reason: comp.reason
-      }))
+      })),
+      promptsPerQueryType
     };
 
     console.log('📊 Prompt generation data:', {
       topicsCount: promptData.topics.length,
       personasCount: promptData.personas.length,
-      competitorsCount: promptData.competitors.length
+      competitorsCount: promptData.competitors.length,
+      promptsPerQueryType,
+      totalPromptsPerCombination: promptsPerQueryType * 5
     });
 
     console.log('🔍 Available topics:', selectedTopics.map(t => ({ id: t._id, name: t.name })));
