@@ -218,9 +218,10 @@ class ApiService {
     })
   }
 
-  // Get dashboard metrics
+  // Legacy alias for backward compatibility (deprecated - use getDashboardAll instead)
   async getDashboardMetrics() {
-    return this.request('/metrics/dashboard')
+    console.warn('⚠️ getDashboardMetrics() is deprecated. Use getDashboardAll() instead.')
+    return this.getDashboardAll()
   }
 
   async getPromptTests(promptId: string) {
@@ -287,6 +288,7 @@ class ApiService {
     return this.request('/analytics/filters')
   }
 
+  // Deprecated - Use getDashboardAll() instead
   async getAnalyticsDashboard(options: {
     dateFrom?: string
     dateTo?: string
@@ -296,30 +298,14 @@ class ApiService {
     comparisonDateFrom?: string
     comparisonDateTo?: string
   } = {}) {
-    const params = new URLSearchParams()
-    if (options.dateFrom) params.append('dateFrom', options.dateFrom)
-    if (options.dateTo) params.append('dateTo', options.dateTo)
-    if (options.platforms) {
-      options.platforms.forEach(p => params.append('platforms', p))
-    }
-    if (options.topics) {
-      options.topics.forEach(t => params.append('topics', t))
-    }
-    if (options.personas) {
-      options.personas.forEach(p => params.append('personas', p))
-    }
-    if (options.comparisonDateFrom) params.append('comparisonDateFrom', options.comparisonDateFrom)
-    if (options.comparisonDateTo) params.append('comparisonDateTo', options.comparisonDateTo)
-    
-    return this.request(`/analytics/dashboard${params.toString() ? `?${params.toString()}` : ''}`)
+    console.warn('⚠️ getAnalyticsDashboard() is deprecated. Use getDashboardAll() instead.')
+    return this.getDashboardAll(options)
   }
 
-  // Metrics endpoints
+  // Metrics endpoints (deprecated - use getDashboardAll instead)
   async getMetricsDashboard(dateFrom?: string, dateTo?: string) {
-    const params = new URLSearchParams()
-    if (dateFrom) params.append('dateFrom', dateFrom)
-    if (dateTo) params.append('dateTo', dateTo)
-    return this.request(`/metrics/dashboard${params.toString() ? `?${params.toString()}` : ''}`)
+    console.warn('⚠️ getMetricsDashboard() is deprecated. Use getDashboardAll() instead.')
+    return this.getDashboardAll({ dateFrom, dateTo })
   }
 
   // URL Analysis endpoints
@@ -487,6 +473,46 @@ class ApiService {
   // Prompts Dashboard endpoint - Get topics/personas with their prompts and metrics
   async getPromptsDashboard() {
     return this.request('/prompts/dashboard')
+  }
+
+  async getPromptDetails(promptId: string) {
+    return this.request(`/prompts/details/${promptId}`)
+  }
+
+  // Subjective Metrics endpoints
+  async evaluateSubjectiveMetrics(promptId: string, brandName: string) {
+    return this.request('/subjective-metrics/evaluate', {
+      method: 'POST',
+      body: JSON.stringify({ promptId, brandName }),
+    })
+  }
+
+  async getSubjectiveMetrics(promptId: string, brandName?: string) {
+    const params = brandName ? `?brandName=${encodeURIComponent(brandName)}` : ''
+    try {
+      return await this.request(`/subjective-metrics/${promptId}${params}`)
+    } catch (error) {
+      // If it's a "no metrics found" error, return success with no data instead of throwing
+      const errorMessage = error.message || ''
+      if (errorMessage.includes('No metrics found') || 
+          errorMessage.includes('not found') || 
+          errorMessage.includes('404')) {
+        return {
+          success: true,
+          data: null,
+          message: 'No metrics found'
+        }
+      }
+      // Re-throw other errors
+      throw error
+    }
+  }
+
+  async getBatchSubjectiveMetrics(promptIds: string[], brandName: string) {
+    return this.request('/subjective-metrics/batch', {
+      method: 'POST',
+      body: JSON.stringify({ promptIds, brandName }),
+    })
   }
 }
 

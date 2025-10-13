@@ -26,7 +26,7 @@ const authenticateToken = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = '68e9892f5e894a9df4c401ce'; // Hardcoded for development
+    req.userId = decoded.userId;
     next();
   } catch (error) {
     return res.status(401).json({
@@ -37,249 +37,37 @@ const authenticateToken = (req, res, next) => {
 };
 
 /**
- * GET /api/dashboard/visibility
- * 
- * Get visibility score data formatted for UnifiedVisibilitySection component
- */
-router.get('/visibility', async (req, res) => {
-  try {
-    const { platforms, topics, personas, dateFrom, dateTo } = req.query;
-
-    // Get overall metrics
-    const metrics = await getFilteredMetrics('68e9892f5e894a9df4c401ce', {
-      scope: 'overall',
-      dateFrom,
-      dateTo
-    });
-
-    if (!metrics) {
-      return res.status(404).json({
-        success: false,
-        message: 'No metrics found. Please run calculations first.'
-      });
-    }
-
-    // Format for frontend
-    const formatted = formatVisibilityData(metrics, 'US Bank'); // TODO: Get from user profile
-
-    res.json({
-      success: true,
-      data: formatted
-    });
-
-  } catch (error) {
-    console.error('❌ Get visibility metrics error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get visibility metrics'
-    });
-  }
-});
-
-/**
- * GET /api/dashboard/depth-of-mention
- * 
- * Get depth of mention data formatted for UnifiedDepthOfMentionSection component
- */
-router.get('/depth-of-mention', async (req, res) => {
-  try {
-    const metrics = await getFilteredMetrics('68e9892f5e894a9df4c401ce', {
-      scope: 'overall',
-      dateFrom: req.query.dateFrom,
-      dateTo: req.query.dateTo
-    });
-
-    if (!metrics) {
-      return res.status(404).json({
-        success: false,
-        message: 'No metrics found'
-      });
-    }
-
-    const formatted = formatDepthData(metrics, 'US Bank');
-
-    res.json({
-      success: true,
-      data: formatted
-    });
-
-  } catch (error) {
-    console.error('❌ Get depth metrics error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get depth metrics'
-    });
-  }
-});
-
-/**
- * GET /api/dashboard/average-position
- * 
- * Get average position data formatted for UnifiedAveragePositionSection component
- */
-router.get('/average-position', async (req, res) => {
-  try {
-    const metrics = await getFilteredMetrics('68e9892f5e894a9df4c401ce', {
-      scope: 'overall',
-      dateFrom: req.query.dateFrom,
-      dateTo: req.query.dateTo
-    });
-
-    if (!metrics) {
-      return res.status(404).json({
-        success: false,
-        message: 'No metrics found'
-      });
-    }
-
-    const formatted = formatAveragePositionData(metrics, 'US Bank');
-
-    res.json({
-      success: true,
-      data: formatted
-    });
-
-  } catch (error) {
-    console.error('❌ Get position metrics error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get position metrics'
-    });
-  }
-});
-
-/**
- * GET /api/dashboard/topic-rankings
- * 
- * Get topic rankings formatted for UnifiedTopicRankingsSection component
- */
-router.get('/topic-rankings', async (req, res) => {
-  try {
-    // Get metrics for all topics
-    const topicMetrics = await AggregatedMetrics.find({
-      userId: '68e9892f5e894a9df4c401ce',
-      scope: 'topic'
-    })
-    .sort({ lastCalculated: -1 })
-    .lean();
-
-    if (!topicMetrics || topicMetrics.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No topic metrics found'
-      });
-    }
-
-    const formatted = formatTopicRankings(topicMetrics, 'US Bank');
-
-    res.json({
-      success: true,
-      data: formatted
-    });
-
-  } catch (error) {
-    console.error('❌ Get topic rankings error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get topic rankings'
-    });
-  }
-});
-
-/**
- * GET /api/dashboard/persona-rankings
- * 
- * Get persona rankings formatted for UnifiedPersonaRankingsSection component
- */
-router.get('/persona-rankings', async (req, res) => {
-  try {
-    const personaMetrics = await AggregatedMetrics.find({
-      userId: '68e9892f5e894a9df4c401ce',
-      scope: 'persona'
-    })
-    .sort({ lastCalculated: -1 })
-    .lean();
-
-    if (!personaMetrics || personaMetrics.length === 0) {
-      return res.status(404).json({
-        success: false,
-        message: 'No persona metrics found'
-      });
-    }
-
-    const formatted = formatPersonaRankings(personaMetrics, 'US Bank');
-
-    res.json({
-      success: true,
-      data: formatted
-    });
-
-  } catch (error) {
-    console.error('❌ Get persona rankings error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get persona rankings'
-    });
-  }
-});
-
-/**
- * GET /api/dashboard/performance-insights
- * 
- * Get share of voice and position distribution data
- */
-router.get('/performance-insights', async (req, res) => {
-  try {
-    const metrics = await getFilteredMetrics('68e9892f5e894a9df4c401ce', {
-      scope: 'overall',
-      dateFrom: req.query.dateFrom,
-      dateTo: req.query.dateTo
-    });
-
-    if (!metrics) {
-      return res.status(404).json({
-        success: false,
-        message: 'No metrics found'
-      });
-    }
-
-    const formatted = formatPerformanceInsights(metrics, 'US Bank');
-
-    res.json({
-      success: true,
-      data: formatted
-    });
-
-  } catch (error) {
-    console.error('❌ Get performance insights error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get performance insights'
-    });
-  }
-});
-
-/**
  * GET /api/dashboard/all
  * 
  * Get all dashboard data in one request (recommended for initial load)
  */
-router.get('/all', async (req, res) => {
+router.get('/all', authenticateToken, async (req, res) => {
   try {
     const { dateFrom, dateTo } = req.query;
+    const userId = req.userId;
+
+    // Get user's brand from URL analysis
+    const UrlAnalysis = require('../models/UrlAnalysis');
+    const urlAnalysis = await UrlAnalysis.findOne({
+      userId: userId
+    })
+    .sort({ analysisDate: -1 })
+    .lean();
+
+    const userBrandName = urlAnalysis?.brandContext?.companyName || null;
 
     // Get all metrics scopes
     const [overall, platforms, allTopics, allPersonas] = await Promise.all([
-      getFilteredMetrics('68e9892f5e894a9df4c401ce', { scope: 'overall', dateFrom, dateTo }),
-      AggregatedMetrics.find({ userId: '68e9892f5e894a9df4c401ce', scope: 'platform' }).sort({ lastCalculated: -1 }).lean(),
-      AggregatedMetrics.find({ userId: '68e9892f5e894a9df4c401ce', scope: 'topic' }).sort({ lastCalculated: -1 }).lean(),
-      AggregatedMetrics.find({ userId: '68e9892f5e894a9df4c401ce', scope: 'persona' }).sort({ lastCalculated: -1 }).lean()
+      getFilteredMetrics(userId, { scope: 'overall', dateFrom, dateTo }),
+      AggregatedMetrics.find({ userId: userId, scope: 'platform' }).sort({ lastCalculated: -1 }).lean(),
+      AggregatedMetrics.find({ userId: userId, scope: 'topic' }).sort({ lastCalculated: -1 }).lean(),
+      AggregatedMetrics.find({ userId: userId, scope: 'persona' }).sort({ lastCalculated: -1 }).lean()
     ]);
 
     // Get selected topics and personas from their respective collections
     const [selectedTopics, selectedPersonas] = await Promise.all([
-      Topic.find({ userId: '68e9892f5e894a9df4c401ce', selected: true }).lean(),
-      Persona.find({ userId: '68e9892f5e894a9df4c401ce', selected: true }).lean()
+      Topic.find({ userId: userId, selected: true }).lean(),
+      Persona.find({ userId: userId, selected: true }).lean()
     ]);
 
     // Filter aggregated metrics to only include selected topics and personas
@@ -289,13 +77,11 @@ router.get('/all', async (req, res) => {
     const topics = allTopics.filter(topic => selectedTopicNames.includes(topic.scopeValue));
     const personas = allPersonas.filter(persona => selectedPersonaTypes.includes(persona.scopeValue));
 
-    const userBrandName = 'US Bank'; // TODO: Get from user profile
-
     // ✅ Get latest AI-powered Performance Insights
     let aiInsights = null;
     try {
       const latestInsights = await PerformanceInsights.findOne({
-        userId: '68e9892f5e894a9df4c401ce'
+        userId: userId
       }).sort({ generatedAt: -1 }).lean();
 
       if (latestInsights) {
@@ -612,10 +398,10 @@ function getColorForBrand(brandName) {
 }
 
 // Get real citation details for a specific brand and type
-router.get('/citations/:brandName/:type', async (req, res) => {
+router.get('/citations/:brandName/:type', authenticateToken, async (req, res) => {
   try {
     const { brandName, type } = req.params;
-    const userId = '68e9892f5e894a9df4c401ce'; // Hardcoded for development
+    const userId = req.userId;
 
     console.log(`📊 [CITATION DETAILS] Fetching real citations for ${brandName} - ${type}`);
 
@@ -626,9 +412,9 @@ router.get('/citations/:brandName/:type', async (req, res) => {
       .populate('personaId')
       .lean();
 
-    const citationDetails = [];
+    const citationMap = new Map();
 
-    // Extract real citations from prompt tests
+    // Extract real citations from prompt tests and group by URL
     promptTests.forEach(test => {
       test.brandMetrics?.forEach(brandMetric => {
         if (brandMetric.brandName === brandName && brandMetric.citations) {
@@ -647,22 +433,61 @@ router.get('/citations/:brandName/:type', async (req, res) => {
                 return llmProvider || 'Unknown';
               };
 
-              citationDetails.push({
+              const citationData = {
                 id: `${test._id}-${citation._id}`,
                 url: citation.url,
                 platform: getPlatformName(test.llmProvider, test.llmModel),
                 context: citation.context,
                 type: citation.type,
+                promptId: test.promptId?._id || test.promptId,
                 promptText: test.promptText || '',
+                promptTitle: test.promptId?.title || 'Untitled Prompt',
+                queryType: test.queryType || 'Unknown',
                 topic: test.topicId?.name || 'Unknown',
                 persona: test.personaId?.type || 'Unknown',
-                testDate: test.createdAt
-              });
+                testDate: test.createdAt,
+                llmProvider: test.llmProvider,
+                llmModel: test.llmModel
+              };
+
+              // Group by URL
+              if (!citationMap.has(citation.url)) {
+                citationMap.set(citation.url, {
+                  url: citation.url,
+                  context: citation.context,
+                  type: citation.type,
+                  platforms: new Set(),
+                  prompts: new Map() // Use Map to deduplicate by promptText
+                });
+              }
+
+              const groupedCitation = citationMap.get(citation.url);
+              groupedCitation.platforms.add(citationData.platform);
+              
+              // Deduplicate prompts by promptText
+              const promptKey = citationData.promptText;
+              if (!groupedCitation.prompts.has(promptKey)) {
+                groupedCitation.prompts.set(promptKey, {
+                  promptText: citationData.promptText,
+                  platforms: new Set()
+                });
+              }
+              groupedCitation.prompts.get(promptKey).platforms.add(citationData.platform);
             }
           });
         }
       });
     });
+
+    // Convert map to array and format platforms and prompts
+    const citationDetails = Array.from(citationMap.values()).map(grouped => ({
+      ...grouped,
+      platforms: Array.from(grouped.platforms),
+      prompts: Array.from(grouped.prompts.values()).map(prompt => ({
+        ...prompt,
+        platforms: Array.from(prompt.platforms)
+      }))
+    }));
 
     console.log(`✅ [CITATION DETAILS] Found ${citationDetails.length} real citations for ${brandName} - ${type}`);
 

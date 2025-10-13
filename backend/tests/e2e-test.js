@@ -404,7 +404,7 @@ async function step8_calculateMetrics() {
 async function step9_getDashboardData() {
   logStep(9, 'Retrieve Dashboard Data');
 
-  const result = await apiCall('GET', '/metrics/dashboard', null, true);
+  const result = await apiCall('GET', '/dashboard/all', null, true);
 
   if (result.success) {
     const data = result.data.data || {};

@@ -16,6 +16,7 @@ import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
 import { useSkeletonLoader } from '@/hooks/useSkeletonLoader'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
+import { formatToTwoDecimals } from '@/lib/numberUtils'
 
 // Helper function to generate trend data from chart data
 const generateTrendData = (chartData: any[]) => {
@@ -39,6 +40,19 @@ interface UnifiedDepthOfMentionSectionProps {
 
 function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedDepthOfMentionSectionProps) {
   // Transform dashboard data to chart format
+  const brandColors = [
+    '#3B82F6', // Blue
+    '#EF4444', // Red  
+    '#10B981', // Green
+    '#F59E0B', // Yellow
+    '#8B5CF6', // Purple
+    '#06B6D4', // Cyan
+    '#EC4899', // Pink
+    '#14B8A6', // Teal
+    '#84CC16', // Lime
+    '#F97316'  // Orange
+  ]
+
   const getChartDataFromDashboard = () => {
     console.log('🔍 [DepthOfMention] Dashboard data:', dashboardData?.metrics?.depthOfMention)
 
@@ -49,9 +63,9 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
 
     const chartData = dashboardData.metrics.depthOfMention.data.map((item: any, index: number) => ({
       name: item.name,
-      score: item.value,
-      color: item.fill || (index === 0 ? '#3B82F6' : '#E5E7EB'),
-      comparisonScore: item.value // For now, use same value for comparison
+      score: parseFloat(formatToTwoDecimals(item.value)), // Format to 2 decimal places
+      color: brandColors[index % brandColors.length], // Always use our diverse color palette
+      comparisonScore: parseFloat(formatToTwoDecimals(item.value)) // For now, use same value for comparison
     }))
 
     console.log('📊 [DepthOfMention] Transformed chart data:', chartData)
@@ -290,7 +304,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
             <div className="space-y-2">
               <h3 className="text-foreground">Depth of Mention</h3>
               <div className="text-xl font-semibold text-foreground">
-                {dashboardData?.metrics?.depthOfMention?.value || 0}%
+                {formatToTwoDecimals(dashboardData?.metrics?.depthOfMention?.value || 0)}
               </div>
             </div>
 
@@ -332,9 +346,9 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                         {/* Score labels above bars - Only show when comparing */}
                         {showComparison && (
                           <div className="text-center mb-2">
-                            <div className="text-sm font-medium text-foreground">{bar.score}%</div>
+                            <div className="text-sm font-medium text-foreground">{formatToTwoDecimals(bar.score)}</div>
                             <div className="text-xs text-muted-foreground">
-                              {bar.comparisonScore}%
+                              {formatToTwoDecimals(bar.comparisonScore)}
                             </div>
                           </div>
                         )}
@@ -429,7 +443,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                                     y={viewBox.cy}
                                     className="fill-foreground text-lg font-bold"
                                   >
-                                    {activeData.score}
+                                    {formatToTwoDecimals(activeData.score)}
                                   </tspan>
                                   <tspan
                                     x={viewBox.cx}
@@ -485,13 +499,13 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                         <span className="caption text-muted-foreground">
                           {showComparison ? (
                             <div className="flex flex-col">
-                              <span>{item.score}</span>
+                              <span>{formatToTwoDecimals(item.score)}</span>
                               <span className="text-[10px] opacity-70">
-                                {item.comparisonScore}
+                                {formatToTwoDecimals(item.comparisonScore)}
                               </span>
                             </div>
                           ) : (
-                            item.score.toString()
+                            formatToTwoDecimals(item.score)
                           )}
                         </span>
                       </div>
@@ -599,7 +613,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                     <div className="text-white font-semibold text-sm">{hoveredBar.name}</div>
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-gray-300">Current:</span>
-                      <span className="text-gray-300 font-medium">{hoveredBar.score}</span>
+                      <span className="text-gray-300 font-medium">{formatToTwoDecimals(hoveredBar.score)}</span>
                     </div>
                     {showComparison && (
                       <div className="flex justify-between items-center text-xs">

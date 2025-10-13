@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -10,13 +10,15 @@ import { Filter, Globe, ChevronDown, Users, Plus } from 'lucide-react'
 import { useFilters } from '@/contexts/FilterContext'
 import { useTheme } from 'next-themes'
 import { useRouter } from 'next/navigation'
+import apiService from '@/services/api'
 
 interface TopNavProps {
   activeTab: string
   onTabChange: (tab: string) => void
+  dashboardData?: any
 }
 
-export function TopNav({ activeTab, onTabChange }: TopNavProps) {
+export function TopNav({ activeTab, onTabChange, dashboardData }: TopNavProps) {
   const { 
     selectedPlatforms, 
     selectedTopics, 
@@ -27,6 +29,59 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
   } = useFilters()
   const { theme } = useTheme()
   const router = useRouter()
+  const [topicOptions, setTopicOptions] = useState<Array<{value: string, label: string}>>([
+    { value: 'All Topics', label: 'All Topics' }
+  ])
+  const [personaOptions, setPersonaOptions] = useState<Array<{value: string, label: string}>>([
+    { value: 'All Personas', label: 'All Personas' }
+  ])
+
+  // Fetch topics and personas from database
+  useEffect(() => {
+    const fetchFilterOptions = async () => {
+      try {
+        console.log('🔄 [TopNav] Fetching topics and personas from database...')
+        
+        const [topicsResponse, personasResponse] = await Promise.all([
+          apiService.getTopics(),
+          apiService.getPersonas()
+        ])
+
+        if (topicsResponse.success && topicsResponse.data) {
+          const dbTopics = topicsResponse.data
+            .filter((t: any) => t.selected) // Only show selected topics
+            .map((t: any) => ({
+              value: t.name,
+              label: t.name
+            }))
+          setTopicOptions([
+            { value: 'All Topics', label: 'All Topics' },
+            ...dbTopics
+          ])
+          console.log(`✅ [TopNav] Loaded ${dbTopics.length} topics from database`)
+        }
+
+        if (personasResponse.success && personasResponse.data) {
+          const dbPersonas = personasResponse.data
+            .filter((p: any) => p.selected) // Only show selected personas
+            .map((p: any) => ({
+              value: p.type,
+              label: p.type
+            }))
+          setPersonaOptions([
+            { value: 'All Personas', label: 'All Personas' },
+            ...dbPersonas
+          ])
+          console.log(`✅ [TopNav] Loaded ${dbPersonas.length} personas from database`)
+        }
+      } catch (error) {
+        console.error('❌ [TopNav] Error fetching filter options:', error)
+        // Keep default options on error
+      }
+    }
+
+    fetchFilterOptions()
+  }, []) // Run once on mount
 
   const handleStartNewAnalysis = () => {
     router.push('/onboarding')
@@ -37,18 +92,6 @@ export function TopNav({ activeTab, onTabChange }: TopNavProps) {
     { id: 'prompts', label: 'Prompts' },
     { id: 'sentiment', label: 'Sentiment' },
     { id: 'citations', label: 'Citations' },
-  ]
-
-  const topicOptions = [
-    { value: 'All Topics', label: 'All Topics' },
-    { value: 'Personalization', label: 'Personalization' },
-    { value: 'Conversion Rate Optimization', label: 'Conversion Rate Optimization' }
-  ]
-
-  const personaOptions = [
-    { value: 'All Personas', label: 'All Personas' },
-    { value: 'Marketing Manager', label: 'Marketing Manager' },
-    { value: 'Growth Hacker', label: 'Growth Hacker' }
   ]
 
   const getFaviconUrl = (platformName: string) => {

@@ -2,6 +2,8 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const puppeteer = require('puppeteer');
 const { SYSTEM_PROMPTS, ANALYSIS_TEMPLATES } = require('../config/aiPrompts');
+const UrlAnalysisHelper = require('../utils/urlAnalysisHelper');
+const ProductDataExtractor = require('../utils/productDataExtractor');
 
 class WebsiteAnalysisService {
   constructor() {
@@ -18,7 +20,7 @@ class WebsiteAnalysisService {
     console.log('🔑 OpenRouter API Key loaded:', this.openRouterApiKey ? 'YES' : 'NO');
   }
 
-  // Main analysis function
+  // Main analysis function - Now context-aware!
   async analyzeWebsite(url) {
     try {
       // Basic URL validation
@@ -26,11 +28,35 @@ class WebsiteAnalysisService {
       
       console.log(`🔍 Starting website analysis for: ${url}`);
       
-      // Step 1: Scrape website content
+      // Step 1: Detect analysis level (product/category/company)
+      const urlContext = UrlAnalysisHelper.getAnalysisContext(url);
+      console.log(`📊 Analysis Level: ${urlContext.analysisLevel.toUpperCase()}`);
+      
+      // Step 2: Scrape website content
       const websiteData = await this.scrapeWebsite(url);
       
-      // Step 2: Perform AI analysis tasks
-      const analysisResults = await this.performAIAnalysis(websiteData, url);
+      // Step 3: Extract context-specific data
+      let contextData = null;
+      if (urlContext.analysisLevel === 'product') {
+        contextData = ProductDataExtractor.extractProductData(websiteData, urlContext);
+      } else if (urlContext.analysisLevel === 'category') {
+        contextData = ProductDataExtractor.extractCategoryData(websiteData, urlContext);
+      }
+      
+      // Step 4: Perform context-aware AI analysis
+      const analysisResults = await this.performAIAnalysis(
+        websiteData, 
+        url, 
+        urlContext.analysisLevel,
+        contextData
+      );
+      
+      // Step 5: Add analysis metadata
+      analysisResults.analysisLevel = urlContext.analysisLevel;
+      analysisResults.urlContext = urlContext;
+      if (contextData) {
+        analysisResults.contextData = contextData;
+      }
       
       console.log('✅ Website analysis completed successfully');
       return analysisResults;
@@ -208,26 +234,62 @@ class WebsiteAnalysisService {
     }
   }
 
-  // Perform AI analysis using OpenRouter
-  async performAIAnalysis(websiteData, originalUrl) {
-    console.log('🤖 Starting AI analysis...');
+  // Perform AI analysis using OpenRouter - Now context-aware!
+  async performAIAnalysis(websiteData, originalUrl, analysisLevel = 'company', contextData = null) {
+    console.log(`🤖 Starting ${analysisLevel.toUpperCase()}-level AI analysis...`);
 
-    const analysisTasks = [
-      this.analyzeBrandContext(websiteData, originalUrl),
-      this.findCompetitors(websiteData, originalUrl),
-      this.extractTopics(websiteData),
-      this.identifyUserPersonas(websiteData)
-    ];
+    let analysisTasks;
+    let resultKeys;
+
+    if (analysisLevel === 'product') {
+      // Product-level analysis
+      console.log('   🎯 Using product-specific analysis tasks...');
+      analysisTasks = [
+        this.analyzeProductContext(websiteData, originalUrl, contextData),
+        this.findProductCompetitors(websiteData, originalUrl, contextData),
+        this.extractProductTopics(websiteData, contextData),
+        this.identifyProductPersonas(websiteData, contextData)
+      ];
+      resultKeys = ['productContext', 'competitors', 'topics', 'personas'];
+    } else if (analysisLevel === 'category') {
+      // Category-level analysis
+      console.log('   📂 Using category-specific analysis tasks...');
+      analysisTasks = [
+        this.analyzeCategoryContext(websiteData, originalUrl, contextData),
+        this.findCategoryCompetitors(websiteData, originalUrl, contextData),
+        this.extractCategoryTopics(websiteData, contextData),
+        this.identifyCategoryPersonas(websiteData, contextData)
+      ];
+      resultKeys = ['categoryContext', 'competitors', 'topics', 'personas'];
+    } else {
+      // Company-level analysis (default)
+      console.log('   🏢 Using company-level analysis tasks...');
+      analysisTasks = [
+        this.analyzeBrandContext(websiteData, originalUrl),
+        this.findCompetitors(websiteData, originalUrl),
+        this.extractTopics(websiteData),
+        this.identifyUserPersonas(websiteData)
+      ];
+      resultKeys = ['brandContext', 'competitors', 'topics', 'personas'];
+    }
 
     const results = await Promise.all(analysisTasks);
 
-    return {
-      brandContext: results[0],
+    // Build results object dynamically based on analysis level
+    const analysisResults = {
+      [resultKeys[0]]: results[0], // context (brand/product/category)
       competitors: results[1].competitors || [],
       topics: results[2].topics || [],
       personas: results[3].personas || [],
       analysisDate: new Date().toISOString()
     };
+
+    console.log(`✅ ${analysisLevel.toUpperCase()}-level analysis completed`);
+    console.log(`   📊 Found ${analysisResults.competitors.length} competitors`);
+    console.log(`   📚 Found ${analysisResults.topics.length} topics`);
+    console.log(`   👥 Found ${analysisResults.personas.length} personas`);
+
+    return analysisResults;
   }
 
   // Task 1: Analyze brand context
@@ -348,6 +410,256 @@ Identify 3-4 primary user personas:
 
     return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'personas');
   }
+
+  // ===== PRODUCT-LEVEL ANALYSIS METHODS =====
+
+  // Product Task 1: Analyze product context
+  async analyzeProductContext(websiteData, url, productData) {
+    const prompt = `
+Analyze this SPECIFIC PRODUCT PAGE and provide comprehensive product context insights.
+
+IMPORTANT: Focus ONLY on this specific product, NOT the company as a whole.
+
+Product Information:
+- Product Name: ${productData?.productName || 'Unknown'}
+- Product Type: ${productData?.productType || 'General'}
+- URL: ${url}
+- Page Title: ${websiteData.title}
+- Description: ${websiteData.description}
+- Main Headings: ${websiteData.headings.h1.join(', ')}
+- Key Features: ${productData?.features.slice(0, 5).join('; ') || 'Not specified'}
+- Pricing Info: ${productData?.pricing.found ? 'Available' : 'Not found'}
+- Use Cases: ${productData?.useCases.slice(0, 3).join('; ') || 'Not specified'}
+
+Provide a structured product analysis in JSON format:
+{
+  "productName": "string",
+  "productCategory": "string",
+  "productType": "string",
+  "targetAudience": "string",
+  "valueProposition": "string",
+  "keyFeatures": ["string"],
+  "useCases": ["string"],
+  "marketPosition": "string"
+}
+`;
+
+    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'productContext');
+  }
+
+  // Product Task 2: Find product competitors
+  async findProductCompetitors(websiteData, url, productData) {
+    const prompt = `
+Based on this SPECIFIC PRODUCT analysis, identify direct product-level competitors.
+
+IMPORTANT: Find competitors for THIS SPECIFIC PRODUCT, not the company as a whole.
+
+Product Analysis:
+- Product: ${productData?.productName || 'Unknown Product'}
+- Product Type: ${productData?.productType || 'General'}
+- Features: ${productData?.features.slice(0, 5).join(', ') || 'Not specified'}
+- Use Cases: ${productData?.useCases.slice(0, 3).join(', ') || 'Not specified'}
+- Pricing: ${productData?.pricing.found ? 'Available' : 'Not specified'}
+
+Use web search to find products that:
+1. Compete DIRECTLY with this product (not just the company)
+2. Have similar features and use cases
+3. Target the same customer needs
+4. Provide real product URLs (not just company homepages)
+
+Return structured data:
+{
+  "competitors": [
+    {
+      "name": "Competitor Product Name",
+      "url": "https://competitor.com/product-page",
+      "reason": "Why this product competes directly",
+      "similarity": "High/Medium/Low"
+    }
+  ]
+}
+
+Focus on PRODUCT-LEVEL competition with similar features and pricing.
+`;
+
+    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'productCompetitors');
+  }
+
+  // Product Task 3: Extract product topics
+  async extractProductTopics(websiteData, productData) {
+    const prompt = `
+Analyze this SPECIFIC PRODUCT PAGE and extract product-specific topics for content marketing.
+
+IMPORTANT: Extract topics relevant to THIS SPECIFIC PRODUCT, not general business topics.
+
+Product Content:
+- Product: ${productData?.productName || 'Unknown Product'}
+- Product Type: ${productData?.productType || 'General'}
+- Description: ${productData?.description || websiteData.description}
+- Features: ${productData?.features.slice(0, 8).join(', ') || 'Not specified'}
+- Use Cases: ${productData?.useCases.slice(0, 5).join(', ') || 'Not specified'}
+- Page Title: ${websiteData.title}
+
+Extract 6-8 PRODUCT-SPECIFIC topics:
+{
+  "topics": [
+    {
+      "name": "Product-specific topic name",
+      "description": "How this topic relates to the product",
+      "keywords": ["product-related keyword1", "keyword2", "keyword3"],
+      "priority": "High/Medium/Low"
+    }
+  ]
+}
+
+Focus on:
+- Product feature topics
+- Product comparison topics
+- Product use case topics
+- Product education topics
+- Product problem-solution topics
+`;
+
+    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'productTopics');
+  }
+
+  // Product Task 4: Identify product personas
+  async identifyProductPersonas(websiteData, productData) {
+    const prompt = `
+Based on this SPECIFIC PRODUCT, identify user personas who would use THIS PRODUCT.
+
+IMPORTANT: Identify personas for THIS SPECIFIC PRODUCT, not general business customers.
+
+Product Analysis:
+- Product: ${productData?.productName || 'Unknown Product'}
+- Product Type: ${productData?.productType || 'General'}
+- Features: ${productData?.features.slice(0, 8).join(', ') || 'Not specified'}
+- Use Cases: ${productData?.useCases.slice(0, 5).join(', ') || 'Not specified'}
+- Target Audience: [Analyze from content]
+
+Identify 3-4 PRODUCT-SPECIFIC user personas:
+{
+  "personas": [
+    {
+      "type": "Persona type specific to this product",
+      "description": "How this persona uses THIS specific product",
+      "painPoints": ["Problems THIS product solves for them"],
+      "goals": ["Goals THIS product helps them achieve"],
+      "relevance": "High/Medium/Low"
+    }
+  ]
+}
+
+Focus on:
+- Who needs THIS specific product
+- What problems THIS product solves
+- What situations lead to needing THIS product
+- What features matter most to them
+`;
+
+    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'productPersonas');
+  }
+
+  // ===== CATEGORY-LEVEL ANALYSIS METHODS =====
+
+  // Category Task 1: Analyze category context
+  async analyzeCategoryContext(websiteData, url, categoryData) {
+    const prompt = `
+Analyze this CATEGORY PAGE and provide category-level insights.
+
+Category Information:
+- Category: ${categoryData?.categoryName || 'Unknown Category'}
+- URL: ${url}
+- Page Title: ${websiteData.title}
+- Description: ${websiteData.description}
+- Subcategories: ${categoryData?.subcategories.slice(0, 10).join(', ') || 'Not specified'}
+
+Provide a structured category analysis:
+{
+  "categoryName": "string",
+  "categoryType": "string",
+  "targetMarket": "string",
+  "productTypes": ["string"],
+  "marketTrends": ["string"]
+}
+`;
+
+    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'categoryContext');
+  }
+
+  // Category Task 2: Find category competitors
+  async findCategoryCompetitors(websiteData, url, categoryData) {
+    const prompt = `
+Find competitors in the SAME PRODUCT CATEGORY.
+
+Category: ${categoryData?.categoryName || 'Unknown Category'}
+URL: ${url}
+
+Use web search to find competitors offering similar product categories:
+{
+  "competitors": [
+    {
+      "name": "string",
+      "url": "string",
+      "reason": "string",
+      "similarity": "High/Medium/Low"
+    }
+  ]
+}
+`;
+
+    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'categoryCompetitors');
+  }
+
+  // Category Task 3: Extract category topics
+  async extractCategoryTopics(websiteData, categoryData) {
+    const prompt = `
+Extract topics relevant to THIS PRODUCT CATEGORY.
+
+Category: ${categoryData?.categoryName || 'Unknown Category'}
+Subcategories: ${categoryData?.subcategories.slice(0, 10).join(', ') || 'Not specified'}
+
+Extract 6-8 category-level topics:
+{
+  "topics": [
+    {
+      "name": "string",
+      "description": "string",
+      "keywords": ["string"],
+      "priority": "High/Medium/Low"
+    }
+  ]
+}
+`;
+
+    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'categoryTopics');
+  }
+
+  // Category Task 4: Identify category personas
+  async identifyCategoryPersonas(websiteData, categoryData) {
+    const prompt = `
+Identify personas interested in THIS PRODUCT CATEGORY.
+
+Category: ${categoryData?.categoryName || 'Unknown Category'}
+
+Identify 3-4 category-level personas:
+{
+  "personas": [
+    {
+      "type": "string",
+      "description": "string",
+      "painPoints": ["string"],
+      "goals": ["string"],
+      "relevance": "High/Medium/Low"
+    }
+  ]
+}
+`;
+
+    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'categoryPersonas');
+  }
+
+  // ===== UTILITY METHODS =====
 
   // Utility function to wait for a specified time
   async sleep(ms) {
@@ -487,6 +799,7 @@ Identify 3-4 primary user personas:
   // Validate and normalize response structure
   validateAndNormalizeResponse(data, analysisType) {
     switch (analysisType) {
+      // Company-level
       case 'brandContext':
         return this.normalizeBrandContext(data);
       case 'competitors':
@@ -495,6 +808,24 @@ Identify 3-4 primary user personas:
         return this.normalizeTopics(data);
       case 'personas':
         return this.normalizePersonas(data);
+      // Product-level
+      case 'productContext':
+        return this.normalizeProductContext(data);
+      case 'productCompetitors':
+        return this.normalizeCompetitors(data); // Same structure
+      case 'productTopics':
+        return this.normalizeTopics(data); // Same structure
+      case 'productPersonas':
+        return this.normalizePersonas(data); // Same structure
+      // Category-level
+      case 'categoryContext':
+        return this.normalizeCategoryContext(data);
+      case 'categoryCompetitors':
+        return this.normalizeCompetitors(data); // Same structure
+      case 'categoryTopics':
+        return this.normalizeTopics(data); // Same structure
+      case 'categoryPersonas':
+        return this.normalizePersonas(data); // Same structure
       default:
         return data;
     }
@@ -563,9 +894,41 @@ Identify 3-4 primary user personas:
     };
   }
 
+  // Normalize product context response
+  normalizeProductContext(data) {
+    return {
+      productName: data.productName || data.product_name || 'Unknown Product',
+      productCategory: data.productCategory || data.product_category || 'General',
+      productType: data.productType || data.product_type || 'General',
+      targetAudience: data.targetAudience || data.target_audience || 'General',
+      valueProposition: data.valueProposition || data.value_proposition || 'Not specified',
+      keyFeatures: Array.isArray(data.keyFeatures) ? data.keyFeatures :
+                   Array.isArray(data.key_features) ? data.key_features :
+                   Array.isArray(data.features) ? data.features : ['Feature'],
+      useCases: Array.isArray(data.useCases) ? data.useCases :
+               Array.isArray(data.use_cases) ? data.use_cases :
+               ['Use case'],
+      marketPosition: data.marketPosition || data.market_position || 'Mid-market'
+    };
+  }
+
+  // Normalize category context response
+  normalizeCategoryContext(data) {
+    return {
+      categoryName: data.categoryName || data.category_name || 'Unknown Category',
+      categoryType: data.categoryType || data.category_type || 'General',
+      targetMarket: data.targetMarket || data.target_market || 'General',
+      productTypes: Array.isArray(data.productTypes) ? data.productTypes :
+                    Array.isArray(data.product_types) ? data.product_types : ['Product'],
+      marketTrends: Array.isArray(data.marketTrends) ? data.marketTrends :
+                    Array.isArray(data.market_trends) ? data.market_trends : []
+    };
+  }
+
   // Get default response structure
   getDefaultResponse(analysisType) {
     switch (analysisType) {
+      // Company-level defaults
       case 'brandContext':
         return {
           companyName: 'Unknown Company',
@@ -578,6 +941,8 @@ Identify 3-4 primary user personas:
           marketPosition: 'Mid-market'
         };
       case 'competitors':
+      case 'productCompetitors':
+      case 'categoryCompetitors':
         return {
           competitors: [
             {
@@ -589,6 +954,8 @@ Identify 3-4 primary user personas:
           ]
         };
       case 'topics':
+      case 'productTopics':
+      case 'categoryTopics':
         return {
           topics: [
             {
@@ -600,6 +967,8 @@ Identify 3-4 primary user personas:
           ]
         };
       case 'personas':
+      case 'productPersonas':
+      case 'categoryPersonas':
         return {
           personas: [
             {
@@ -610,6 +979,27 @@ Identify 3-4 primary user personas:
               relevance: 'High'
             }
           ]
+        };
+      // Product-level defaults
+      case 'productContext':
+        return {
+          productName: 'Unknown Product',
+          productCategory: 'General',
+          productType: 'General',
+          targetAudience: 'General',
+          valueProposition: 'Not specified',
+          keyFeatures: ['Feature'],
+          useCases: ['Use case'],
+          marketPosition: 'Mid-market'
+        };
+      // Category-level defaults
+      case 'categoryContext':
+        return {
+          categoryName: 'Unknown Category',
+          categoryType: 'General',
+          targetMarket: 'General',
+          productTypes: ['Product'],
+          marketTrends: []
         };
       default:
         return {};

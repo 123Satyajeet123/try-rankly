@@ -16,6 +16,7 @@ import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
 import { useSkeletonLoader } from '@/hooks/useSkeletonLoader'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
+import { formatToTwoDecimals, formatPercentage } from '@/lib/numberUtils'
 
 // Helper function to generate trend data from chart data
 const generateTrendData = (chartData: any[]) => {
@@ -76,9 +77,9 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
 
     const chartData = dashboardData.metrics.visibilityScore.data.map((item: any, index: number) => ({
       name: item.name,
-      score: Math.round(item.value * 10) / 10, // Round to 1 decimal
-      color: item.fill || brandColors[index % brandColors.length], // Use different color for each brand
-      comparisonScore: Math.round(item.value * 10) / 10 // For now, use same value for comparison
+      score: parseFloat(formatToTwoDecimals(item.value)), // Format to 2 decimal places
+      color: brandColors[index % brandColors.length], // Always use our diverse color palette
+      comparisonScore: parseFloat(formatToTwoDecimals(item.value)) // For now, use same value for comparison
     }))
 
     console.log('📊 [VisibilityChart] Transformed chart data:', chartData)
@@ -332,7 +333,7 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
               <h3 className="text-foreground">Visibility Score</h3>
               <div className="flex items-baseline gap-3">
                 <div className="metric text-xl font-semibold text-foreground">
-                  {dashboardData?.metrics?.visibilityScore?.value || 0}%
+                  {formatPercentage(dashboardData?.metrics?.visibilityScore?.value || 0)}
                 </div>
                 {showComparison && (
                   <Badge variant="outline" className="caption h-5 px-2 border-green-500 text-green-500 bg-green-500/10">
@@ -380,9 +381,9 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
                         {/* Score labels above bars - Only show when comparing */}
                         {showComparison && (
                           <div className="text-center mb-2">
-                            <div className="text-sm font-medium text-foreground">{bar.score}%</div>
+                            <div className="text-sm font-medium text-foreground">{formatPercentage(bar.score)}</div>
                             <div className="text-xs text-muted-foreground">
-                              {bar.comparisonScore}%
+                              {formatPercentage(bar.comparisonScore)}
                             </div>
                           </div>
                         )}
@@ -477,7 +478,7 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
                                     y={viewBox.cy}
                                     className="fill-foreground text-lg font-bold"
                                   >
-                                    {activeData.score}%
+                                    {formatPercentage(activeData.score)}
                                   </tspan>
                                   <tspan
                                     x={viewBox.cx}
@@ -533,13 +534,13 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
                         <span className="caption text-muted-foreground">
                           {showComparison ? (
                             <div className="flex flex-col">
-                              <span>{item.score}%</span>
+                              <span>{formatPercentage(item.score)}</span>
                               <span className="text-[10px] opacity-70">
-                                {item.comparisonScore}%
+                                {formatPercentage(item.comparisonScore)}
                               </span>
                             </div>
                           ) : (
-                            item.score + '%'
+                            formatPercentage(item.score)
                           )}
                         </span>
                       </div>
@@ -648,7 +649,7 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
                     <div className="text-white font-semibold text-sm">{hoveredBar.name}</div>
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-gray-300">Current:</span>
-                      <span className="text-gray-300 font-medium">{hoveredBar.score}</span>
+                      <span className="text-gray-300 font-medium">{formatPercentage(hoveredBar.score)}</span>
                     </div>
                     {showComparison && (
                       <div className="flex justify-between items-center text-xs">

@@ -557,9 +557,9 @@ router.get('/tests/all', authenticateToken, async (req, res) => {
 });
 
 // Get prompts tab data with topics/personas and individual prompts
-router.get('/dashboard', async (req, res) => {
+router.get('/dashboard', authenticateToken, async (req, res) => {
   try {
-    const userId = '68e9892f5e894a9df4c401ce'; // Hardcoded for now
+    const userId = req.userId;
     
     console.log('📊 [PROMPTS DASHBOARD] Fetching prompts tab data for user:', userId);
     
@@ -868,6 +868,147 @@ router.get('/dashboard', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to fetch prompts dashboard data'
+    });
+  }
+});
+
+// Get detailed prompt analysis with LLM responses
+router.get('/details/:promptId', authenticateToken, async (req, res) => {
+  try {
+    const { promptId } = req.params;
+    const userId = req.userId;
+
+    console.log(`📊 [PROMPT DETAILS] Fetching prompt details for ${promptId}`);
+
+    // Find the prompt with populated topic
+    const prompt = await Prompt.findById(promptId).populate('topicId');
+    if (!prompt) {
+      return res.status(404).json({
+        success: false,
+        message: 'Prompt not found'
+      });
+    }
+
+    // Get the brand name from the latest URL analysis for this user
+    const latestAnalysis = await UrlAnalysis.findOne({ userId })
+      .sort({ analysisDate: -1 })
+      .limit(1);
+    
+    const brandName = latestAnalysis?.brandContext?.companyName || 'Unknown Brand';
+
+    console.log(`✅ [PROMPT DETAILS] Brand name: ${brandName}`);
+
+    // Find all prompt tests for this prompt
+    const promptTests = await PromptTest.find({ 
+      userId, 
+      promptId 
+    })
+    .populate('topicId')
+    .populate('personaId')
+    .lean();
+
+    console.log(`✅ [PROMPT DETAILS] Found ${promptTests.length} tests for prompt: ${prompt.text}`);
+
+    // Group responses by platform
+    const platformResponses = {};
+    const platformNames = {
+      'openai': 'OpenAI',
+      'claude': 'Claude', 
+      'perplexity': 'Perplexity',
+      'gemini': 'Gemini'
+    };
+
+    promptTests.forEach(test => {
+      const platformName = platformNames[test.llmProvider] || test.llmProvider;
+      
+      if (!platformResponses[platformName]) {
+        platformResponses[platformName] = {
+          platform: platformName,
+          response: test.rawResponse || 'No response available',
+          llmProvider: test.llmProvider,
+          llmModel: test.llmModel,
+          responseTime: test.responseTime,
+          tokensUsed: test.tokensUsed,
+          cost: test.cost,
+          createdAt: test.createdAt,
+          metrics: test.scorecard || {}
+        };
+      }
+    });
+
+    // Calculate aggregated metrics for this prompt
+    const aggregatedMetrics = {
+      visibilityScore: 0,
+      depthOfMention: 0,
+      avgPosition: 0,
+      brandMentioned: false,
+      brandMentionRate: 0,
+      citationShare: 0,
+      totalCitations: 0,
+      brandCitations: 0
+    };
+
+    // Aggregate metrics from all tests
+    if (promptTests.length > 0) {
+      const totalTests = promptTests.length;
+      let brandMentionCount = 0;
+      let totalCitations = 0;
+      let brandCitations = 0;
+
+      promptTests.forEach(test => {
+        if (test.scorecard) {
+          aggregatedMetrics.visibilityScore += (test.scorecard.brandMentioned ? 100 : 0);
+          aggregatedMetrics.depthOfMention += (test.scorecard.depthOfMention || 0);
+          aggregatedMetrics.avgPosition += (test.scorecard.averagePosition || 0);
+          
+          if (test.scorecard.brandMentioned) {
+            brandMentionCount++;
+          }
+          
+          totalCitations += (test.scorecard.totalCitations || 0);
+          brandCitations += (test.scorecard.brandCitations || 0);
+        }
+      });
+
+      // Calculate averages
+      aggregatedMetrics.visibilityScore = Math.round(aggregatedMetrics.visibilityScore / totalTests);
+      aggregatedMetrics.depthOfMention = Math.round(aggregatedMetrics.depthOfMention / totalTests);
+      aggregatedMetrics.avgPosition = Math.round(aggregatedMetrics.avgPosition / totalTests);
+      aggregatedMetrics.brandMentionRate = Math.round((brandMentionCount / totalTests) * 100);
+      aggregatedMetrics.totalCitations = totalCitations;
+      aggregatedMetrics.brandCitations = brandCitations;
+      aggregatedMetrics.citationShare = totalCitations > 0 ? Math.round((brandCitations / totalCitations) * 100) : 0;
+      aggregatedMetrics.brandMentioned = brandMentionCount > 0;
+    }
+
+    const response = {
+      success: true,
+      data: {
+        prompt: {
+          id: prompt._id,
+          text: prompt.text,
+          queryType: prompt.queryType || 'General',
+          createdAt: prompt.createdAt
+        },
+        topic: promptTests[0]?.topicId?.name || 'Unknown',
+        persona: promptTests[0]?.personaId?.type || 'Unknown',
+        brandName: brandName,
+        platformResponses,
+        aggregatedMetrics,
+        totalTests: promptTests.length
+      }
+    };
+
+    console.log(`✅ [PROMPT DETAILS] Returning prompt details with ${Object.keys(platformResponses).length} platforms`);
+
+    res.json(response);
+
+  } catch (error) {
+    console.error('❌ [PROMPT DETAILS] Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch prompt details',
+      error: error.message
     });
   }
 });

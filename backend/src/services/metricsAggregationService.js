@@ -19,6 +19,7 @@ const AggregatedMetrics = require('../models/AggregatedMetrics');
 const UrlAnalysis = require('../models/UrlAnalysis');
 const Topic = require('../models/Topic');
 const Persona = require('../models/Persona');
+const Competitor = require('../models/Competitor');
 const PerformanceInsights = require('../models/PerformanceInsights');
 const insightsGenerationService = require('./insightsGenerationService');
 
@@ -158,7 +159,7 @@ class MetricsAggregationService {
   async aggregateOverall(userId, tests, filters) {
     console.log('  → Aggregating OVERALL metrics');
 
-    const brandMetrics = this.calculateBrandMetrics(tests);
+    const brandMetrics = await this.calculateBrandMetrics(tests, userId, filters.urlAnalysisId);
 
     const metricsDoc = {
       userId,
@@ -199,7 +200,7 @@ class MetricsAggregationService {
 
       if (platformTests.length === 0) continue;
 
-      const brandMetrics = this.calculateBrandMetrics(platformTests);
+      const brandMetrics = await this.calculateBrandMetrics(platformTests, userId, filters.urlAnalysisId);
 
       const metricsDoc = {
         userId,
@@ -245,7 +246,7 @@ class MetricsAggregationService {
     const saved = [];
 
     for (const [topicName, topicTests] of Object.entries(topicGroups)) {
-      const brandMetrics = this.calculateBrandMetrics(topicTests);
+      const brandMetrics = await this.calculateBrandMetrics(topicTests, userId, filters.urlAnalysisId);
 
       const metricsDoc = {
         userId,
@@ -291,7 +292,7 @@ class MetricsAggregationService {
     const saved = [];
 
     for (const [personaType, personaTests] of Object.entries(personaGroups)) {
-      const brandMetrics = this.calculateBrandMetrics(personaTests);
+      const brandMetrics = await this.calculateBrandMetrics(personaTests, userId, filters.urlAnalysisId);
 
       const metricsDoc = {
         userId,
@@ -322,25 +323,58 @@ class MetricsAggregationService {
 
   /**
    * Calculate brand metrics from a set of tests using dashboard formulas
+   * Now includes ALL selected competitors, even if they have 0 mentions
    */
-  calculateBrandMetrics(tests) {
-    // Collect all brand names across all tests
-    const brandNames = new Set();
+  async calculateBrandMetrics(tests, userId, urlAnalysisId = null) {
+    // ✅ Step 1: Get user's brand name from UrlAnalysis
+    const UrlAnalysis = require('../models/UrlAnalysis');
+    const Competitor = require('../models/Competitor');
+    
+    const urlAnalysis = await UrlAnalysis.findOne({ 
+      userId,
+      ...(urlAnalysisId && { _id: urlAnalysisId })
+    }).sort({ createdAt: -1 }).lean();
+    
+    const userBrandName = urlAnalysis?.brandContext?.companyName || 'Unknown Brand';
+    console.log(`     🏢 User's brand: ${userBrandName}`);
+    
+    // ✅ Step 2: Get all selected competitors from database
+    const query = { userId, selected: true };
+    if (urlAnalysisId) {
+      query.urlAnalysisId = urlAnalysisId;
+    }
+    
+    const selectedCompetitors = await Competitor.find(query).lean();
+    console.log(`     🎯 Selected competitors from database: ${selectedCompetitors.length}`);
+    selectedCompetitors.forEach(comp => {
+      console.log(`        → ${comp.name}`);
+    });
+    
+    // ✅ Step 3: Initialize with ALL brands (user brand + selected competitors)
+    const allBrandNames = new Set([userBrandName]);
+    selectedCompetitors.forEach(comp => allBrandNames.add(comp.name));
+    
+    // ✅ Step 4: Add brands mentioned in tests (for manually added competitors)
     tests.forEach(test => {
       test.brandMetrics?.forEach(bm => {
-        brandNames.add(bm.brandName);
+        allBrandNames.add(bm.brandName);
       });
+    });
+    
+    console.log(`     📊 Total brands to calculate metrics for: ${allBrandNames.size}`);
+    allBrandNames.forEach(brand => {
+      console.log(`        → ${brand}`);
     });
 
     const brandMetrics = [];
 
-    // Calculate metrics for each brand
-    brandNames.forEach(brandName => {
+    // ✅ Step 5: Calculate metrics for ALL brands (including those with 0 mentions)
+    for (const brandName of allBrandNames) {
       const metrics = this.calculateSingleBrandMetrics(brandName, tests);
       brandMetrics.push(metrics);
-    });
+    }
 
-    // Calculate ranks for each metric
+    // ✅ Step 6: Calculate ranks for each metric
     this.assignRanks(brandMetrics);
 
     return brandMetrics;

@@ -5,7 +5,8 @@ import {
   transformBrandMetricsToMetric,
   transformTopicsToTopicRankings,
   transformBrandMetricsToCompetitors,
-  transformFilters
+  transformFilters,
+  filterAndAggregateMetrics
 } from './dataTransform'
 import { DashboardData } from '@/types/dashboard'
 
@@ -113,7 +114,7 @@ class DashboardService {
         ])
       
         // Process fallback data (existing code continues below)
-        return this.processFallbackData(overallMetrics, platformMetrics, topicMetrics, personaMetrics, competitors, topics, personas)
+        return this.processFallbackData(overallMetrics, platformMetrics, topicMetrics, personaMetrics, competitors, topics, personas, filters)
       }
 
       // ✅ Process dashboard/all response (includes aiInsights)
@@ -157,9 +158,37 @@ class DashboardService {
         throw new Error('Metrics data is incomplete. Please run the complete onboarding flow again.')
       }
 
-      // Transform to frontend format
+      // ✅ NEW: Apply topic/persona filters if provided
+      let filteredOverallMetrics = overallMetrics.data
+
+      if (filters.topics || filters.personas) {
+        const selectedTopics = filters.topics || ['All Topics']
+        const selectedPersonas = filters.personas || ['All Personas']
+
+        console.log('🔍 [DashboardService] Applying filters:', { 
+          selectedTopics, 
+          selectedPersonas,
+          topicMetricsAvailable: topicMetrics.data?.length || 0,
+          personaMetricsAvailable: personaMetrics.data?.length || 0
+        })
+
+        filteredOverallMetrics = filterAndAggregateMetrics(
+          overallMetrics.data,
+          topicMetrics.data || [],
+          personaMetrics.data || [],
+          selectedTopics,
+          selectedPersonas
+        )
+
+        console.log('✅ [DashboardService] Metrics filtered and aggregated:', {
+          totalTests: filteredOverallMetrics.totalTests,
+          brandCount: filteredOverallMetrics.brandMetrics?.length || 0
+        })
+      }
+
+      // Transform to frontend format using filtered data
       const dashboardData = transformAggregatedMetricsToDashboardData(
-        overallMetrics.data,
+        filteredOverallMetrics,  // ✅ Use filtered data instead of raw overall
         platformMetrics.data || [],
         topicMetrics.data || [],
         personaMetrics.data || [],
@@ -204,7 +233,8 @@ class DashboardService {
     personaMetrics: any,
     competitors: any,
     topics: any,
-    personas: any
+    personas: any,
+    filters: DashboardFilters = {}
   ) {
     // Check if we have any data
     if (!overallMetrics.data && !competitors.data?.length) {
@@ -218,9 +248,29 @@ class DashboardService {
       throw new Error('Metrics data is incomplete. Please run the complete onboarding flow again.')
     }
 
+    // ✅ NEW: Apply topic/persona filters if provided
+    let filteredOverallMetrics = overallMetrics.data
+
+    if (filters.topics || filters.personas) {
+      const selectedTopics = filters.topics || ['All Topics']
+      const selectedPersonas = filters.personas || ['All Personas']
+
+      console.log('🔍 [DashboardService] [Fallback] Applying filters:', { selectedTopics, selectedPersonas })
+
+      filteredOverallMetrics = filterAndAggregateMetrics(
+        overallMetrics.data,
+        topicMetrics.data || [],
+        personaMetrics.data || [],
+        selectedTopics,
+        selectedPersonas
+      )
+
+      console.log('✅ [DashboardService] [Fallback] Metrics filtered')
+    }
+
     // Transform to frontend format
     const dashboardData = transformAggregatedMetricsToDashboardData(
-      overallMetrics.data,
+      filteredOverallMetrics,  // ✅ Use filtered data
       platformMetrics.data || [],
       topicMetrics.data || [],
       personaMetrics.data || [],

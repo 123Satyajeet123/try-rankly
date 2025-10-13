@@ -7,20 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Users, Bot, TrendingUp, Info } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
-// Mock data for the charts
-const humanTrafficData = [
-  { platform: 'ChatGPT', visits: 1250, percentage: 35 },
-  { platform: 'Perplexity', visits: 980, percentage: 28 },
-  { platform: 'Gemini', visits: 720, percentage: 20 },
-  { platform: 'Claude', visits: 610, percentage: 17 },
-]
-
-const agentTrafficData = [
-  { platform: 'ChatGPT', visits: 850, percentage: 32 },
-  { platform: 'Perplexity', visits: 680, percentage: 26 },
-  { platform: 'Gemini', visits: 520, percentage: 20 },
-  { platform: 'Claude', visits: 590, percentage: 22 },
-]
+// TODO: Connect to real analytics API endpoint when available
+// This component currently shows placeholder data as traffic analytics
+// are not yet implemented in the backend
+const humanTrafficData: any[] = []
+const agentTrafficData: any[] = []
 
 // Removed unused data arrays for now
 
@@ -36,6 +27,27 @@ interface HumanAIVisitsSectionProps {
 
 export function HumanAIVisitsSection({ selectedPlatforms }: HumanAIVisitsSectionProps) {
   const [activeTab, setActiveTab] = useState('human')
+
+  // Show empty state if no data
+  if (humanTrafficData.length === 0 && agentTrafficData.length === 0) {
+    return (
+      <div className="space-y-6">
+        <Card className="border-0 shadow-none bg-transparent">
+          <CardContent className="p-6">
+            <div className="text-center py-8">
+              <div className="text-muted-foreground mb-4">
+                <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              </div>
+              <h3 className="text-lg font-medium mb-2">Traffic Analytics Coming Soon</h3>
+              <p className="text-sm text-muted-foreground">
+                Human and agent traffic analytics will be available once we integrate with your website's traffic data.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -78,10 +90,9 @@ export function HumanAIVisitsSection({ selectedPlatforms }: HumanAIVisitsSection
                   </TooltipProvider>
                 </CardTitle>
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-foreground">3,560</div>
-                  <div className="text-sm text-green-600 flex items-center">
-                    <TrendingUp className="mr-1 h-3 w-3" />
-                    +12.5% vs last week
+                  <div className="text-2xl font-bold text-foreground">-</div>
+                  <div className="text-sm text-muted-foreground">
+                    No data available
                   </div>
                 </div>
               </div>
@@ -130,10 +141,9 @@ export function HumanAIVisitsSection({ selectedPlatforms }: HumanAIVisitsSection
                   </TooltipProvider>
                 </CardTitle>
                 <div className="text-right">
-                  <div className="text-2xl font-bold text-foreground">1,920</div>
-                  <div className="text-sm text-green-600 flex items-center">
-                    <TrendingUp className="mr-1 h-3 w-3" />
-                    +8.3% vs last week
+                  <div className="text-2xl font-bold text-foreground">-</div>
+                  <div className="text-sm text-muted-foreground">
+                    No data available
                   </div>
                 </div>
               </div>

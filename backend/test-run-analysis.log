@@ -1,0 +1,79 @@
+🔑 SubjectiveMetrics - OpenRouter API Key loaded: YES
+
+[36mConnecting to MongoDB...[0m
+(node:103819) [MONGOOSE] Warning: Duplicate schema index on {"brandName":1} found. This is often due to declaring an index using both "index: true" and "schema.index()". Please remove the duplicate index definition.
+(Use `node --trace-warnings ...` to show where the warning was created)
+[32m✅ Connected to MongoDB[0m
+
+[36mFetching Prompt: 68ea26f243e36b0d6038f175[0m
+[32m✅ Prompt found[0m
+   Query: Is HDFC Bank a trusted choice for managing my business's financial needs?...
+   Status: active
+[32m✅ Found 4 platform responses[0m
+   Platforms: openai, claude, perplexity, gemini
+[32m✅ Brand "HDFC Bank" found in 4 platform(s)[0m
+   Total mentions across all platforms: 36
+   - openai: 8 mentions, position 1, 2 citations
+   - claude: 5 mentions, position 1, 8 citations
+   - perplexity: 5 mentions, position 1, 8 citations
+   - gemini: 18 mentions, position 1, 20 citations
+
+[33m⚠️  Metrics already exist for this prompt + brand combination[0m
+
+To re-evaluate, delete existing metrics first:
+[36mdb.subjectivemetrics.deleteOne({_id: ObjectId("68ec15c819adde4d4ab74761")})[0m
+
+Or view existing metrics below:
+
+
+1. [1mRELEVANCE[0m
+   Score: [32m5/5[0m
+   Source [1] is highly relevant to the query about HDFC Bank's suitability
+   for managing business financial needs. It provides detailed information
+   on the bank's services, reputation, technological advancements, and
+   customer support, which are directly pertinent to the user's question.
+
+2. [1mINFLUENCE[0m
+   Score: [32m4/5[0m
+   Source [1] significantly influences the answers by providing foundational
+   information about HDFC Bank's offerings and reputation. While other
+   sources contribute additional details, the core understanding of HDFC
+   Bank's capabilities is largely drawn from Source [1].
+
+3. [1mUNIQUENESS[0m
+   Score: [33m3/5[0m
+   The information from Source [1] is somewhat unique as it provides specific
+   insights into HDFC Bank's services and reputation. However, similar
+   information is also available from other sources, which slightly
+   diminishes its uniqueness.
+
+4. [1mPOSITION[0m
+   Score: [32m4/5[0m
+   Source [1] is prominently positioned in the answers, with frequent
+   references to HDFC Bank's services and reputation. This ensures that
+   users are likely to encounter the citation while reading the responses.
+
+5. [1mCLICK PROBABILITY[0m
+   Score: [32m4/5[0m
+   The likelihood of users clicking on Source [1] is high due to the detailed
+   and relevant information provided about HDFC Bank. Users interested in
+   further details about the bank's offerings are likely to visit the
+   official website linked in the answers.
+
+6. [1mDIVERSITY[0m
+   Score: [32m4/5[0m
+   Source [1] covers a diverse range of topics related to HDFC Bank, including
+   its services, reputation, technological advancements, and customer
+   support. This contributes to a comprehensive understanding of the bank's
+   capabilities, though other sources also add to the diversity.
+
+[36m[1mOVERALL QUALITY[0m
+   Score: [32m4/5[0m
+   Source [1] provides highly relevant and influential information about HDFC
+   Bank's suitability for business financial management. It is prominently
+   positioned and likely to engage users, although its uniqueness is
+   somewhat diluted by similar information from other sources. Overall, it
+   contributes significantly to a comprehensive and balanced answer.
+
+[1mAverage Score: [32m4.00/5[0m
+======================================================================

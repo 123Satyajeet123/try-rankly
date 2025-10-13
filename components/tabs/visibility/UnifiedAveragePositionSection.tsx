@@ -16,6 +16,7 @@ import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
 import { useSkeletonLoading } from '@/components/ui/with-skeleton-loading'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
+import { formatToTwoDecimals } from '@/lib/numberUtils'
 
 // Helper functions for trend indicators
 const getTrendIcon = (trend: string) => {
@@ -67,6 +68,19 @@ interface UnifiedAveragePositionSectionProps {
 
 function UnifiedAveragePositionSection({ filterContext, dashboardData }: UnifiedAveragePositionSectionProps) {
   // Transform dashboard data to chart format
+  const brandColors = [
+    '#3B82F6', // Blue
+    '#EF4444', // Red  
+    '#10B981', // Green
+    '#F59E0B', // Yellow
+    '#8B5CF6', // Purple
+    '#06B6D4', // Cyan
+    '#EC4899', // Pink
+    '#14B8A6', // Teal
+    '#84CC16', // Lime
+    '#F97316'  // Orange
+  ]
+
   const getChartDataFromDashboard = () => {
     console.log('🔍 [AveragePosition] Dashboard data:', dashboardData?.metrics?.averagePosition)
 
@@ -77,8 +91,8 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
 
     const currentChartData = dashboardData.metrics.averagePosition.data.map((item: any, index: number) => ({
       name: item.name,
-      score: item.value,
-      color: item.fill || (index === 0 ? '#3B82F6' : '#E5E7EB')
+      score: parseFloat(formatToTwoDecimals(item.value)), // Format to 2 decimal places
+      color: brandColors[index % brandColors.length] // Always use our diverse color palette
     }))
 
     console.log('📊 [AveragePosition] Transformed chart data:', currentChartData)
@@ -269,7 +283,7 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
             <div className="space-y-2">
               <h3 className="text-foreground">Average Position</h3>
               <div className="metric text-xl font-semibold text-foreground">
-                {dashboardData?.metrics?.averagePosition?.value || 0}
+                {formatToTwoDecimals(dashboardData?.metrics?.averagePosition?.value || 0)}
               </div>
             </div>
 
@@ -383,7 +397,7 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
                                     y={viewBox.cy}
                                     className="fill-foreground text-lg font-bold"
                                   >
-                                    {activeData.score}
+                                    {formatToTwoDecimals(activeData.score)}
                                   </tspan>
                                   <tspan
                                     x={viewBox.cx}
@@ -421,7 +435,7 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
                         />
                         <span className="caption text-foreground">{item.name}</span>
                         <span className="caption text-muted-foreground">
-                          {item.score}
+                          {formatToTwoDecimals(item.score)}
                         </span>
                       </div>
                     ))}
@@ -526,7 +540,7 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
                     <div className="text-white font-semibold text-sm">{hoveredBar.name}</div>
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-gray-300">Score:</span>
-                      <span className="text-gray-300 font-medium">{hoveredBar.score}</span>
+                      <span className="text-gray-300 font-medium">{formatToTwoDecimals(hoveredBar.score)}</span>
                     </div>
                   </div>
                   <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-3 border-r-3 border-t-3 border-transparent border-t-neutral-900 dark:border-t-neutral-800"></div>

@@ -32,9 +32,9 @@ interface PromptBuilderModalProps {
 export function PromptBuilderModal({ children, onGenerate }: PromptBuilderModalProps) {
   const router = useRouter()
   const [isOpen, setIsOpen] = useState(false)
-  const [topics, setTopics] = useState([{ id: 1, name: "Conversion Rate Optimization" }])
+  const [topics, setTopics] = useState<{ id: number; name: string }[]>([])
   const [promptsPerTopic, setPromptsPerTopic] = useState("10")
-  const [platforms, setPlatforms] = useState(["chatgpt", "perplexity", "gemini", "claude"])
+  const [platforms, setPlatforms] = useState<string[]>([])
   const [additionalInstructions, setAdditionalInstructions] = useState("")
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
   const [platformSearch, setPlatformSearch] = useState("")
@@ -85,6 +85,8 @@ export function PromptBuilderModal({ children, onGenerate }: PromptBuilderModalP
     }
   }
 
+  // TODO: Fetch platform data from backend API
+  // This should come from the dashboard data or a dedicated API endpoint
   const platformData = [
     { id: "chatgpt", name: "ChatGPT" },
     { id: "perplexity", name: "Perplexity" },

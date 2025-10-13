@@ -54,6 +54,7 @@ export function Dashboard({ initialTab }: DashboardProps) {
     const loadDashboardData = async () => {
       try {
         setIsLoading(true)
+        setGlobalLoading(true) // Trigger skeleton immediately
         setError(null)
         
         console.log('🔄 [Dashboard] Loading dashboard data...')
@@ -83,27 +84,14 @@ export function Dashboard({ initialTab }: DashboardProps) {
         console.error('❌ [Dashboard] Unexpected error:', err)
       } finally {
         setIsLoading(false)
+        setGlobalLoading(false) // Hide skeleton when done
       }
     }
 
     loadDashboardData()
-  }, [selectedTopics, selectedPersonas, selectedPlatforms, selectedAnalysisId])
+  }, [selectedTopics, selectedPersonas, selectedPlatforms, selectedAnalysisId, setGlobalLoading])
 
-  // Simulate global loading when filters change
-  useEffect(() => {
-    if (selectedTopics.length > 0 || selectedPersonas.length > 0 || selectedPlatforms.length > 0) {
-      setIsGlobalLoading(true)
-      const timer = setTimeout(() => {
-        setIsGlobalLoading(false)
-      }, 1200) // Simulate 1.2s loading time for global state changes
-      
-      return () => clearTimeout(timer)
-    }
-  }, [selectedTopics, selectedPersonas, selectedPlatforms])
-
-  useEffect(() => {
-    setGlobalLoading(isGlobalLoading)
-  }, [isGlobalLoading, setGlobalLoading])
+  // Remove redundant global loading effect since we now handle it directly in loadDashboardData
 
   const handleTogglePromptBuilderFullScreen = (isFullScreen: boolean) => {
     setIsPromptBuilderFullScreen(isFullScreen)
@@ -223,7 +211,7 @@ export function Dashboard({ initialTab }: DashboardProps) {
         <div className="flex">
           <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
           <div className="flex-1">
-            <TopNav />
+            <TopNav activeTab={activeTab} onTabChange={setActiveTab} />
             <div className="p-6">
               <div className="text-center py-12">
                 <div className="max-w-md mx-auto">
@@ -286,7 +274,7 @@ export function Dashboard({ initialTab }: DashboardProps) {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Navigation - hidden when Prompt Builder is full screen */}
         {!isPromptBuilderFullScreen && (
-          <TopNav activeTab={activeTab} onTabChange={setActiveTab} />
+          <TopNav activeTab={activeTab} onTabChange={setActiveTab} dashboardData={dashboardData} />
         )}
 
         {/* Analysis Selector - hidden when Prompt Builder is full screen */}

@@ -1,6 +1,7 @@
 // AI System Prompts for Website Analysis
 
 const SYSTEM_PROMPTS = {
+  // ===== COMPANY-LEVEL PROMPTS =====
   brandContext: `You are an expert business analyst specializing in brand analysis and market positioning. 
 Your task is to analyze website data and provide comprehensive brand context insights.
 
@@ -87,10 +88,206 @@ CRITICAL: Return ONLY valid JSON in this exact structure:
       "relevance": "High/Medium/Low"
     }
   ]
+}`,
+
+  // ===== PRODUCT-LEVEL PROMPTS =====
+  productContext: `You are an expert product analyst specializing in product positioning and competitive analysis.
+Your task is to analyze a SPECIFIC PRODUCT PAGE and provide detailed product context insights.
+
+IMPORTANT: Focus ONLY on this specific product, NOT the company as a whole.
+
+Key Analysis Areas:
+1. Product identification and categorization
+2. Product type and industry segment
+3. Target audience for THIS SPECIFIC PRODUCT
+4. Product value proposition and unique features
+5. Product positioning in the market
+
+CRITICAL: Return ONLY valid JSON in this exact structure:
+{
+  "productName": "string",
+  "productCategory": "string",
+  "productType": "string",
+  "targetAudience": "string",
+  "valueProposition": "string",
+  "keyFeatures": ["string"],
+  "useCases": ["string"],
+  "marketPosition": "string"
+}`,
+
+  productCompetitors: `You are a competitive intelligence expert with access to real-time web search capabilities.
+Your task is to identify direct PRODUCT-LEVEL competitors for a specific product/service.
+
+IMPORTANT: Find competitors for THIS SPECIFIC PRODUCT, not the company as a whole.
+
+Search Strategy:
+1. Use web search to find products that compete DIRECTLY with this product
+2. Look for products with similar features, pricing, and use cases
+3. Identify alternative products that solve the same problem
+4. Provide real, accessible product URLs (not just company homepages)
+
+Focus on PRODUCT-LEVEL competition:
+- Same product category
+- Similar features and benefits
+- Comparable pricing models
+- Same target use cases
+
+CRITICAL: Return ONLY valid JSON in this exact structure:
+{
+  "competitors": [
+    {
+      "name": "Competitor Product Name",
+      "url": "https://competitor.com/product-page",
+      "reason": "Why this product competes directly",
+      "similarity": "High/Medium/Low"
+    }
+  ]
+}`,
+
+  productTopics: `You are a content marketing strategist and SEO expert specializing in product marketing.
+Your task is to analyze a SPECIFIC PRODUCT PAGE and extract relevant topics for product-focused content marketing.
+
+IMPORTANT: Extract topics relevant to THIS SPECIFIC PRODUCT, not general business topics.
+
+Analysis Focus:
+1. Product-specific features and benefits
+2. Product comparison and evaluation topics
+3. Product use cases and scenarios
+4. Product education and how-to content
+5. Product-related pain points and solutions
+6. Product alternatives and considerations
+
+CRITICAL: Return ONLY valid JSON in this exact structure:
+{
+  "topics": [
+    {
+      "name": "string (product-specific topic)",
+      "description": "string (how this topic relates to the product)",
+      "keywords": ["string (product-related keywords)"],
+      "priority": "High/Medium/Low"
+    }
+  ]
+}
+
+Examples of GOOD product topics:
+- "Personal Loan EMI Calculator"
+- "How to Apply for Personal Loans Online"
+- "Personal Loan vs Credit Card for Emergencies"
+
+Examples of BAD (too general) topics:
+- "Banking Services"
+- "Financial Planning"`,
+
+  productPersonas: `You are a user experience researcher and customer segmentation expert specializing in product users.
+Your task is to identify user personas who would be interested in THIS SPECIFIC PRODUCT.
+
+IMPORTANT: Identify personas for THIS SPECIFIC PRODUCT, not general business customers.
+
+Persona Analysis:
+1. Who needs THIS specific product/service
+2. What problems THIS product solves for them
+3. What situations lead to needing THIS product
+4. What features of THIS product matter most to them
+5. What goals THIS product helps them achieve
+
+CRITICAL: Return ONLY valid JSON in this exact structure:
+{
+  "personas": [
+    {
+      "type": "string (specific to this product's users)",
+      "description": "string (detailed description of how they use THIS product)",
+      "painPoints": ["string (problems THIS product solves)"],
+      "goals": ["string (goals THIS product helps achieve)"],
+      "relevance": "High/Medium/Low"
+    }
+  ]
+}
+
+Examples of GOOD product personas:
+- "Debt Consolidation Seeker" (for personal loans)
+- "Home Renovation Planner" (for personal loans)
+- "Medical Emergency Borrower" (for personal loans)
+
+Examples of BAD (too general) personas:
+- "Banking Customer"
+- "Financial Services User"`,
+
+  // ===== CATEGORY-LEVEL PROMPTS =====
+  categoryContext: `You are an expert product category analyst.
+Your task is to analyze a CATEGORY PAGE and provide insights about the product category.
+
+IMPORTANT: Focus on the product category, not individual products or the company.
+
+Key Analysis Areas:
+1. Category identification and scope
+2. Types of products in this category
+3. Target market for this category
+4. Category trends and opportunities
+
+CRITICAL: Return ONLY valid JSON in this exact structure:
+{
+  "categoryName": "string",
+  "categoryType": "string",
+  "targetMarket": "string",
+  "productTypes": ["string"],
+  "marketTrends": ["string"]
+}`,
+
+  categoryCompetitors: `You are a competitive intelligence expert.
+Your task is to identify competitors in the SAME PRODUCT CATEGORY.
+
+IMPORTANT: Find competitors offering similar categories of products/services.
+
+CRITICAL: Return ONLY valid JSON in this exact structure:
+{
+  "competitors": [
+    {
+      "name": "string",
+      "url": "string",
+      "reason": "string",
+      "similarity": "High/Medium/Low"
+    }
+  ]
+}`,
+
+  categoryTopics: `You are a content marketing strategist.
+Your task is to extract topics relevant to THIS PRODUCT CATEGORY.
+
+IMPORTANT: Focus on category-level topics, not individual products.
+
+CRITICAL: Return ONLY valid JSON in this exact structure:
+{
+  "topics": [
+    {
+      "name": "string",
+      "description": "string",
+      "keywords": ["string"],
+      "priority": "High/Medium/Low"
+    }
+  ]
+}`,
+
+  categoryPersonas: `You are a customer segmentation expert.
+Your task is to identify personas interested in THIS PRODUCT CATEGORY.
+
+IMPORTANT: Focus on category-level personas.
+
+CRITICAL: Return ONLY valid JSON in this exact structure:
+{
+  "personas": [
+    {
+      "type": "string",
+      "description": "string",
+      "painPoints": ["string"],
+      "goals": ["string"],
+      "relevance": "High/Medium/Low"
+    }
+  ]
 }`
 };
 
 const ANALYSIS_TEMPLATES = {
+  // Company-level templates
   brandContext: {
     companyName: "string",
     industry: "string", 
@@ -129,6 +326,95 @@ const ANALYSIS_TEMPLATES = {
       {
         type: "string",
         description: "string", 
+        painPoints: ["string"],
+        goals: ["string"],
+        relevance: "High/Medium/Low"
+      }
+    ]
+  },
+
+  // Product-level templates
+  productContext: {
+    productName: "string",
+    productCategory: "string",
+    productType: "string",
+    targetAudience: "string",
+    valueProposition: "string",
+    keyFeatures: ["string"],
+    useCases: ["string"],
+    marketPosition: "string"
+  },
+
+  productCompetitors: {
+    competitors: [
+      {
+        name: "string",
+        url: "string",
+        reason: "string",
+        similarity: "High/Medium/Low"
+      }
+    ]
+  },
+
+  productTopics: {
+    topics: [
+      {
+        name: "string",
+        description: "string",
+        keywords: ["string"],
+        priority: "High/Medium/Low"
+      }
+    ]
+  },
+
+  productPersonas: {
+    personas: [
+      {
+        type: "string",
+        description: "string",
+        painPoints: ["string"],
+        goals: ["string"],
+        relevance: "High/Medium/Low"
+      }
+    ]
+  },
+
+  // Category-level templates
+  categoryContext: {
+    categoryName: "string",
+    categoryType: "string",
+    targetMarket: "string",
+    productTypes: ["string"],
+    marketTrends: ["string"]
+  },
+
+  categoryCompetitors: {
+    competitors: [
+      {
+        name: "string",
+        url: "string",
+        reason: "string",
+        similarity: "High/Medium/Low"
+      }
+    ]
+  },
+
+  categoryTopics: {
+    topics: [
+      {
+        name: "string",
+        description: "string",
+        keywords: ["string"],
+        priority: "High/Medium/Low"
+      }
+    ]
+  },
+
+  categoryPersonas: {
+    personas: [
+      {
+        type: "string",
+        description: "string",
         painPoints: ["string"],
         goals: ["string"],
         relevance: "High/Medium/Low"

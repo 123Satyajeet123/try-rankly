@@ -39,6 +39,20 @@ interface CitationShareSectionProps {
   dashboardData?: any
 }
 
+// Brand color palette
+const brandColors = [
+  '#3B82F6', // Blue
+  '#EF4444', // Red  
+  '#10B981', // Green
+  '#F59E0B', // Yellow
+  '#8B5CF6', // Purple
+  '#06B6D4', // Cyan
+  '#EC4899', // Pink
+  '#14B8A6', // Teal
+  '#84CC16', // Lime
+  '#F97316'  // Orange
+]
+
 // Transform dashboard data to citation share format
 const getChartDataFromDashboard = (dashboardData: any) => {
   if (!dashboardData?.metrics?.competitorsByCitation || dashboardData.metrics.competitorsByCitation.length === 0) {
@@ -48,7 +62,7 @@ const getChartDataFromDashboard = (dashboardData: any) => {
   const chartData = dashboardData.metrics.competitorsByCitation.map((competitor: any, index: number) => ({
     name: competitor.name,
     score: competitor.score || 0,
-    color: competitor.fill || (index === 0 ? '#3B82F6' : '#E5E7EB'),
+    color: brandColors[index % brandColors.length], // Always use our diverse color palette
     comparisonScore: competitor.score || 0 // For now, use same value for comparison
   }))
   

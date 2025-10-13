@@ -1,5 +1,6 @@
 'use client'
 
+import React from 'react'
 import { UnifiedCard, UnifiedCardContent } from '@/components/ui/unified-card'
 import { Button } from '@/components/ui/button'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -13,10 +14,12 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { useRouter } from 'next/navigation'
 import { PromptBuilderModal } from './PromptBuilderModal'
+import apiService from '@/services/api'
 import { useSkeletonLoading } from '@/components/ui/with-skeleton-loading'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
 import { useTheme } from 'next-themes'
+import ReactMarkdown from 'react-markdown'
 import { 
   ChevronDown, 
   ChevronRight, 
@@ -44,7 +47,6 @@ import {
   FileText
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import apiService from '@/services/api'
 
 // Data types for prompts dashboard
 interface PromptMetrics {
@@ -116,7 +118,15 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
   const [sortBy, setSortBy] = useState("all")
   const [selectedPrompt, setSelectedPrompt] = useState<any>(null)
   const [isSheetOpen, setIsSheetOpen] = useState(false)
-  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['ChatGPT', 'Perplexity', 'Gemini', 'Claude', 'Grok'])
+  const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([])
+  const [promptDetails, setPromptDetails] = useState<any>(null)
+  const [loadingPromptDetails, setLoadingPromptDetails] = useState(false)
+  
+  // Subjective Metrics state
+  const [subjectiveMetrics, setSubjectiveMetrics] = useState<any>(null)
+  const [loadingMetrics, setLoadingMetrics] = useState(false)
+  const [generatingMetrics, setGeneratingMetrics] = useState(false)
+  const [metricsError, setMetricsError] = useState<string | null>(null)
 
   // Real data state
   const [realPromptsData, setRealPromptsData] = useState<PromptsDashboardData | null>(null)
@@ -130,7 +140,8 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
   const getFaviconUrl = (platformName: string) => {
     const isDarkMode = theme === 'dark'
     const faviconMap = {
-      'ChatGPT': 'https://chat.openai.com/favicon.ico',
+      'OpenAI': 'https://chat.openai.com/favicon.ico',
+      'ChatGPT': 'https://chat.openai.com/favicon.ico', // Keep for backward compatibility
       'Claude': 'https://claude.ai/favicon.ico',
       'Gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
       'Perplexity': 'https://www.perplexity.ai/favicon.ico',
@@ -183,6 +194,188 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
     return tableSortDirection === 'asc' ? 
       <ChevronDown className="w-3 h-3" /> : 
       <ChevronUp className="w-3 h-3" />
+  }
+
+  // Fetch prompt details from backend
+  const fetchPromptDetails = async (promptId: string) => {
+    try {
+      setLoadingPromptDetails(true)
+      console.log(`📊 [PROMPT DETAILS] Fetching details for prompt: ${promptId}`)
+      
+      const response = await apiService.getPromptDetails(promptId)
+      
+      if (response.success && response.data) {
+        console.log(`✅ [PROMPT DETAILS] Retrieved details for prompt: ${response.data.prompt.text}`)
+        console.log(`📊 [PROMPT DETAILS] Brand name from API:`, response.data.brandName)
+        console.log(`📊 [PROMPT DETAILS] Full response structure:`, {
+          hasBrandName: !!response.data.brandName,
+          hasUrlAnalysis: !!response.data.urlAnalysis,
+          hasAggregatedMetrics: !!response.data.aggregatedMetrics,
+          platformResponsesKeys: Object.keys(response.data.platformResponses || {}),
+          promptText: response.data.prompt?.text
+        })
+        
+        setPromptDetails(response.data)
+        
+        // Set selected platforms based on what's actually available in the response
+        const availablePlatforms = Object.keys(response.data.platformResponses || {})
+        console.log(`📊 [PROMPT DETAILS] Available platforms:`, availablePlatforms)
+        setSelectedPlatforms(availablePlatforms)
+        
+        // Try to fetch existing subjective metrics
+        await fetchSubjectiveMetrics(promptId)
+      } else {
+        throw new Error('Failed to fetch prompt details')
+      }
+    } catch (err) {
+      console.error('❌ [PROMPT DETAILS] Error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to fetch prompt details')
+    } finally {
+      setLoadingPromptDetails(false)
+    }
+  }
+
+  // Extract brand name from database/API data
+  const getBrandName = () => {
+    // Primary: Get brand name from API response (most reliable)
+    if (promptDetails?.brandName) {
+      console.log(`✅ [BRAND EXTRACTION] Using brand from API: "${promptDetails.brandName}"`)
+      return promptDetails.brandName
+    }
+    
+    // Secondary: Check if we have URL analysis data with brand context
+    if (promptDetails?.urlAnalysis?.brandContext?.companyName) {
+      console.log(`✅ [BRAND EXTRACTION] Using brand from URL analysis: "${promptDetails.urlAnalysis.brandContext.companyName}"`)
+      return promptDetails.urlAnalysis.brandContext.companyName
+    }
+    
+    // Tertiary: Check if we have aggregated metrics with brand info
+    if (promptDetails?.aggregatedMetrics?.brandName) {
+      console.log(`✅ [BRAND EXTRACTION] Using brand from aggregated metrics: "${promptDetails.aggregatedMetrics.brandName}"`)
+      return promptDetails.aggregatedMetrics.brandName
+    }
+    
+    // Last resort: Check platform responses for brand mentions in structured data
+    if (promptDetails?.platformResponses) {
+      for (const [platform, response] of Object.entries(promptDetails.platformResponses)) {
+        if (response && typeof response === 'object' && 'brandName' in response && response.brandName) {
+          console.log(`✅ [BRAND EXTRACTION] Using brand from ${platform} response: "${response.brandName}"`)
+          return response.brandName as string
+        }
+      }
+    }
+    
+    // Ultimate fallback: Return a default brand name
+    console.log(`⚠️ [BRAND EXTRACTION] No brand found in API data, using fallback: "Unknown Brand"`)
+    return 'Unknown Brand'
+  }
+
+  // Fetch existing subjective metrics
+  const fetchSubjectiveMetrics = async (promptId: string) => {
+    try {
+      setLoadingMetrics(true)
+      setMetricsError(null)
+      
+      const brandName = getBrandName()
+      console.log(`📊 [SUBJECTIVE METRICS] Fetching metrics for prompt: ${promptId}, brand: ${brandName}`)
+      
+      const response = await apiService.getSubjectiveMetrics(promptId, brandName)
+      
+      if (response.success && response.data) {
+        console.log(`✅ [SUBJECTIVE METRICS] Retrieved metrics:`, response.data)
+        
+        // Handle the backend response structure: data.metrics is an array, get the first (latest) one
+        const metrics = response.data.metrics && response.data.metrics.length > 0 
+          ? response.data.metrics[0] 
+          : response.data
+        
+        console.log(`🔍 [DEBUG] Fetched metrics structure:`, {
+          hasRelevance: !!metrics.relevance,
+          relevanceScore: metrics.relevance?.score,
+          relevanceReasoning: metrics.relevance?.reasoning?.substring(0, 50) + '...',
+          allKeys: Object.keys(metrics)
+        })
+        
+        setSubjectiveMetrics(metrics)
+      } else {
+        console.log(`ℹ️ [SUBJECTIVE METRICS] No existing metrics found`)
+        setSubjectiveMetrics(null)
+      }
+    } catch (error) {
+      // Check if this is a "no metrics found" error (expected for first time)
+      const errorMessage = error.message || ''
+      if (errorMessage.includes('No metrics found') || 
+          errorMessage.includes('not found') || 
+          errorMessage.includes('404')) {
+        console.log(`ℹ️ [SUBJECTIVE METRICS] No existing metrics found (first time)`)
+        setSubjectiveMetrics(null)
+        setMetricsError(null) // Clear any error state
+      } else {
+        console.error('❌ [SUBJECTIVE METRICS] Error fetching metrics:', error)
+        setMetricsError(errorMessage || 'Failed to fetch metrics')
+        setSubjectiveMetrics(null)
+      }
+    } finally {
+      setLoadingMetrics(false)
+    }
+  }
+
+  // Generate subjective metrics
+  const generateSubjectiveMetrics = async () => {
+    if (!selectedPrompt?.promptId) {
+      console.error('❌ [SUBJECTIVE METRICS] No prompt ID available')
+      return
+    }
+
+    try {
+      setGeneratingMetrics(true)
+      setMetricsError(null)
+      
+      const brandName = getBrandName()
+      console.log(`🚀 [SUBJECTIVE METRICS] Generating metrics for prompt: ${selectedPrompt.promptId}`)
+      console.log(`📊 [SUBJECTIVE METRICS] Brand name extracted: "${brandName}"`)
+      console.log(`📊 [SUBJECTIVE METRICS] Brand extraction source:`, {
+        fromApiBrandName: !!promptDetails?.brandName,
+        fromUrlAnalysis: !!promptDetails?.urlAnalysis?.brandContext?.companyName,
+        fromAggregatedMetrics: !!promptDetails?.aggregatedMetrics?.brandName,
+        fromPlatformResponses: Object.keys(promptDetails?.platformResponses || {}).some(platform => {
+          const response = promptDetails?.platformResponses?.[platform]
+          return response && typeof response === 'object' && 'brandName' in response && response.brandName
+        })
+      })
+      
+      const response = await apiService.evaluateSubjectiveMetrics(selectedPrompt.promptId, brandName)
+      
+      if (response.success && response.data) {
+        console.log(`✅ [SUBJECTIVE METRICS] Generated metrics:`, response.data)
+        
+        // Extract the actual metrics object from the response
+        const generatedMetrics = response.data.metrics || response.data
+        console.log(`🔍 [DEBUG] Generated metrics structure:`, {
+          hasRelevance: !!generatedMetrics.relevance,
+          relevanceScore: generatedMetrics.relevance?.score,
+          relevanceReasoning: generatedMetrics.relevance?.reasoning?.substring(0, 50) + '...',
+          allKeys: Object.keys(generatedMetrics)
+        })
+        setSubjectiveMetrics(generatedMetrics)
+        
+        console.log(`✅ [SUBJECTIVE METRICS] Set metrics in UI:`, generatedMetrics)
+      } else {
+        throw new Error(response.message || 'Failed to generate metrics')
+      }
+    } catch (error) {
+      console.error('❌ [SUBJECTIVE METRICS] Error generating metrics:', error)
+      
+      // Handle specific error cases
+      const errorMessage = error.message || ''
+      if (errorMessage.includes('not found in any platform responses')) {
+        setMetricsError(`Brand "${getBrandName()}" not found in the LLM responses. Please check if the brand name is correctly extracted or try a different prompt.`)
+      } else {
+        setMetricsError(errorMessage || 'Failed to generate metrics')
+      }
+    } finally {
+      setGeneratingMetrics(false)
+    }
   }
 
   // Export to Excel function
@@ -1641,9 +1834,9 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                     const isExpanded = expandedTopics.has(group.groupValue)
                     
                     return (
-                      <>
+                      <React.Fragment key={`group-${index}`}>
                         {/* Group Header Row */}
-                        <TableRow key={`group-${index}`} className="hover:bg-muted/50">
+                        <TableRow className="hover:bg-muted/50">
                       <TableCell>
                             <Button 
                               variant="ghost" 
@@ -1688,11 +1881,16 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                               size="sm" 
                               className="h-6 px-2 text-xs text-[#2563EB] hover:text-[#2563EB] hover:bg-[#2563EB]/10"
                               onClick={() => {
+                                const firstPrompt = group.prompts[0]
+                                if (firstPrompt?.id) {
                                   setSelectedPrompt({
                                     ...group,
-                                    promptPreview: group.prompts[0]?.prompt || 'N/A'
+                                    promptPreview: firstPrompt.text || firstPrompt.prompt || 'N/A',
+                                    promptId: firstPrompt.id
                                   })
-                                setIsSheetOpen(true)
+                                  fetchPromptDetails(firstPrompt.id)
+                                  setIsSheetOpen(true)
+                                }
                               }}
                             >
                               View
@@ -1706,7 +1904,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                           <TableRow key={`prompt-${prompt.id}`} className="bg-muted/20 hover:bg-muted/40">
                             <TableCell></TableCell>
                             <TableCell className="text-muted-foreground">
-                              <span className="text-sm">{prompt.prompt}</span>
+                              <span className="text-sm">{prompt.text || prompt.prompt}</span>
                             </TableCell>
                             <TableCell className="text-sm text-center">
                               {prompt.promptMetrics && prompt.promptMetrics.visibilityScore > 0 
@@ -1743,11 +1941,15 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                               size="sm"
                                 className="h-6 px-2 text-xs text-[#2563EB] hover:text-[#2563EB] hover:bg-[#2563EB]/10"
                               onClick={() => {
-                                    setSelectedPrompt({
-                                      ...group,
-                                      promptPreview: prompt.prompt
-                                    })
-                                setIsSheetOpen(true)
+                                if (prompt.id) {
+                                  setSelectedPrompt({
+                                    ...group,
+                                    promptPreview: prompt.text || prompt.prompt || 'N/A',
+                                    promptId: prompt.id
+                                  })
+                                  fetchPromptDetails(prompt.id)
+                                  setIsSheetOpen(true)
+                                }
                               }}
                             >
                               View
@@ -1756,7 +1958,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                             </TableCell>
                           </TableRow>
                         ))}
-                      </>
+                      </React.Fragment>
                     )
                   })}
                 </TableBody>
@@ -1767,7 +1969,16 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
       </UnifiedCard>
 
       {/* Subjective Impression Analysis Sheet */}
-      <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+      <Sheet open={isSheetOpen} onOpenChange={(open) => {
+        setIsSheetOpen(open)
+        if (!open) {
+          // Reset state when modal is closed
+          setPromptDetails(null)
+          setSelectedPlatforms([])
+          setSubjectiveMetrics(null)
+          setMetricsError(null)
+        }
+      }}>
                           <SheetContent className="!w-[80vw] sm:!w-[75vw] lg:!w-[70vw] !max-w-none overflow-y-auto">
                             <SheetHeader>
                               <div className="flex justify-between items-center">
@@ -1794,10 +2005,10 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                                   </DropdownMenuTrigger>
                                   <DropdownMenuContent className="min-w-[var(--radix-dropdown-menu-trigger-width)]">
                                     <DropdownMenuCheckboxItem
-                                      checked={selectedPlatforms.length === 5}
+                                      checked={selectedPlatforms.length === (Object.keys(promptDetails?.platformResponses || {}).length)}
                                       onCheckedChange={(checked) => {
                                         if (checked) {
-                                          setSelectedPlatforms(['ChatGPT', 'Perplexity', 'Gemini', 'Claude', 'Grok'])
+                                          setSelectedPlatforms(Object.keys(promptDetails?.platformResponses || {}))
                                         } else {
                                           setSelectedPlatforms([])
                                         }
@@ -1806,7 +2017,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                                     >
                                       All Platforms
                                     </DropdownMenuCheckboxItem>
-                                    {['ChatGPT', 'Perplexity', 'Gemini', 'Claude', 'Grok'].map((platform) => (
+                                    {Object.keys(promptDetails?.platformResponses || {}).map((platform) => (
                                       <DropdownMenuCheckboxItem
                                         key={platform}
                                         checked={selectedPlatforms.includes(platform)}
@@ -1842,178 +2053,271 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                               {/* Prompt box */}
                               <div className="p-4 bg-muted/50 rounded-lg">
                                 <h4 className="font-semibold text-sm mb-2">Prompt</h4>
-                                <p className="text-sm text-muted-foreground">{selectedPrompt.promptPreview}</p>
+                                <p className="text-sm text-muted-foreground">
+                                  {promptDetails?.prompt?.text || selectedPrompt.promptPreview}
+                                </p>
+                                {promptDetails && (
+                                  <div className="mt-2 flex gap-2 text-xs text-muted-foreground">
+                                    <span>Topic: {promptDetails.topic}</span>
+                                    <span>•</span>
+                                    <span>Persona: {promptDetails.persona}</span>
+                                  </div>
+                                )}
                               </div>
 
 
                               {/* LLM Answers */}
-                              {selectedPlatforms.length > 0 && (
-                                <div className="p-4 bg-muted/50 rounded-lg">
-                                  <h4 className="font-semibold text-sm mb-3">LLM Answers</h4>
+                              <div className="p-4 bg-muted/50 rounded-lg">
+                                <h4 className="font-semibold text-sm mb-3">
+                                  LLM Answers 
+                                  {!loadingPromptDetails && selectedPlatforms.length > 0 && (
+                                    <span className="text-xs text-muted-foreground ml-2">
+                                      ({selectedPlatforms.length} platforms)
+                                    </span>
+                                  )}
+                                </h4>
+                                {loadingPromptDetails ? (
+                                  <div className="flex items-center justify-center py-8">
+                                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                                    <span className="ml-2 text-sm text-muted-foreground">Loading responses...</span>
+                                  </div>
+                                ) : selectedPlatforms.length > 0 ? (
                                   <div className="space-y-3">
-                                    {selectedPlatforms.map((platform) => (
-                                      <div key={platform} className="border rounded-lg p-3 relative">
-                                        {/* Favicon tag in top left */}
-                                        <div className="absolute -top-2 -left-2 bg-background border border-border rounded-full p-1 shadow-sm">
-                                          <img 
-                                            src={getFaviconUrl(platform)} 
-                                            alt={platform}
-                                            className="w-5 h-5 rounded-sm"
-                                            onError={(e) => {
-                                              e.currentTarget.src = `https://www.google.com/s2/favicons?domain=${platform.toLowerCase()}.com&sz=16`
-                                            }}
-                                          />
+                                    {selectedPlatforms.map((platform) => {
+                                      const platformResponse = promptDetails?.platformResponses?.[platform]
+                                      return (
+                                        <div key={platform} className="border rounded-lg p-3 relative">
+                                          {/* Favicon tag in top left */}
+                                          <div className="absolute -top-2 -left-2 bg-background border border-border rounded-full p-1 shadow-sm">
+                                            <img 
+                                              src={getFaviconUrl(platform)} 
+                                              alt={platform}
+                                              className="w-5 h-5 rounded-sm"
+                                              onError={(e) => {
+                                                e.currentTarget.src = `https://www.google.com/s2/favicons?domain=${platform.toLowerCase()}.com&sz=16`
+                                              }}
+                                            />
+                                          </div>
+                                          <h5 className="font-medium text-sm mb-2 text-white">{platform}</h5>
+                                          {platformResponse ? (
+                                            <div className="space-y-2">
+                                              <div className="text-sm text-muted-foreground prose prose-sm max-w-none">
+                                                <ReactMarkdown>
+                                                  {platformResponse.response}
+                                                </ReactMarkdown>
+                                              </div>
+                                              <div className="flex gap-4 text-xs text-muted-foreground">
+                                                <span>Model: {platformResponse.llmModel}</span>
+                                                <span>Tokens: {platformResponse.tokensUsed}</span>
+                                                <span>Time: {platformResponse.responseTime}ms</span>
+                                              </div>
+                                            </div>
+                                          ) : (
+                                            <p className="text-sm text-muted-foreground">
+                                              No answer available for this platform.
+                                            </p>
+                                          )}
                                         </div>
-                                        <h5 className="font-medium text-sm mb-2 text-white">{platform}</h5>
-                                        <p className="text-sm text-muted-foreground">
-                                          {selectedPrompt.platformAnswers?.[platform] || 'No answer available for this platform.'}
-                                        </p>
+                                      )
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="text-center py-8">
+                                    <p className="text-sm text-muted-foreground">
+                                      No platforms selected or no responses available for this prompt.
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Subjective Metrics Analysis */}
+                              <div className="space-y-4">
+                                {/* Header with Generate Button */}
+                                <div className="flex items-center justify-between">
+                                  <div>
+                                    <h4 className="font-semibold text-sm">Subjective Metrics Analysis</h4>
+                                    <p className="text-xs text-muted-foreground">
+                                      AI-powered analysis of how {getBrandName()} is cited across platforms
+                                    </p>
+                                  </div>
+                                  
+                                  {!subjectiveMetrics ? (
+                                    <Button 
+                                      onClick={generateSubjectiveMetrics}
+                                      disabled={generatingMetrics || !selectedPlatforms.length}
+                                      size="sm"
+                                      className="h-8 px-3 text-xs"
+                                    >
+                                      {generatingMetrics ? (
+                                        <>
+                                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
+                                          Generating...
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Sparkles className="w-3 h-3 mr-2" />
+                                          Generate
+                                        </>
+                                      )}
+                                    </Button>
+                                  ) : (
+                                    <div className="flex items-center gap-1 text-green-600 text-xs">
+                                      <Check className="w-3 h-3" />
+                                      <span>Generated</span>
+                                    </div>
+                                  )}
+                                </div>
+
+                                {/* Error Display */}
+                                {metricsError && (
+                                  <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
+                                    {metricsError}
+                                  </div>
+                                )}
+
+                                {/* Metrics Grid - Always show 6 cards */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                                  {/* Relevance Card */}
+                                  <div className="bg-card border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h5 className="font-medium text-sm">Relevance</h5>
+                                      <span className={`text-lg font-bold ${subjectiveMetrics?.relevance?.score ? 'text-primary' : 'text-muted-foreground'}`}>
+                                        {subjectiveMetrics?.relevance?.score || 0}/5
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mb-2">
+                                      Is the citation actually answering the query?
+                                    </p>
+                                    <details className="group">
+                                      <summary className="text-xs text-primary cursor-pointer hover:underline">
+                                        View reasoning
+                                      </summary>
+                                      <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                                        {subjectiveMetrics?.relevance?.reasoning || 'No analysis available. Click "Generate" to analyze.'}
                                       </div>
-                                    ))}
+                                    </details>
+                                  </div>
+
+                                  {/* Influence Card */}
+                                  <div className="bg-card border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h5 className="font-medium text-sm">Influence</h5>
+                                      <span className={`text-lg font-bold ${subjectiveMetrics?.influence?.score ? 'text-primary' : 'text-muted-foreground'}`}>
+                                        {subjectiveMetrics?.influence?.score || 0}/5
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mb-2">
+                                      Does it shape the user's takeaway?
+                                    </p>
+                                    <details className="group">
+                                      <summary className="text-xs text-primary cursor-pointer hover:underline">
+                                        View reasoning
+                                      </summary>
+                                      <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                                        {subjectiveMetrics?.influence?.reasoning || 'No analysis available. Click "Generate" to analyze.'}
+                                      </div>
+                                    </details>
+                                  </div>
+
+                                  {/* Uniqueness Card */}
+                                  <div className="bg-card border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h5 className="font-medium text-sm">Uniqueness</h5>
+                                      <span className={`text-lg font-bold ${subjectiveMetrics?.uniqueness?.score ? 'text-primary' : 'text-muted-foreground'}`}>
+                                        {subjectiveMetrics?.uniqueness?.score || 0}/5
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mb-2">
+                                      Is the info special, or just repeated elsewhere?
+                                    </p>
+                                    <details className="group">
+                                      <summary className="text-xs text-primary cursor-pointer hover:underline">
+                                        View reasoning
+                                      </summary>
+                                      <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                                        {subjectiveMetrics?.uniqueness?.reasoning || 'No analysis available. Click "Generate" to analyze.'}
+                                      </div>
+                                    </details>
+                                  </div>
+
+                                  {/* Position Card */}
+                                  <div className="bg-card border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h5 className="font-medium text-sm">Position</h5>
+                                      <span className={`text-lg font-bold ${subjectiveMetrics?.position?.score ? 'text-primary' : 'text-muted-foreground'}`}>
+                                        {subjectiveMetrics?.position?.score || 0}/5
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mb-2">
+                                      How prominently is the citation placed within the answer?
+                                    </p>
+                                    <details className="group">
+                                      <summary className="text-xs text-primary cursor-pointer hover:underline">
+                                        View reasoning
+                                      </summary>
+                                      <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                                        {subjectiveMetrics?.position?.reasoning || 'No analysis available. Click "Generate" to analyze.'}
+                                      </div>
+                                    </details>
+                                  </div>
+
+                                  {/* Click Probability Card */}
+                                  <div className="bg-card border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h5 className="font-medium text-sm">Click Probability</h5>
+                                      <span className={`text-lg font-bold ${subjectiveMetrics?.clickProbability?.score ? 'text-primary' : 'text-muted-foreground'}`}>
+                                        {subjectiveMetrics?.clickProbability?.score || 0}/5
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mb-2">
+                                      Would the user click the citation if links are shown?
+                                    </p>
+                                    <details className="group">
+                                      <summary className="text-xs text-primary cursor-pointer hover:underline">
+                                        View reasoning
+                                      </summary>
+                                      <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                                        {subjectiveMetrics?.clickProbability?.reasoning || 'No analysis available. Click "Generate" to analyze.'}
+                                      </div>
+                                    </details>
+                                  </div>
+
+                                  {/* Diversity Card */}
+                                  <div className="bg-card border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <h5 className="font-medium text-sm">Diversity</h5>
+                                      <span className={`text-lg font-bold ${subjectiveMetrics?.diversity?.score ? 'text-primary' : 'text-muted-foreground'}`}>
+                                        {subjectiveMetrics?.diversity?.score || 0}/5
+                                      </span>
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mb-2">
+                                      Does the citation bring in a new perspective?
+                                    </p>
+                                    <details className="group">
+                                      <summary className="text-xs text-primary cursor-pointer hover:underline">
+                                        View reasoning
+                                      </summary>
+                                      <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                                        {subjectiveMetrics?.diversity?.reasoning || 'No analysis available. Click "Generate" to analyze.'}
+                                      </div>
+                                    </details>
                                   </div>
                                 </div>
-                              )}
 
-                              {/* Subjective Metrics */}
-                              <Accordion type="multiple" className="w-full">
-                                <AccordionItem value="relevance">
-                                  <AccordionTrigger className="text-sm font-medium">
-                                    <div className="flex items-center justify-between w-full">
-                                    <div className="flex flex-col items-start">
-                                      <span>Relevance</span>
-                                      <span className="text-xs text-muted-foreground font-normal">Is the citation actually answering the query?</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                          <span className="text-lg font-bold text-white">
-                                            {selectedPrompt.subjectiveMetrics?.relevance?.score || 0}/5
-                                          </span>
-                                      </div>
-                                    </div>
-                                  </AccordionTrigger>
-                                  <AccordionContent>
-                                    <Textarea
-                                      value={selectedPrompt.subjectiveMetrics?.relevance?.summary || 'No summary available.'}
-                                      readOnly
-                                      className="min-h-[120px] resize-none text-sm text-muted-foreground"
-                                    />
-                                  </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="influence">
-                                  <AccordionTrigger className="text-sm font-medium">
-                                    <div className="flex items-center justify-between w-full">
-                                    <div className="flex flex-col items-start">
-                                      <span>Influence</span>
-                                      <span className="text-xs text-muted-foreground font-normal">Does it shape the user's takeaway?</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                          <span className="text-lg font-bold text-white">
-                                            {selectedPrompt.subjectiveMetrics?.influence?.score || 0}/5
-                                          </span>
-                                      </div>
-                                    </div>
-                                  </AccordionTrigger>
-                                  <AccordionContent>
-                                    <Textarea
-                                      value={selectedPrompt.subjectiveMetrics?.influence?.summary || 'No summary available.'}
-                                      readOnly
-                                      className="min-h-[120px] resize-none text-sm text-muted-foreground"
-                                    />
-                                  </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="uniqueness">
-                                  <AccordionTrigger className="text-sm font-medium">
-                                    <div className="flex items-center justify-between w-full">
-                                    <div className="flex flex-col items-start">
-                                      <span>Uniqueness</span>
-                                      <span className="text-xs text-muted-foreground font-normal">Is the info special, or just repeated elsewhere?</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                          <span className="text-lg font-bold text-white">
-                                            {selectedPrompt.subjectiveMetrics?.uniqueness?.score || 0}/5
-                                          </span>
-                                      </div>
-                                    </div>
-                                  </AccordionTrigger>
-                                  <AccordionContent>
-                                    <Textarea
-                                      value={selectedPrompt.subjectiveMetrics?.uniqueness?.summary || 'No summary available.'}
-                                      readOnly
-                                      className="min-h-[120px] resize-none text-sm text-muted-foreground"
-                                    />
-                                  </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="position">
-                                  <AccordionTrigger className="text-sm font-medium">
-                                    <div className="flex items-center justify-between w-full">
-                                    <div className="flex flex-col items-start">
-                                        <span>Position</span>
-                                        <span className="text-xs text-muted-foreground font-normal">How prominently is the citation placed within the answer?</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                          <span className="text-lg font-bold text-white">
-                                            {selectedPrompt.subjectiveMetrics?.position?.score || 0}/5
-                                          </span>
-                                      </div>
-                                    </div>
-                                  </AccordionTrigger>
-                                  <AccordionContent>
-                                    <Textarea
-                                      value={selectedPrompt.subjectiveMetrics?.position?.summary || 'No summary available.'}
-                                      readOnly
-                                      className="min-h-[120px] resize-none text-sm text-muted-foreground"
-                                    />
-                                  </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="click-probability">
-                                  <AccordionTrigger className="text-sm font-medium">
-                                    <div className="flex items-center justify-between w-full">
-                                    <div className="flex flex-col items-start">
-                                      <span>Click Probability</span>
-                                      <span className="text-xs text-muted-foreground font-normal">Would the user click the citation if links are shown?</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                          <span className="text-lg font-bold text-white">
-                                            {selectedPrompt.subjectiveMetrics?.clickProbability?.score || 0}/5
-                                          </span>
-                                      </div>
-                                    </div>
-                                  </AccordionTrigger>
-                                  <AccordionContent>
-                                    <Textarea
-                                      value={selectedPrompt.subjectiveMetrics?.clickProbability?.summary || 'No summary available.'}
-                                      readOnly
-                                      className="min-h-[120px] resize-none text-sm text-muted-foreground"
-                                    />
-                                  </AccordionContent>
-                                </AccordionItem>
-
-                                <AccordionItem value="diversity">
-                                  <AccordionTrigger className="text-sm font-medium">
-                                    <div className="flex items-center justify-between w-full">
-                                    <div className="flex flex-col items-start">
-                                      <span>Diversity</span>
-                                      <span className="text-xs text-muted-foreground font-normal">Does the citation bring in a new perspective?</span>
-                                      </div>
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-lg font-bold text-white">
-                                          {selectedPrompt.subjectiveMetrics?.diversity?.score || 0}/5
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </AccordionTrigger>
-                                  <AccordionContent>
-                                    <Textarea
-                                      value={selectedPrompt.subjectiveMetrics?.diversity?.summary || 'No summary available.'}
-                                      readOnly
-                                      className="min-h-[120px] resize-none text-sm text-muted-foreground"
-                                    />
-                                  </AccordionContent>
-                                </AccordionItem>
-                              </Accordion>
+                                {/* Helper Text */}
+                                {!subjectiveMetrics && (
+                                  <div className="text-center py-2">
+                                    <p className="text-xs text-muted-foreground">
+                                      Click "Generate" to analyze {getBrandName()} citations across all platforms
+                                    </p>
+                                    {!selectedPlatforms.length && (
+                                      <p className="text-xs text-red-500 mt-1">
+                                        LLM responses required to generate metrics
+                                      </p>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
           )}
 

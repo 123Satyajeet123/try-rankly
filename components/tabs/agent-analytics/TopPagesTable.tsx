@@ -17,88 +17,10 @@ interface PageData {
   agentPercentage: number
 }
 
-const initialPageData: PageData[] = [
-  {
-    id: 1,
-    url: 'https://rankly.com/features/ai-analytics',
-    humanVisits: 2340,
-    agentVisits: 1560,
-    humanPercentage: 60,
-    agentPercentage: 40
-  },
-  {
-    id: 2,
-    url: 'https://rankly.com/blog/optimizing-for-ai-search',
-    humanVisits: 1890,
-    agentVisits: 1230,
-    humanPercentage: 61,
-    agentPercentage: 39
-  },
-  {
-    id: 3,
-    url: 'https://rankly.com/pricing',
-    humanVisits: 1450,
-    agentVisits: 890,
-    humanPercentage: 62,
-    agentPercentage: 38
-  },
-  {
-    id: 4,
-    url: 'https://rankly.com/docs/getting-started',
-    humanVisits: 1230,
-    agentVisits: 2100,
-    humanPercentage: 37,
-    agentPercentage: 63
-  },
-  {
-    id: 5,
-    url: 'https://rankly.com/api/reference',
-    humanVisits: 890,
-    agentVisits: 3450,
-    humanPercentage: 20,
-    agentPercentage: 80
-  },
-  {
-    id: 6,
-    url: 'https://rankly.com/integrations',
-    humanVisits: 1120,
-    agentVisits: 680,
-    humanPercentage: 62,
-    agentPercentage: 38
-  },
-  {
-    id: 7,
-    url: 'https://rankly.com/support/faq',
-    humanVisits: 980,
-    agentVisits: 1420,
-    humanPercentage: 41,
-    agentPercentage: 59
-  },
-  {
-    id: 8,
-    url: 'https://rankly.com/case-studies',
-    humanVisits: 760,
-    agentVisits: 590,
-    humanPercentage: 56,
-    agentPercentage: 44
-  },
-  {
-    id: 9,
-    url: 'https://rankly.com/security',
-    humanVisits: 650,
-    agentVisits: 480,
-    humanPercentage: 58,
-    agentPercentage: 42
-  },
-  {
-    id: 10,
-    url: 'https://rankly.com/company/about',
-    humanVisits: 420,
-    agentVisits: 290,
-    humanPercentage: 59,
-    agentPercentage: 41
-  },
-]
+// TODO: Connect to real analytics API endpoint when available
+// This component currently shows placeholder data as page-level analytics
+// are not yet implemented in the backend
+const initialPageData: PageData[] = []
 
 type SortField = 'url' | 'humanVisits' | 'agentVisits' | 'humanPercentage'
 type SortDirection = 'asc' | 'desc'
@@ -110,6 +32,25 @@ export function TopPagesTable() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [currentPage, setCurrentPage] = useState(1)
   const itemsPerPage = 8
+
+  // Show empty state if no data
+  if (pageData.length === 0) {
+    return (
+      <UnifiedCard>
+        <UnifiedCardContent className="p-6">
+          <div className="text-center py-8">
+            <div className="text-muted-foreground mb-4">
+              <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
+            </div>
+            <h3 className="text-lg font-medium mb-2">Page Analytics Coming Soon</h3>
+            <p className="text-sm text-muted-foreground">
+              Page-level analytics will be available once we integrate with your website's analytics data.
+            </p>
+          </div>
+        </UnifiedCardContent>
+      </UnifiedCard>
+    )
+  }
 
   // Filter data based on search term
   const filteredData = pageData.filter(page =>

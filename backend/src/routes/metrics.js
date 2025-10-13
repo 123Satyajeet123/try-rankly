@@ -292,14 +292,15 @@ router.get('/analyses', authenticateToken, async (req, res) => {
     // Get all URL analyses for the user
     const UrlAnalysis = require('../models/UrlAnalysis');
     const analyses = await UrlAnalysis.find({ userId })
-      .select('url domain createdAt updatedAt status')
+      .select('url domain createdAt updatedAt status brandContext')
       .sort({ createdAt: -1 })
       .lean();
 
     // For each analysis, get the latest metrics to show summary
     const analysesWithMetrics = await Promise.all(
       analyses.map(async (analysis) => {
-        const latestMetrics = await AggregatedMetrics.findOne({
+        // First try to find metrics with specific urlAnalysisId
+        let latestMetrics = await AggregatedMetrics.findOne({
           userId,
           urlAnalysisId: analysis._id,
           scope: 'overall'
@@ -307,15 +308,31 @@ router.get('/analyses', authenticateToken, async (req, res) => {
         .sort({ lastCalculated: -1 })
         .lean();
 
+        // If no metrics found with urlAnalysisId, check for metrics without urlAnalysisId
+        // (This handles the case where metrics were created before urlAnalysisId was properly set)
+        if (!latestMetrics) {
+          latestMetrics = await AggregatedMetrics.findOne({
+            userId,
+            urlAnalysisId: null, // Metrics without urlAnalysisId
+            scope: 'overall'
+          })
+          .sort({ lastCalculated: -1 })
+          .lean();
+        }
+
+        // Extract brand name from URL analysis
+        const brandName = analysis.brandContext?.companyName || analysis.domain;
+
         return {
           id: analysis._id,
           url: analysis.url,
           domain: analysis.domain,
+          brandName: brandName,
           createdAt: analysis.createdAt,
           updatedAt: analysis.updatedAt,
           status: analysis.status,
           hasData: !!latestMetrics,
-          totalPrompts: latestMetrics?.totalPrompts || 0,
+          totalPrompts: latestMetrics?.totalPrompts || latestMetrics?.totalResponses || 0,
           totalBrands: latestMetrics?.brandMetrics?.length || 0,
           lastCalculated: latestMetrics?.lastCalculated || null
         };
@@ -336,121 +353,5 @@ router.get('/analyses', authenticateToken, async (req, res) => {
   }
 });
 
-/**
- * GET /api/metrics/dashboard
- * Get all metrics formatted for dashboard display
- */
-router.get('/dashboard', authenticateToken, async (req, res) => {
-  try {
-    const { dateFrom, dateTo } = req.query;
-
-    // Get user's brand from URL analysis
-    const UrlAnalysis = require('../models/UrlAnalysis');
-    const urlAnalysis = await UrlAnalysis.findOne({
-      userId: req.userId
-    })
-    .sort({ analysisDate: -1 })
-    .lean();
-
-    const userBrandName = urlAnalysis?.brandContext?.companyName?.toLowerCase() || null;
-
-    // Get overall metrics
-    const overall = await AggregatedMetrics.findOne({
-      userId: req.userId,
-      scope: 'overall'
-    })
-    .sort({ lastCalculated: -1 })
-    .lean();
-
-    // Get all platform metrics
-    const platforms = await AggregatedMetrics.find({
-      userId: req.userId,
-      scope: 'platform'
-    })
-    .sort({ lastCalculated: -1 })
-    .lean();
-
-    // Get all topic metrics
-    const topics = await AggregatedMetrics.find({
-      userId: req.userId,
-      scope: 'topic'
-    })
-    .sort({ lastCalculated: -1 })
-    .lean();
-
-    // Get all persona metrics
-    const personas = await AggregatedMetrics.find({
-      userId: req.userId,
-      scope: 'persona'
-    })
-    .sort({ lastCalculated: -1 })
-    .lean();
-
-    // Format for dashboard
-    const dashboardData = {
-      overall: overall ? formatForDashboard(overall, userBrandName) : null,
-      platforms: platforms.map(p => formatForDashboard(p, userBrandName)),
-      topics: topics.map(t => formatForDashboard(t, userBrandName)),
-      personas: personas.map(p => formatForDashboard(p, userBrandName)),
-      lastUpdated: overall?.lastCalculated || null
-    };
-
-    res.json({
-      success: true,
-      data: dashboardData
-    });
-
-  } catch (error) {
-    console.error('❌ Get dashboard metrics error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get dashboard metrics'
-    });
-  }
-});
-
-/**
- * Helper: Format metrics for dashboard display
- */
-function formatForDashboard(metrics, userBrandName = null) {
-  if (!metrics) return null;
-
-  // Find user's brand by matching the actual user brand name from URL analysis
-  let userBrand;
-  if (userBrandName) {
-    userBrand = metrics.brandMetrics.find(b => 
-      b.brandId === userBrandName || 
-      b.brandName.toLowerCase() === userBrandName
-    );
-  }
-  
-  // Fallback to highest ranked brand if user brand not found
-  if (!userBrand) {
-    userBrand = metrics.brandMetrics.find(b => b.visibilityRank === 1) || 
-               metrics.brandMetrics[0];
-  }
-
-  return {
-    scope: metrics.scope,
-    scopeValue: metrics.scopeValue,
-    dateRange: {
-      from: metrics.dateFrom,
-      to: metrics.dateTo
-    },
-    summary: {
-      totalPrompts: metrics.totalPrompts,
-      totalBrands: metrics.totalBrands,
-      userBrand: {
-        name: userBrand?.brandName,
-        visibilityScore: userBrand?.visibilityScore,
-        visibilityRank: userBrand?.visibilityRank,
-        shareOfVoice: userBrand?.shareOfVoice,
-        avgPosition: userBrand?.avgPosition
-      }
-    },
-    brandMetrics: metrics.brandMetrics,
-    lastCalculated: metrics.lastCalculated
-  };
-}
 
 module.exports = router;

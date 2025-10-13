@@ -363,7 +363,7 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
 
   if (showSkeleton) {
     return (
-      <SkeletonWrapper show={showSkeleton} isVisible={isVisible}>
+      <SkeletonWrapper show={showSkeleton} isVisible={isVisible} skeleton={<UnifiedCardSkeleton type="table" tableColumns={5} />}>
         <UnifiedCardSkeleton type="table" tableColumns={5} />
       </SkeletonWrapper>
     )
@@ -517,60 +517,68 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
           </div>
         </SheetHeader>
 
-        {selectedCitation && (
+        {selectedCitation && (() => {
+          console.log('🔍 [DEBUG] Citation data structure:', selectedCitation);
+          return (
           <div className="mt-4 space-y-3">
             {/* Citation overview - more compact */}
             <div className="p-3 bg-muted/50 rounded-lg">
               <h4 className="font-semibold text-sm mb-1">Citation Overview</h4>
               <p className="text-xs text-muted-foreground">
-                {selectedCitation.details.length} citation{selectedCitation.details.length !== 1 ? 's' : ''} found across {new Set(selectedCitation.details.map((d: any) => d.platform)).size} platform{new Set(selectedCitation.details.map((d: any) => d.platform)).size !== 1 ? 's' : ''}
+                {selectedCitation.details.length} citation{selectedCitation.details.length !== 1 ? 's' : ''} found across {new Set(selectedCitation.details.flatMap((d: any) => d.platforms || [])).size} platform{new Set(selectedCitation.details.flatMap((d: any) => d.platforms || [])).size !== 1 ? 's' : ''}
               </p>
             </div>
 
-            {/* Citations list - more compact */}
-            <div className="space-y-2">
-              <h4 className="font-semibold text-sm">Individual Citations</h4>
-              {selectedCitation.details.map((detail: any, index: number) => (
-                <div key={detail.id} className="p-3 bg-background/50 rounded-lg border border-border/40 hover:bg-background/80 transition-colors">
-                  <div className="flex items-start gap-2">
-                    <img 
-                      src={getPlatformFavicon(detail.platform)} 
-                      alt={detail.platform}
-                      className="w-4 h-4 mt-0.5 flex-shrink-0"
-                      onError={handleFaviconError}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-sm font-medium text-foreground capitalize">{detail.platform}</span>
-                        <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
-                          {detail.type}
-                        </Badge>
-                        {detail.topic && (
-                          <Badge variant="outline" className="text-xs px-1.5 py-0.5">
-                            {detail.topic}
-                          </Badge>
-                        )}
-                      </div>
-                      <div className="text-sm font-medium text-foreground mb-1 line-clamp-2">
-                        {detail.context}
-                      </div>
-                      <div className="text-xs text-muted-foreground mb-1 line-clamp-1">
-                        Prompt: {detail.promptText}
-                      </div>
+            {/* Citations list - grouped by URL */}
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm">Citations by URL</h4>
+              {selectedCitation.details.map((citationGroup: any, index: number) => (
+                <div key={citationGroup.url} className="p-3 bg-background/50 rounded-lg border border-border/40 hover:bg-background/80 transition-colors">
+                  {/* URL and platforms in one compact header */}
+                  <div className="flex items-center justify-between gap-3 mb-2">
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
                       <a 
-                        href={detail.url}
+                        href={citationGroup.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 truncate block hover:underline cursor-pointer"
+                        className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 hover:underline truncate"
                         onClick={(e) => {
                           e.preventDefault()
-                          window.open(detail.url, '_blank')
+                          window.open(citationGroup.url, '_blank')
                         }}
                       >
-                        <ExternalLink className="w-3 h-3 inline mr-1" />
-                        {detail.url}
+                        <span className="truncate">{citationGroup.url}</span>
                       </a>
                     </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      {citationGroup.platforms && Array.isArray(citationGroup.platforms) ? 
+                        citationGroup.platforms.map((platform: string, idx: number) => (
+                          <div key={idx} className="flex items-center gap-1">
+                            <img 
+                              src={getPlatformFavicon(platform)} 
+                              alt={platform}
+                              className="w-3 h-3"
+                              onError={handleFaviconError}
+                            />
+                            <span className="text-xs capitalize">{platform}</span>
+                          </div>
+                        )) : (
+                          <span className="text-xs text-muted-foreground">Unknown</span>
+                        )
+                      }
+                    </div>
+                  </div>
+                  
+                  {/* Prompts - compact list */}
+                  <div className="space-y-2">
+                    {citationGroup.prompts && Array.isArray(citationGroup.prompts) ? 
+                      citationGroup.prompts.map((prompt: any, promptIndex: number) => (
+                      <div key={promptIndex} className="text-sm leading-relaxed pl-2 border-l-2 border-border/30">
+                        {prompt.promptText}
+                      </div>
+                    )) : (
+                      <div className="text-xs text-muted-foreground">No prompts found</div>
+                    )}
                   </div>
                 </div>
               ))}
@@ -581,7 +589,8 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
               )}
             </div>
           </div>
-        )}
+          );
+        })()}
       </SheetContent>
     </Sheet>
     </>

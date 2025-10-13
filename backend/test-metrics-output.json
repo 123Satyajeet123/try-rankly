@@ -1,0 +1,54 @@
+{
+  "userId": "68e9892f5e894a9df4c401ce",
+  "promptId": "68ea26f243e36b0d6038f15b",
+  "urlAnalysisId": "68ea268943e36b0d6038f0a5",
+  "brandName": "HDFC Bank",
+  "platform": "openai, claude, perplexity",
+  "relevance": {
+    "score": 5,
+    "reasoning": "HDFC Bank is directly relevant to the query, providing comprehensive information on credit card options, features, and benefits specifically tailored for small businesses, addressing the user's needs comprehensively and precisely."
+  },
+  "influence": {
+    "score": 5,
+    "reasoning": "HDFC Bank significantly influences the answers by offering detailed descriptions of credit card features and benefits for small businesses, enhancing the completeness and coherence of the responses across all platforms."
+  },
+  "uniqueness": {
+    "score": 4,
+    "reasoning": "While HDFC Bank's details are thorough, some information overlaps with other sources. However, specific card features like cashback and expense management tools provide a distinctive perspective on their offerings."
+  },
+  "position": {
+    "score": 5,
+    "reasoning": "HDFC Bank is prominently positioned in all answers, appearing early and repeatedly with detailed descriptions, ensuring high visibility and engagement for users seeking information on business credit cards."
+  },
+  "clickProbability": {
+    "score": 5,
+    "reasoning": "The detailed descriptions of HDFC Bank's credit card offerings, along with direct links to their website, strongly encourage users to click for more information, particularly those interested in specific card benefits."
+  },
+  "diversity": {
+    "score": 5,
+    "reasoning": "HDFC Bank covers a wide range of topics, including credit limits, rewards, expense management, and global acceptance, contributing to a comprehensive and balanced view of their support for small businesses."
+  },
+  "overallQuality": {
+    "score": 5,
+    "summary": "HDFC Bank's citation provides a highly relevant, influential, and diverse perspective on their credit card offerings for small businesses. Positioned prominently, it encourages user engagement and follow-up, significantly enhancing the overall quality of the answers."
+  },
+  "evaluatedAt": "2025-10-12T21:26:27.898Z",
+  "model": "gpt-4o (via OpenRouter)",
+  "tokensUsed": 4073,
+  "evaluationTime": 12029,
+  "cost": 0.024405,
+  "sourceData": {
+    "query": "How does HDFC Bank support small businesses with their credit card options?",
+    "answer": "HDFC Bank offers a range of credit card options specifically designed to support small businesses. These credit cards provide various features and benefits that cater to the financial needs of businesses, helping them manage expenses and improve cash flow. Here are some ways HDFC Bank supports small businesses through its credit card offerings:\n\n1. **Business Credit Cards**: HDFC Bank provides business credit cards that come with features tailored for business expenses. These cards often include higher credit limits to accommodate larger business transactions and expenses.\n\n2. **Rewards and Cashback Programs**: Many HDFC business credit cards offer reward points or cashback on various categories such as travel, dining, and office supplies. This can help businesses save money by earning rewards on purchases they would be making anyway.\n\n3. **Expense Management**: Business credit cards from HDFC often come with tools to help manage and track expenses. These tools can assist businesses in",
+    "citationText": "Evaluated across 3 platforms",
+    "sourceUrl": "",
+    "citationNumber": 3,
+    "answerLength": 7382,
+    "totalCitations": 3
+  },
+  "status": "completed",
+  "_id": "68ec1d037ebde7252d8a648e",
+  "createdAt": "2025-10-12T21:26:27.906Z",
+  "updatedAt": "2025-10-12T21:26:27.906Z",
+  "__v": 0
+}

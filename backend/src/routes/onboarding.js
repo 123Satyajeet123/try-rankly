@@ -255,16 +255,50 @@ router.post('/analyze-website', authenticateToken, async (req, res) => {
     const analysisResults = await websiteAnalysisService.analyzeWebsite(url);
     
     // Save complete analysis results to UrlAnalysis collection
-    const urlAnalysis = new UrlAnalysis({
+    const urlAnalysisData = {
       userId: req.userId,
       url: url,
-      brandContext: analysisResults.brandContext,
+      analysisLevel: analysisResults.analysisLevel || 'company',
       competitors: analysisResults.competitors || [],
       topics: analysisResults.topics || [],
       personas: analysisResults.personas || [],
       analysisDate: new Date(analysisResults.analysisDate),
       status: 'completed'
-    });
+    };
+
+    // Add context based on analysis level
+    if (analysisResults.analysisLevel === 'product' && analysisResults.productContext) {
+      urlAnalysisData.productContext = analysisResults.productContext;
+      // For product-level, brandContext might not exist, so make it optional
+      urlAnalysisData.brandContext = analysisResults.brandContext || {
+        companyName: analysisResults.productContext.productName || 'Unknown',
+        industry: 'Product',
+        businessModel: 'Product',
+        targetMarket: analysisResults.productContext.targetAudience || 'General',
+        valueProposition: analysisResults.productContext.valueProposition || 'Not specified',
+        keyServices: analysisResults.productContext.keyFeatures || [],
+        brandTone: 'Professional',
+        marketPosition: analysisResults.productContext.marketPosition || 'Mid-market'
+      };
+    } else if (analysisResults.analysisLevel === 'category' && analysisResults.categoryContext) {
+      urlAnalysisData.categoryContext = analysisResults.categoryContext;
+      // For category-level, brandContext might not exist, so make it optional
+      urlAnalysisData.brandContext = analysisResults.brandContext || {
+        companyName: analysisResults.categoryContext.categoryName || 'Unknown',
+        industry: 'Category',
+        businessModel: 'Category',
+        targetMarket: analysisResults.categoryContext.targetMarket || 'General',
+        valueProposition: 'Category offerings',
+        keyServices: analysisResults.categoryContext.productTypes || [],
+        brandTone: 'Professional',
+        marketPosition: 'Mid-market'
+      };
+    } else {
+      // Company-level analysis
+      urlAnalysisData.brandContext = analysisResults.brandContext;
+    }
+
+    const urlAnalysis = new UrlAnalysis(urlAnalysisData);
     
     await urlAnalysis.save();
     
@@ -328,7 +362,10 @@ router.post('/analyze-website', authenticateToken, async (req, res) => {
       data: {
         analysis: {
           status: 'completed',
+          analysisLevel: analysisResults.analysisLevel || 'company',
           brandContext: analysisResults.brandContext,
+          productContext: analysisResults.productContext,
+          categoryContext: analysisResults.categoryContext,
           competitors: analysisResults.competitors || [],
           topics: analysisResults.topics || [],
           personas: analysisResults.personas || [],

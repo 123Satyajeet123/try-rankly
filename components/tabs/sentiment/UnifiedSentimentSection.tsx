@@ -70,7 +70,7 @@ const getSentimentDataFromDashboard = (dashboardData: any) => {
       negative: Math.round(negative * 10) / 10,
       neutral: Math.round(neutral * 10) / 10,
       total: 100,
-      color: competitor.color || (index === 0 ? '#3B82F6' : '#E5E7EB'),
+      color: competitor.color || CHART_COLORS[index % CHART_COLORS.length],
       isOwner: index === 0
     }
   })
@@ -118,7 +118,6 @@ interface UnifiedSentimentSectionProps {
 
 export function UnifiedSentimentSection({ filterContext, dashboardData }: UnifiedSentimentSectionProps) {
   const [chartType, setChartType] = useState<'bar' | 'donut' | 'line'>('bar')
-  const [selectedSentiment, setSelectedSentiment] = useState<'positive' | 'negative' | 'neutral'>('positive')
   const [selectedRankingSentiment, setSelectedRankingSentiment] = useState<'positive' | 'negative' | 'neutral'>('positive')
   const [isExpanded, setIsExpanded] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
@@ -144,9 +143,9 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
   // Sync right section with left section when in donut chart mode
   useEffect(() => {
     if (chartType === 'donut') {
-      setSelectedRankingSentiment(selectedSentiment)
+      setSelectedRankingSentiment('positive')
     }
-  }, [chartType, selectedSentiment])
+  }, [chartType])
 
   const getSentimentLabel = (sentiment: string) => {
     switch (sentiment) {
@@ -173,14 +172,14 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
     }
 
     // Sort data by value (highest first) to assign appropriate color intensities
-    const sortedData = [...currentSentimentData].sort((a, b) => b[selectedSentiment] - a[selectedSentiment])
-    const colors = getSentimentColors(selectedSentiment)
+    const sortedData = [...currentSentimentData].sort((a, b) => b.positive - a.positive)
+    const colors = getSentimentColors('positive')
     
     return currentSentimentData.map((item) => {
       const sortedIndex = sortedData.findIndex(sortedItem => sortedItem.name === item.name)
       return {
         name: item.name,
-        value: item[selectedSentiment],
+        value: item.positive,
         fill: colors[sortedIndex] || colors[colors.length - 1]
       }
     })
@@ -281,33 +280,8 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Left Split - Chart */}
             <div className="space-y-4 relative">
-              {/* Top Row - Chart Config and Sentiment Selection */}
+              {/* Top Row - Chart Config */}
               <div className="flex justify-end items-center gap-3">
-                {/* Sentiment Selection Buttons - Always visible to explain bar sections */}
-                <div className="inline-flex rounded-lg overflow-hidden border border-gray-300">
-                  {(['positive', 'negative', 'neutral'] as const).map((sentiment, index) => (
-                    <Button
-                      key={sentiment}
-                      variant={selectedSentiment === sentiment ? 'default' : 'outline'}
-                      size="sm"
-                      onClick={() => setSelectedSentiment(sentiment)}
-                      className={`
-                        body-text rounded-none border-0 text-xs font-medium
-                        ${index === 0 ? 'rounded-l-lg' : ''}
-                        ${index === 2 ? 'rounded-r-lg' : ''}
-                        cursor-pointer
-                        ${index > 0 ? 'border-l border-gray-300' : ''}
-                        ${selectedSentiment === sentiment 
-                          ? 'bg-black text-white hover:bg-black' 
-                          : 'bg-white text-gray-600 hover:bg-gray-50'
-                        }
-                      `}
-                    >
-                      {getSentimentLabel(sentiment)}
-                    </Button>
-                  ))}
-                </div>
-
                 {/* Chart Config Dropdown - Top right of left split */}
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -370,24 +344,24 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                         >
                           {/* Tooltip - Show on hover */}
                           {hoveredBar === index && (
-                            <div className="absolute bottom-full mb-2 bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg z-10 whitespace-nowrap">
-                              <div className="font-semibold mb-1">{brand.name}</div>
+                            <div className="absolute bottom-full mb-2 bg-neutral-900 dark:bg-neutral-800 border border-neutral-700 rounded-md px-3 py-2 shadow-lg z-10 whitespace-nowrap">
                               <div className="space-y-1">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-2 h-2 rounded-full bg-[#10B981]"></div>
-                                  <span>Positive: {brand.positive.toFixed(1)}%</span>
+                                <div className="text-white font-semibold text-sm">{brand.name}</div>
+                                <div className="flex justify-between items-center text-xs">
+                                  <span className="text-gray-300">Positive:</span>
+                                  <span className="text-gray-300 font-medium">{brand.positive.toFixed(1)}%</span>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <div className="w-2 h-2 rounded-full bg-[#EF4444]"></div>
-                                  <span>Negative: {brand.negative.toFixed(1)}%</span>
+                                <div className="flex justify-between items-center text-xs">
+                                  <span className="text-gray-300">Negative:</span>
+                                  <span className="text-gray-300 font-medium">{brand.negative.toFixed(1)}%</span>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  <div className="w-2 h-2 rounded-full bg-[#6B7280]"></div>
-                                  <span>Neutral: {brand.neutral.toFixed(1)}%</span>
+                                <div className="flex justify-between items-center text-xs">
+                                  <span className="text-gray-300">Neutral:</span>
+                                  <span className="text-gray-300 font-medium">{brand.neutral.toFixed(1)}%</span>
                                 </div>
                               </div>
                               {/* Arrow pointing down */}
-                              <div className="absolute left-1/2 -translate-x-1/2 bottom-[-6px] w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-gray-900"></div>
+                              <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-3 border-r-3 border-t-3 border-transparent border-t-neutral-900 dark:border-t-neutral-800"></div>
                             </div>
                           )}
                           
@@ -397,22 +371,23 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                             style={{ opacity: hoveredBar === null || hoveredBar === index ? 1 : 0.5 }}
                           >
                             {/* Neutral (Gray - Top) */}
+                            {/* Negative (Red - Top) */}
                             <div
                               className="w-4 rounded-t-sm transition-all"
-                              style={{
-                                height: `${(brand.neutral / 100) * 120}px`,
-                                minHeight: '2px',
-                                backgroundColor: '#6B7280',
-                                filter: hoveredBar === index ? 'brightness(1.2)' : 'none'
-                              }}
-                            />
-                            {/* Negative (Red - Middle) */}
-                            <div
-                              className="w-4 transition-all"
                               style={{
                                 height: `${(brand.negative / 100) * 120}px`,
                                 minHeight: '2px',
                                 backgroundColor: '#EF4444',
+                                filter: hoveredBar === index ? 'brightness(1.2)' : 'none'
+                              }}
+                            />
+                            {/* Neutral (Blue - Middle) */}
+                            <div
+                              className="w-4 transition-all"
+                              style={{
+                                height: `${(brand.neutral / 100) * 120}px`,
+                                minHeight: '2px',
+                                backgroundColor: '#3B82F6',
                                 filter: hoveredBar === index ? 'brightness(1.2)' : 'none'
                               }}
                             />

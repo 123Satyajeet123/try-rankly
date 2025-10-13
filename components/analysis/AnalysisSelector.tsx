@@ -13,6 +13,7 @@ interface Analysis {
   id: string
   url: string
   domain: string
+  brandName?: string
   createdAt: string
   updatedAt: string
   status: string
@@ -138,7 +139,7 @@ export function AnalysisSelector({
           <SelectValue placeholder="Select an analysis">
             {selectedAnalysis && (
               <div className="flex items-center gap-2">
-                <span className="truncate">{selectedAnalysis.domain}</span>
+                <span className="truncate">{selectedAnalysis.brandName || selectedAnalysis.domain}</span>
                 <Badge 
                   variant={selectedAnalysis.hasData ? "default" : "secondary"}
                   className="text-xs"
@@ -154,7 +155,7 @@ export function AnalysisSelector({
             <SelectItem key={analysis.id} value={analysis.id}>
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">{analysis.domain}</span>
+                  <span className="font-medium">{analysis.brandName || analysis.domain}</span>
                   <Badge 
                     variant={analysis.hasData ? "default" : "secondary"}
                     className="text-xs"

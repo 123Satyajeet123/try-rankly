@@ -219,7 +219,7 @@ async function runTest() {
     // Step 5: Get dashboard data
     log('\n[5/5] Retrieving dashboard data...', colors.cyan);
 
-    const dashResult = await apiCall('GET', '/metrics/dashboard', null, true);
+    const dashResult = await apiCall('GET', '/dashboard/all', null, true);
 
     if (dashResult.success) {
       const data = dashResult.data.data || {};

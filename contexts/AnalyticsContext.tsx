@@ -154,9 +154,9 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
         console.log('⚠️ Visibility endpoint failed, falling back...')
       }
 
-      // Try to fetch dashboard data (legacy fallback)
+      // Try to fetch dashboard data
       try {
-        const dashboardRes = await apiService.getAnalyticsDashboard({
+        const dashboardRes = await apiService.getDashboardAll({
           dateFrom,
           dateTo
         })

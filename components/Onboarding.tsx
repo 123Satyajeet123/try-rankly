@@ -225,28 +225,29 @@ function Onboarding() {
       // Start animation only once
       const timers: NodeJS.Timeout[] = []
 
-      // Card 1: Show after 0.5s, complete after 3s
+      // Card 1: Show after 0.5s, complete after 2.5s
       timers.push(setTimeout(() => {
         setCard1Visible(true)
-        timers.push(setTimeout(() => setCard1Loaded(true), 3000))
+        timers.push(setTimeout(() => setCard1Loaded(true), 2500))
       }, 500))
 
-      // Card 2: Show after 4s, complete after 3s
+      // Card 2: Show after 3.5s, complete after 2.5s
       timers.push(setTimeout(() => {
         setCard2Visible(true)
-        timers.push(setTimeout(() => setCard2Loaded(true), 3000))
-      }, 4000))
+        timers.push(setTimeout(() => setCard2Loaded(true), 2500))
+      }, 3500))
 
-      // Card 3: Show after 7.5s, complete after 3s
+      // Card 3: Show after 6.5s, complete after 2.5s
       timers.push(setTimeout(() => {
         setCard3Visible(true)
-        timers.push(setTimeout(() => setCard3Loaded(true), 3000))
-      }, 7500))
+        timers.push(setTimeout(() => setCard3Loaded(true), 2500))
+      }, 6500))
 
-      // Card 4: Show after 11s, but wait for API completion
+      // Card 4: Show after 9.5s, but WAIT for actual API completion (don't auto-complete)
       timers.push(setTimeout(() => {
         setCard4Visible(true)
-      }, 11000))
+        // Don't auto-complete card 4 - wait for analysisComplete signal
+      }, 9500))
 
       // Cleanup function
       return () => {
@@ -254,7 +255,7 @@ function Onboarding() {
       }
     }, [isAnalyzing])
 
-    // When API completes, mark card 4 as loaded
+    // ✅ FIX: Card 4 only completes when API actually finishes
     useEffect(() => {
       if (analysisComplete && card4Visible) {
         const timer = setTimeout(() => setCard4Loaded(true), 500)
@@ -313,6 +314,18 @@ function Onboarding() {
             </div>
           ))}
         </div>
+
+        {/* Progress feedback */}
+        {card4Visible && !card4Loaded && (
+          <div className="mt-8 animate-in fade-in-0 duration-500">
+            <div className="flex items-center justify-center gap-3 text-muted-foreground">
+              <div className="animate-pulse">⏳</div>
+              <p className="text-sm">
+                AI is analyzing your website... This may take 20-60 seconds.
+              </p>
+            </div>
+          </div>
+        )}
 
         {card4Visible && (
           <div className="mt-12 animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
@@ -714,11 +727,32 @@ function Onboarding() {
 
   // Region & Language Component
   const RegionLanguage = () => {
+    const [validationError, setValidationError] = useState('')
+
     const handleGeneratePrompts = async () => {
+      // ✅ Validation before generation
+      setValidationError('')
+      
+      if (data.selectedCompetitors.size === 0) {
+        setValidationError('Please select at least 1 competitor to continue')
+        return
+      }
+      
+      if (data.selectedTopics.size === 0) {
+        setValidationError('Please select at least 1 topic to continue')
+        return
+      }
+      
+      if (data.selectedPersonas.size === 0) {
+        setValidationError('Please select at least 1 persona to continue')
+        return
+      }
+
       setIsGeneratingPrompts(true)
 
       try {
         console.log('🎯 Starting prompt generation...')
+        console.log(`✅ Validation passed: ${data.selectedCompetitors.size} competitors, ${data.selectedTopics.size} topics, ${data.selectedPersonas.size} personas`)
 
         // First, update selections in the backend database
         console.log('📝 Saving selections to database...')
@@ -797,7 +831,21 @@ function Onboarding() {
 
       } catch (error: any) {
         console.error('❌ Prompt generation error:', error)
-        alert(error.message || 'Failed to generate prompts. Please try again.')
+        
+        // Better error handling with specific messages
+        let errorMessage = 'Failed to generate prompts. '
+        
+        if (error.message?.includes('selections')) {
+          errorMessage += 'Your selections were saved, but prompt generation failed. '
+        } else if (error.message?.includes('network') || error.message?.includes('timeout')) {
+          errorMessage += 'Network error. Please check your connection. '
+        } else {
+          errorMessage += error.message || 'Unknown error occurred. '
+        }
+        
+        errorMessage += 'Click "Generate Prompts" to retry.'
+        
+        setValidationError(errorMessage)
         setIsGeneratingPrompts(false)
       }
     }
@@ -843,13 +891,31 @@ function Onboarding() {
             </div>
           </div>
 
+          {validationError && (
+            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md space-y-2">
+              <p className="text-sm text-red-600 dark:text-red-400 text-center">
+                {validationError}
+              </p>
+              {validationError.includes('retry') && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs"
+                  onClick={() => router.push('/dashboard')}
+                >
+                  Skip to Dashboard →
+                </Button>
+              )}
+            </div>
+          )}
+
           <Button
             size="lg"
             className="w-full mt-4"
             onClick={handleGeneratePrompts}
             disabled={isGeneratingPrompts}
           >
-            {isGeneratingPrompts ? 'Generating...' : 'Generate Prompts'}
+            {isGeneratingPrompts ? 'Generating...' : validationError.includes('retry') ? 'Retry Generation' : 'Generate Prompts'}
           </Button>
 
           <p className="text-label text-muted-foreground text-center mt-3">

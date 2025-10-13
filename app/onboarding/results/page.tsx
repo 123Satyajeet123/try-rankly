@@ -48,8 +48,8 @@ export default function ResultsPage() {
   useEffect(() => {
     const fetchMetrics = async () => {
       try {
-        console.log('📊 Fetching dashboard metrics...')
-        const response = await apiService.getDashboardMetrics()
+        console.log('📊 Fetching dashboard metrics from /api/dashboard/all...')
+        const response = await apiService.getDashboardAll()
         
         if (response.success) {
           console.log('✅ Metrics fetched successfully:', response.data)
@@ -201,9 +201,9 @@ export default function ResultsPage() {
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-xs font-medium tracking-wide text-foreground">Visibility Score</h3>
                       <span className="text-base font-semibold text-foreground">
-                        {metricsData?.overall?.summary?.userBrand?.visibilityScore 
-                          ? `${Math.round(metricsData.overall.summary.userBrand.visibilityScore)}%`
-                          : '42%'}
+                        {metricsData?.overall?.brandMetrics?.[0]?.visibilityScore 
+                          ? `${Math.round(metricsData.overall.brandMetrics[0].visibilityScore)}%`
+                          : '0%'}
                       </span>
                     </div>
                     <p className="text-xs font-normal leading-[1.4] text-muted-foreground">
@@ -216,9 +216,9 @@ export default function ResultsPage() {
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-xs font-medium tracking-wide text-foreground">Citation Share</h3>
                       <span className="text-base font-semibold text-foreground">
-                        {metricsData?.overall?.summary?.userBrand?.shareOfVoice 
-                          ? `${Math.round(metricsData.overall.summary.userBrand.shareOfVoice)}%`
-                          : '18%'}
+                        {metricsData?.overall?.brandMetrics?.[0]?.shareOfVoice 
+                          ? `${Math.round(metricsData.overall.brandMetrics[0].shareOfVoice)}%`
+                          : '0%'}
                       </span>
                     </div>
                         <p className="text-xs font-normal leading-[1.4] text-muted-foreground">
@@ -241,14 +241,14 @@ export default function ResultsPage() {
                           Each prompt is tested across 4 LLMs for comprehensive analysis.
                         </div>
                     <div className="space-y-2">
-                      {metricsData?.overall?.summary?.userBrand?.visibilityRank ? (
+                      {metricsData?.overall?.brandMetrics?.[0]?.visibilityRank ? (
                         <>
                           <div className="flex items-center space-x-2">
                             <svg className="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
                             <span className="text-xs font-normal text-foreground">
-                              Rank #{metricsData.overall.summary.userBrand.visibilityRank} in visibility
+                              Rank #{metricsData.overall.brandMetrics[0].visibilityRank} in visibility
                             </span>
                           </div>
                               <div className="flex items-center space-x-2">
@@ -256,16 +256,16 @@ export default function ResultsPage() {
                                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                 </svg>
                                 <span className="text-xs font-normal text-foreground">
-                                  {Math.round(metricsData.overall.summary.totalPrompts / 4)} prompts tested across 4 LLMs ({metricsData.overall.summary.totalPrompts} total tests)
+                                  {data.totalPrompts || metricsData.overall.totalPrompts} prompts tested across 4 LLMs ({metricsData.overall.totalPrompts || 0} total tests)
                                 </span>
                               </div>
-                          {metricsData.overall.summary.userBrand.avgPosition && (
+                          {metricsData.overall.brandMetrics[0].avgPosition && (
                             <div className="flex items-center space-x-2">
                               <svg className="w-3 h-3 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
                                 <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
                               </svg>
                               <span className="text-xs font-normal text-foreground">
-                                Average position: #{metricsData.overall.summary.userBrand.avgPosition}
+                                Average position: #{metricsData.overall.brandMetrics[0].avgPosition}
                               </span>
                             </div>
                           )}

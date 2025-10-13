@@ -8,6 +8,7 @@
 const UrlAnalysis = require('../models/UrlAnalysis');
 const PromptTest = require('../models/PromptTest');
 const AggregatedMetrics = require('../models/AggregatedMetrics');
+const SubjectiveMetrics = require('../models/SubjectiveMetrics');
 const Competitor = require('../models/Competitor');
 const Topic = require('../models/Topic');
 const Persona = require('../models/Persona');
@@ -34,6 +35,7 @@ class UrlCleanupService {
       urlAnalyses: 0,
       promptTests: 0,
       aggregatedMetrics: 0,
+      subjectiveMetrics: 0,
       competitors: 0,
       topics: 0,
       personas: 0,
@@ -63,7 +65,14 @@ class UrlCleanupService {
         results.aggregatedMetrics = metricsResult.deletedCount;
         console.log(`📊 Deleted ${results.aggregatedMetrics} aggregated metrics`);
 
-        // Step 4: Delete the URL analyses themselves
+        // Step 4: Delete all subjective metrics for this user (since prompts will be regenerated)
+        const subjectiveMetricsResult = await SubjectiveMetrics.deleteMany({
+          userId
+        });
+        results.subjectiveMetrics = subjectiveMetricsResult.deletedCount;
+        console.log(`🧠 Deleted ${results.subjectiveMetrics} subjective metrics`);
+
+        // Step 5: Delete the URL analyses themselves
         const urlAnalysisResult = await UrlAnalysis.deleteMany({
           _id: { $in: urlAnalysisIds }
         });
@@ -71,7 +80,7 @@ class UrlCleanupService {
         console.log(`🔗 Deleted ${results.urlAnalyses} URL analyses`);
       }
 
-      // Step 5: Clean up user-specific data (competitors, topics, personas, prompts)
+      // Step 6: Clean up user-specific data (competitors, topics, personas, prompts)
       // This ensures a completely fresh start for the new analysis
       
       // Get IDs of items to be deleted (for cleaning up related prompts)
@@ -159,17 +168,20 @@ class UrlCleanupService {
       const stats = {
         urlAnalyses: urlAnalyses.length,
         promptTests: 0,
-        aggregatedMetrics: 0
+        aggregatedMetrics: 0,
+        subjectiveMetrics: 0
       };
 
       if (urlAnalysisIds.length > 0) {
-        const [promptTestCount, metricsCount] = await Promise.all([
+        const [promptTestCount, metricsCount, subjectiveMetricsCount] = await Promise.all([
           PromptTest.countDocuments({ urlAnalysisId: { $in: urlAnalysisIds } }),
-          AggregatedMetrics.countDocuments({ urlAnalysisId: { $in: urlAnalysisIds } })
+          AggregatedMetrics.countDocuments({ urlAnalysisId: { $in: urlAnalysisIds } }),
+          SubjectiveMetrics.countDocuments({ userId })
         ]);
 
         stats.promptTests = promptTestCount;
         stats.aggregatedMetrics = metricsCount;
+        stats.subjectiveMetrics = subjectiveMetricsCount;
       }
 
       return {

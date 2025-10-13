@@ -19,6 +19,20 @@ import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
 
 // Default fallback data removed - component now uses only real data from API
 
+// Brand color palette
+const brandColors = [
+  '#3B82F6', // Blue
+  '#EF4444', // Red  
+  '#10B981', // Green
+  '#F59E0B', // Yellow
+  '#8B5CF6', // Purple
+  '#06B6D4', // Cyan
+  '#EC4899', // Pink
+  '#14B8A6', // Teal
+  '#84CC16', // Lime
+  '#F97316'  // Orange
+]
+
 interface CitationTypesSectionProps {
   filterContext?: {
     selectedTopics: string[]
@@ -53,7 +67,7 @@ const getCitationDataFromDashboard = (dashboardData: any) => {
       social: Math.round(social * 10) / 10,
       earned: Math.round(earned * 10) / 10,
       total: totalCitations > 0 ? 100 : 0,
-      color: competitor.fill || (index === 0 ? '#3B82F6' : '#E5E7EB'),
+      color: brandColors[index % brandColors.length], // Always use our diverse color palette
       isOwner: index === 0,
       comparisonBrand: brand,
       comparisonSocial: social,
@@ -281,34 +295,8 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Left Split - Chart */}
               <div className="space-y-4 relative">
-                {/* Top Row - Citation Type Buttons and Chart Config Button */}
+                {/* Top Row - Chart Config Button */}
                 <div className="flex justify-end items-center gap-2">
-                  {/* Citation Type Selection Buttons */}
-                  <div className="inline-flex rounded-lg overflow-hidden border border-gray-300">
-                    {(['brand', 'social', 'earned'] as const).map((type, index) => (
-                      <Button
-                        key={type}
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setSelectedCitationType(type)}
-                        disabled={chartType === 'bar'}
-                        className={`
-                          body-text rounded-none border-0 text-xs font-medium px-3 py-1
-                          ${index === 0 ? 'rounded-l-lg' : ''}
-                          ${index === 2 ? 'rounded-r-lg' : ''}
-                          ${chartType === 'bar' ? 'opacity-60 cursor-default' : 'cursor-pointer'}
-                          ${index > 0 ? 'border-l border-gray-300' : ''}
-                          ${(chartType === 'donut' || chartType === 'line') && selectedCitationType === type 
-                            ? 'bg-black text-white hover:bg-black' 
-                            : 'bg-white text-gray-600 hover:bg-gray-50'
-                          }
-                        `}
-                      >
-                        {getCitationTypeLabel(type)}
-                      </Button>
-                    ))}
-                  </div>
-
                   {/* Chart Config Button */}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

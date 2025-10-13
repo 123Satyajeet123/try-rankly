@@ -15,6 +15,11 @@ const urlAnalysisSchema = new mongoose.Schema({
     type: Date,
     default: Date.now
   },
+  analysisLevel: {
+    type: String,
+    enum: ['company', 'product', 'category'],
+    default: 'company'
+  },
   brandContext: {
     companyName: {
       type: String,
@@ -55,6 +60,62 @@ const urlAnalysisSchema = new mongoose.Schema({
       required: true,
       trim: true
     }
+  },
+  productContext: {
+    productName: {
+      type: String,
+      trim: true
+    },
+    productCategory: {
+      type: String,
+      trim: true
+    },
+    productType: {
+      type: String,
+      trim: true
+    },
+    targetAudience: {
+      type: String,
+      trim: true
+    },
+    valueProposition: {
+      type: String,
+      trim: true
+    },
+    keyFeatures: [{
+      type: String,
+      trim: true
+    }],
+    useCases: [{
+      type: String,
+      trim: true
+    }],
+    marketPosition: {
+      type: String,
+      trim: true
+    }
+  },
+  categoryContext: {
+    categoryName: {
+      type: String,
+      trim: true
+    },
+    categoryType: {
+      type: String,
+      trim: true
+    },
+    targetMarket: {
+      type: String,
+      trim: true
+    },
+    productTypes: [{
+      type: String,
+      trim: true
+    }],
+    marketTrends: [{
+      type: String,
+      trim: true
+    }]
   },
   competitors: [{
     name: {

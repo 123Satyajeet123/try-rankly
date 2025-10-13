@@ -1,4 +1,5 @@
 import { DashboardData, Competitor, Metric, TopicRanking, PersonaRanking, Platform, Topic, Persona, ChartDataPoint } from '@/types/dashboard'
+import { formatToTwoDecimals } from '@/lib/numberUtils'
 
 // Backend data types (matching the backend models)
 interface BackendBrandMetric {
@@ -658,5 +659,243 @@ export function transformFilters(data: any) {
       from: new Date('2024-01-01'),
       to: new Date()
     }
+  }
+}
+
+/**
+ * Filter and aggregate metrics based on selected topics/personas
+ * This is the core filtering function that recalculates metrics when filters are applied
+ */
+export function filterAndAggregateMetrics(
+  overallMetrics: any,
+  topicMetrics: any[],
+  personaMetrics: any[],
+  selectedTopics: string[],
+  selectedPersonas: string[]
+): any {
+  console.log('🔍 [FilterAggregate] Input:', {
+    selectedTopics,
+    selectedPersonas,
+    topicMetricsCount: topicMetrics?.length || 0,
+    personaMetricsCount: personaMetrics?.length || 0
+  })
+
+  // If "All Topics" and "All Personas" selected, return overall metrics
+  const allTopics = selectedTopics.includes('All Topics') || selectedTopics.length === 0
+  const allPersonas = selectedPersonas.includes('All Personas') || selectedPersonas.length === 0
+
+  if (allTopics && allPersonas) {
+    console.log('✅ [FilterAggregate] No filters applied, returning overall metrics')
+    return overallMetrics
+  }
+
+  // Collect metrics to aggregate based on filters
+  let metricsToAggregate: any[] = []
+
+  if (!allTopics && !allPersonas) {
+    // Both filters active: Get metrics for selected topics AND personas
+    console.log('🔍 [FilterAggregate] Filtering by both topics and personas')
+    
+    const topicFiltered = topicMetrics.filter(m => 
+      m && m.scopeValue && selectedTopics.includes(m.scopeValue)
+    )
+    const personaFiltered = personaMetrics.filter(m => 
+      m && m.scopeValue && selectedPersonas.includes(m.scopeValue)
+    )
+    
+    console.log(`   📊 Topic matches: ${topicFiltered.length}`)
+    console.log(`   👥 Persona matches: ${personaFiltered.length}`)
+    
+    // For combined filters, we need to find the intersection
+    // This is more complex - for now, we'll show metrics that match either
+    metricsToAggregate = [...topicFiltered, ...personaFiltered]
+    
+  } else if (!allTopics) {
+    // Only topic filter active
+    console.log('🔍 [FilterAggregate] Filtering by topics only')
+    metricsToAggregate = topicMetrics.filter(m => 
+      m && m.scopeValue && selectedTopics.includes(m.scopeValue)
+    )
+    console.log(`   📊 Topic matches: ${metricsToAggregate.length}`)
+    
+  } else if (!allPersonas) {
+    // Only persona filter active
+    console.log('🔍 [FilterAggregate] Filtering by personas only')
+    metricsToAggregate = personaMetrics.filter(m => 
+      m && m.scopeValue && selectedPersonas.includes(m.scopeValue)
+    )
+    console.log(`   👥 Persona matches: ${metricsToAggregate.length}`)
+  }
+
+  // If no metrics match the filter, return overall as fallback
+  if (metricsToAggregate.length === 0) {
+    console.log('⚠️ [FilterAggregate] No metrics found for filters, returning overall as fallback')
+    return overallMetrics
+  }
+
+  // Aggregate the filtered metrics
+  const aggregated = aggregateMetricsList(metricsToAggregate, overallMetrics)
+  console.log('✅ [FilterAggregate] Aggregation complete:', {
+    totalTests: aggregated.totalTests,
+    brandCount: aggregated.brandMetrics?.length || 0
+  })
+  
+  return aggregated
+}
+
+/**
+ * Aggregate multiple metric documents into one
+ * Combines metrics from multiple scopes (topics/personas) by averaging
+ */
+function aggregateMetricsList(metrics: any[], fallback: any): any {
+  if (!metrics || metrics.length === 0) {
+    return fallback
+  }
+
+  console.log(`📊 [Aggregate] Combining ${metrics.length} metric documents`)
+
+  // Create a map to aggregate brand metrics
+  const brandMap = new Map<string, any>()
+
+  // Aggregate each metric document
+  metrics.forEach((metric, idx) => {
+    console.log(`   Processing metric ${idx + 1}: scope=${metric.scope}, value=${metric.scopeValue}`)
+    
+    if (!metric.brandMetrics || !Array.isArray(metric.brandMetrics)) {
+      console.log(`   ⚠️ No brandMetrics in document ${idx + 1}`)
+      return
+    }
+
+    metric.brandMetrics.forEach((brand: BackendBrandMetric) => {
+      const key = brand.brandName
+      
+      if (!brandMap.has(key)) {
+        // Initialize with first occurrence
+        brandMap.set(key, {
+          brandId: brand.brandId || key,
+          brandName: brand.brandName,
+          visibilityScore: 0,
+          visibilityRank: 0,
+          totalMentions: 0,
+          mentionRank: 0,
+          shareOfVoice: 0,
+          shareOfVoiceRank: 0,
+          avgPosition: 0,
+          avgPositionRank: 0,
+          depthOfMention: 0,
+          depthRank: 0,
+          citationShare: 0,
+          citationShareRank: 0,
+          brandCitationsTotal: 0,
+          earnedCitationsTotal: 0,
+          socialCitationsTotal: 0,
+          totalCitations: 0,
+          sentimentScore: 0,
+          sentimentBreakdown: {
+            positive: 0,
+            neutral: 0,
+            negative: 0,
+            mixed: 0
+          },
+          sentimentShare: 0,
+          count1st: 0,
+          count2nd: 0,
+          count3rd: 0,
+          totalAppearances: 0,
+          _count: 0 // Track how many metrics we're averaging
+        })
+      }
+
+      const existing = brandMap.get(key)
+      
+      // Sum up all metrics (we'll average later)
+      existing.visibilityScore += brand.visibilityScore || 0
+      existing.totalMentions += brand.totalMentions || 0
+      existing.shareOfVoice += brand.shareOfVoice || 0
+      existing.avgPosition += brand.avgPosition || 0
+      existing.depthOfMention += brand.depthOfMention || 0
+      existing.citationShare += brand.citationShare || 0
+      existing.brandCitationsTotal += brand.brandCitationsTotal || 0
+      existing.earnedCitationsTotal += brand.earnedCitationsTotal || 0
+      existing.socialCitationsTotal += brand.socialCitationsTotal || 0
+      existing.totalCitations += brand.totalCitations || 0
+      existing.sentimentScore += brand.sentimentScore || 0
+      existing.sentimentShare += brand.sentimentShare || 0
+      existing.count1st += brand.count1st || 0
+      existing.count2nd += brand.count2nd || 0
+      existing.count3rd += brand.count3rd || 0
+      existing.totalAppearances += brand.totalAppearances || 0
+      
+      // Aggregate sentiment breakdown
+      if (brand.sentimentBreakdown) {
+        existing.sentimentBreakdown.positive += brand.sentimentBreakdown.positive || 0
+        existing.sentimentBreakdown.neutral += brand.sentimentBreakdown.neutral || 0
+        existing.sentimentBreakdown.negative += brand.sentimentBreakdown.negative || 0
+        existing.sentimentBreakdown.mixed += brand.sentimentBreakdown.mixed || 0
+      }
+      
+      existing._count++
+    })
+  })
+
+  // Convert map to array and calculate averages
+  const aggregatedBrandMetrics = Array.from(brandMap.values()).map((brand, index) => {
+    const count = brand._count
+    
+    return {
+      brandId: brand.brandId,
+      brandName: brand.brandName,
+      visibilityScore: count > 0 ? parseFloat(formatToTwoDecimals(brand.visibilityScore / count)) : 0,
+      visibilityRank: index + 1, // Recalculate rank based on aggregated data
+      totalMentions: brand.totalMentions, // Sum, not average
+      mentionRank: index + 1,
+      shareOfVoice: count > 0 ? parseFloat(formatToTwoDecimals(brand.shareOfVoice / count)) : 0,
+      shareOfVoiceRank: index + 1,
+      avgPosition: count > 0 ? parseFloat(formatToTwoDecimals(brand.avgPosition / count)) : 0,
+      avgPositionRank: index + 1,
+      depthOfMention: count > 0 ? parseFloat(formatToTwoDecimals(brand.depthOfMention / count)) : 0,
+      depthRank: index + 1,
+      citationShare: count > 0 ? parseFloat(formatToTwoDecimals(brand.citationShare / count)) : 0,
+      citationShareRank: index + 1,
+      brandCitationsTotal: brand.brandCitationsTotal, // Sum, not average
+      earnedCitationsTotal: brand.earnedCitationsTotal, // Sum, not average
+      socialCitationsTotal: brand.socialCitationsTotal, // Sum, not average
+      totalCitations: brand.totalCitations, // Sum, not average
+      sentimentScore: count > 0 ? parseFloat(formatToTwoDecimals(brand.sentimentScore / count)) : 0,
+      sentimentBreakdown: {
+        positive: count > 0 ? parseFloat(formatToTwoDecimals(brand.sentimentBreakdown.positive / count)) : 0,
+        neutral: count > 0 ? parseFloat(formatToTwoDecimals(brand.sentimentBreakdown.neutral / count)) : 0,
+        negative: count > 0 ? parseFloat(formatToTwoDecimals(brand.sentimentBreakdown.negative / count)) : 0,
+        mixed: count > 0 ? parseFloat(formatToTwoDecimals(brand.sentimentBreakdown.mixed / count)) : 0
+      },
+      sentimentShare: count > 0 ? parseFloat(formatToTwoDecimals(brand.sentimentShare / count)) : 0,
+      count1st: brand.count1st, // Sum, not average
+      count2nd: brand.count2nd, // Sum, not average
+      count3rd: brand.count3rd, // Sum, not average
+      totalAppearances: brand.totalAppearances // Sum, not average
+    }
+  })
+
+  // Sort by visibility score (descending) and update ranks
+  aggregatedBrandMetrics.sort((a, b) => b.visibilityScore - a.visibilityScore)
+  aggregatedBrandMetrics.forEach((brand, index) => {
+    brand.visibilityRank = index + 1
+  })
+
+  // Calculate total tests from all metrics
+  const totalTests = metrics.reduce((sum, m) => sum + (m.totalResponses || m.totalTests || 0), 0)
+  const totalBrands = aggregatedBrandMetrics.length
+
+  console.log(`✅ [Aggregate] Result: ${totalBrands} brands, ${totalTests} total tests`)
+
+  // Return in the same format as backend metrics
+  return {
+    ...fallback,
+    brandMetrics: aggregatedBrandMetrics,
+    totalTests,
+    totalResponses: totalTests,
+    totalBrands,
+    scope: 'filtered', // Mark as filtered
+    lastCalculated: new Date().toISOString()
   }
 }
