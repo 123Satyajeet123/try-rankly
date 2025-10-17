@@ -686,6 +686,15 @@ export function filterAndAggregateMetrics(
 
   if (allTopics && allPersonas) {
     console.log('✅ [FilterAggregate] No filters applied, returning overall metrics')
+    // Handle case where overallMetrics is null (no data yet)
+    if (!overallMetrics) {
+      console.log('⚠️ [FilterAggregate] No overall metrics available, returning empty structure')
+      return {
+        totalTests: 0,
+        brandMetrics: [],
+        lastCalculated: new Date()
+      }
+    }
     return overallMetrics
   }
 
@@ -730,6 +739,15 @@ export function filterAndAggregateMetrics(
   // If no metrics match the filter, return overall as fallback
   if (metricsToAggregate.length === 0) {
     console.log('⚠️ [FilterAggregate] No metrics found for filters, returning overall as fallback')
+    // Handle case where overallMetrics is null (no data yet)
+    if (!overallMetrics) {
+      console.log('⚠️ [FilterAggregate] No overall metrics available as fallback, returning empty structure')
+      return {
+        totalTests: 0,
+        brandMetrics: [],
+        lastCalculated: new Date()
+      }
+    }
     return overallMetrics
   }
 
@@ -749,6 +767,15 @@ export function filterAndAggregateMetrics(
  */
 function aggregateMetricsList(metrics: any[], fallback: any): any {
   if (!metrics || metrics.length === 0) {
+    // Handle case where fallback is null (no data yet)
+    if (!fallback) {
+      console.log('⚠️ [Aggregate] No fallback available, returning empty structure')
+      return {
+        totalTests: 0,
+        brandMetrics: [],
+        lastCalculated: new Date()
+      }
+    }
     return fallback
   }
 

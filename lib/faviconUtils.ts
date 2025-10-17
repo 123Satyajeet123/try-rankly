@@ -47,7 +47,6 @@ export const getDynamicFaviconUrl = (companyName: string, size: number = 16, isD
     'Claude': 'https://claude.ai/favicon.ico',
     'Gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
     'Perplexity': 'https://www.perplexity.ai/favicon.ico',
-    'Grok': 'https://grok.x.ai/favicon.ico',
     // Credit card companies
     'HDFC Bank': 'https://www.google.com/s2/favicons?domain=hdfcbank.com&sz=32',
     'HDFC Bank Freedom Credit Card': 'https://www.google.com/s2/favicons?domain=hdfcbank.com&sz=32',

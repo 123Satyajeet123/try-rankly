@@ -82,6 +82,12 @@ class DashboardService {
       }
 
       // ✅ Use new /api/dashboard/all endpoint (includes AI insights)
+      console.log('🔄 [DashboardService] Calling /api/dashboard/all with filters:', {
+        dateFrom: filters.dateFrom,
+        dateTo: filters.dateTo,
+        urlAnalysisId: filters.selectedAnalysisId || filters.urlAnalysisId
+      })
+      
       const dashboardResponse = await apiService.getDashboardAll({
         dateFrom: filters.dateFrom,
         dateTo: filters.dateTo,
@@ -89,6 +95,13 @@ class DashboardService {
       }).catch(e => {
         console.error('❌ [DashboardService] Failed to fetch dashboard/all:', e)
         return { success: false, data: null }
+      })
+      
+      console.log('📊 [DashboardService] Dashboard response:', {
+        success: dashboardResponse.success,
+        hasData: !!dashboardResponse.data,
+        topicRankings: dashboardResponse.data?.metrics?.topicRankings?.length || 0,
+        personaRankings: dashboardResponse.data?.metrics?.personaRankings?.length || 0
       })
 
       // If dashboard/all fails, fallback to individual endpoints
@@ -135,6 +148,15 @@ class DashboardService {
       const topicMetrics = { success: true, data: dashData.topics || [] }
       const personaMetrics = { success: true, data: dashData.personas || [] }
       const aiInsights = dashData.aiInsights || null  // ✅ NEW: AI insights from backend
+      
+      // ✅ NEW: Extract formatted rankings from backend
+      const formattedTopicRankings = dashData.metrics?.topicRankings || []
+      const formattedPersonaRankings = dashData.metrics?.personaRankings || []
+      
+      console.log('📊 [DashboardService] Backend topic rankings:', formattedTopicRankings.length, 'items')
+      console.log('📊 [DashboardService] Backend persona rankings:', formattedPersonaRankings.length, 'items')
+      console.log('📊 [DashboardService] Backend topics data:', dashData.topics?.length || 0, 'items')
+      console.log('📊 [DashboardService] Backend personas data:', dashData.personas?.length || 0, 'items')
 
       // Debug API responses
       console.log('📊 [DashboardService] API Responses:')
@@ -196,6 +218,14 @@ class DashboardService {
         topics.data || [],
         personas.data || []
       )
+      
+      // ✅ Override with backend-formatted rankings if available
+      if (formattedTopicRankings.length > 0) {
+        (dashboardData.metrics as any).topicRankings = formattedTopicRankings
+      }
+      if (formattedPersonaRankings.length > 0) {
+        (dashboardData.metrics as any).personaRankings = formattedPersonaRankings
+      }
 
       // ✅ Add AI insights to dashboard data
       if (aiInsights) {
@@ -278,6 +308,8 @@ class DashboardService {
       topics.data || [],
       personas.data || []
     )
+    
+    // ✅ Note: Fallback doesn't have backend-formatted rankings, so we use transformed data
 
     // Add filter options to dashboard data
     const filterOptions = transformFilters({
@@ -529,12 +561,6 @@ class DashboardService {
     keysToDelete.forEach(key => this.cache.delete(key))
   }
 
-  /**
-   * Clear all cache
-   */
-  clearCache() {
-    this.cache.clear()
-  }
 
   /**
    * Get cache stats

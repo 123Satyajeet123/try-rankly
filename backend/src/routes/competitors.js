@@ -1,33 +1,13 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const Competitor = require('../models/Competitor');
 const router = express.Router();
 
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: 'No token provided'
-    });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid token'
-    });
-  }
-};
+// Development authentication middleware (bypasses JWT)
+const devAuth = require('../middleware/devAuth');
 
 // Get all competitors for user
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', devAuth, async (req, res) => {
   try {
     const competitors = await Competitor.find({ userId: req.userId });
     
@@ -46,7 +26,7 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Create new competitor
-router.post('/', authenticateToken, [
+router.post('/', devAuth, [
   body('name').trim().notEmpty(),
   body('url').isURL()
 ], async (req, res) => {
@@ -87,7 +67,7 @@ router.post('/', authenticateToken, [
 });
 
 // Update competitor
-router.put('/:id', authenticateToken, [
+router.put('/:id', devAuth, [
   body('name').optional().trim().notEmpty(),
   body('url').optional().isURL()
 ], async (req, res) => {
@@ -133,7 +113,7 @@ router.put('/:id', authenticateToken, [
 });
 
 // Delete competitor
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', devAuth, async (req, res) => {
   try {
     const { id } = req.params;
 

@@ -1,5 +1,4 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const Competitor = require('../models/Competitor');
 const Topic = require('../models/Topic');
@@ -7,30 +6,93 @@ const Persona = require('../models/Persona');
 const UrlAnalysis = require('../models/UrlAnalysis');
 const router = express.Router();
 
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: 'No token provided'
-    });
+/**
+ * Extract brand context from URL analysis, handling both brand-level and product-level analysis
+ * @param {object} urlAnalysis - URL analysis document
+ * @returns {object} - Brand context object
+ */
+function extractBrandContext(urlAnalysis) {
+  if (!urlAnalysis) {
+    return {
+      companyName: 'Unknown Brand',
+      industry: 'General',
+      businessModel: 'General',
+      targetMarket: 'General',
+      valueProposition: 'Not specified',
+      keyServices: ['Service'],
+      brandTone: 'Professional',
+      marketPosition: 'Mid-market'
+    };
   }
 
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid token'
-    });
+  // For product-level analysis, extract brand from product context
+  if (urlAnalysis.analysisLevel === 'product' && urlAnalysis.productContext) {
+    const productContext = urlAnalysis.productContext;
+    
+    // Extract brand name from URL, brandContext, or product name
+    let companyName = 'Unknown Brand';
+    
+    // Priority 1: Use brandContext.companyName (extracted by Perplexity during onboarding)
+    if (urlAnalysis.brandContext?.companyName) {
+      companyName = urlAnalysis.brandContext.companyName;
+    }
+    
+    // Priority 3: Use product name as fallback (but this is not ideal)
+    if (companyName === 'Unknown Brand' && productContext.productName) {
+      companyName = productContext.productName;
+    }
+
+    return {
+      companyName: companyName,
+      industry: productContext.productCategory || 'Product',
+      businessModel: 'Product',
+      targetMarket: productContext.targetAudience || 'General',
+      valueProposition: productContext.valueProposition || 'Not specified',
+      keyServices: productContext.keyFeatures || ['Feature'],
+      brandTone: 'Professional',
+      marketPosition: productContext.marketPosition || 'Mid-market'
+    };
   }
-};
+
+  // For category-level analysis
+  if (urlAnalysis.analysisLevel === 'category' && urlAnalysis.categoryContext) {
+    const categoryContext = urlAnalysis.categoryContext;
+    
+    return {
+      companyName: categoryContext.categoryName || 'Unknown Category',
+      industry: 'Category',
+      businessModel: 'Category',
+      targetMarket: categoryContext.targetMarket || 'General',
+      valueProposition: 'Category offerings',
+      keyServices: categoryContext.productTypes || ['Product'],
+      brandTone: 'Professional',
+      marketPosition: 'Mid-market'
+    };
+  }
+
+  // For company-level analysis or fallback
+  if (urlAnalysis.brandContext) {
+    return urlAnalysis.brandContext;
+  }
+
+  // Final fallback
+  return {
+    companyName: 'Unknown Brand',
+    industry: 'General',
+    businessModel: 'General',
+    targetMarket: 'General',
+    valueProposition: 'Not specified',
+    keyServices: ['Service'],
+    brandTone: 'Professional',
+    marketPosition: 'Mid-market'
+  };
+}
+
+// Development authentication middleware (bypasses JWT)
+const devAuth = require('../middleware/devAuth');
 
 // Get onboarding data
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', devAuth, async (req, res) => {
   try {
     const user = await User.findById(req.userId);
     if (!user) {
@@ -56,14 +118,14 @@ router.get('/', authenticateToken, async (req, res) => {
             website: user.websiteUrl
           },
           websiteUrl: user.websiteUrl,
-          competitors: competitors.filter(c => c.selected).map(c => c.url),
-          topics: topics.filter(t => t.selected).map(t => t.name),
-          personas: personas.filter(p => p.selected).map(p => p.description),
+          competitors: competitors.filter(c => c.selected && c.url).map(c => c.url),
+          topics: topics.filter(t => t.selected && t.name).map(t => t.name),
+          personas: personas.filter(p => p.selected && p.description).map(p => p.description),
           regions: [user.preferences.region],
           languages: [user.preferences.language],
           preferences: {
             industry: user.companyName,
-            targetAudience: personas.filter(p => p.selected).map(p => p.type).join(', '),
+            targetAudience: personas.filter(p => p.selected && p.type).map(p => p.type).join(', '),
             goals: ['Improve SEO', 'Increase visibility', 'Content optimization']
           },
           currentStep: user.onboarding.currentStep,
@@ -82,7 +144,7 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Update onboarding data in bulk
-router.put('/bulk', authenticateToken, async (req, res) => {
+router.put('/bulk', devAuth, async (req, res) => {
   try {
     const { profile, websiteUrl, competitors, topics, personas, regions, languages, preferences } = req.body;
 
@@ -179,7 +241,7 @@ router.put('/bulk', authenticateToken, async (req, res) => {
 });
 
 // Analyze website endpoint with AI integration
-router.post('/analyze-website', authenticateToken, async (req, res) => {
+router.post('/analyze-website', devAuth, async (req, res) => {
   try {
     const { url } = req.body;
     
@@ -360,6 +422,7 @@ router.post('/analyze-website', authenticateToken, async (req, res) => {
       success: true,
       message: 'Website analysis completed successfully',
       data: {
+        urlAnalysisId: urlAnalysis._id, // Include the URL analysis ID
         analysis: {
           status: 'completed',
           analysisLevel: analysisResults.analysisLevel || 'company',
@@ -385,7 +448,7 @@ router.post('/analyze-website', authenticateToken, async (req, res) => {
 });
 
 // Get latest website analysis results
-router.get('/latest-analysis', authenticateToken, async (req, res) => {
+router.get('/latest-analysis', devAuth, async (req, res) => {
   try {
     const user = await User.findById(req.userId);
     if (!user) {
@@ -444,7 +507,7 @@ router.get('/latest-analysis', authenticateToken, async (req, res) => {
 });
 
 // Check if user has done URL analysis before
-router.get('/has-analysis', authenticateToken, async (req, res) => {
+router.get('/has-analysis', devAuth, async (req, res) => {
   try {
     const analysisCount = await UrlAnalysis.countDocuments({ userId: req.userId });
 
@@ -465,7 +528,7 @@ router.get('/has-analysis', authenticateToken, async (req, res) => {
 });
 
 // Cleanup URL data endpoint (for manual cleanup if needed)
-router.post('/cleanup-url', authenticateToken, async (req, res) => {
+router.post('/cleanup-url', devAuth, async (req, res) => {
   try {
     const { url } = req.body;
     
@@ -512,7 +575,7 @@ router.post('/cleanup-url', authenticateToken, async (req, res) => {
 });
 
 // Update selections for competitors, topics, and personas
-router.post('/update-selections', authenticateToken, async (req, res) => {
+router.post('/update-selections', devAuth, async (req, res) => {
   try {
     const { competitors = [], topics = [], personas = [] } = req.body;
     const userId = req.userId;
@@ -635,7 +698,7 @@ router.post('/update-selections', authenticateToken, async (req, res) => {
 });
 
 // Generate prompts based on user selections
-router.post('/generate-prompts', authenticateToken, async (req, res) => {
+router.post('/generate-prompts', devAuth, async (req, res) => {
   try {
     const userId = req.userId;
     console.log('🎯 Starting prompt generation for user:', userId);
@@ -671,11 +734,13 @@ router.post('/generate-prompts', authenticateToken, async (req, res) => {
     
     const promptData = {
       topics: selectedTopics.map(topic => ({
+        _id: topic._id, // Keep MongoDB _id
         name: topic.name,
         description: topic.description,
         keywords: topic.keywords || []
       })),
       personas: selectedPersonas.map(persona => ({
+        _id: persona._id, // Keep MongoDB _id
         type: persona.type,
         description: persona.description,
         painPoints: persona.painPoints || [],
@@ -683,8 +748,8 @@ router.post('/generate-prompts', authenticateToken, async (req, res) => {
       })),
       region: user.preferences.region || 'Global',
       language: user.preferences.language || 'English',
-      websiteUrl: user.websiteUrl,
-      brandContext: JSON.stringify(latestAnalysis.brandContext),
+      websiteUrl: user.websiteUrl || '',
+      brandContext: extractBrandContext(latestAnalysis),
       competitors: selectedCompetitors.map(comp => ({
         name: comp.name,
         url: comp.url,
@@ -701,8 +766,8 @@ router.post('/generate-prompts', authenticateToken, async (req, res) => {
       totalPromptsPerCombination: promptsPerQueryType * 5
     });
 
-    console.log('🔍 Available topics:', selectedTopics.map(t => ({ id: t._id, name: t.name })));
-    console.log('🔍 Available personas:', selectedPersonas.map(p => ({ id: p._id, type: p.type })));
+    console.log('🔍 Available topics:', selectedTopics.map(t => ({ _id: t._id, name: t.name })));
+    console.log('🔍 Available personas:', selectedPersonas.map(p => ({ _id: p._id, type: p.type })));
 
     // Import prompt generation service
     const promptGenerationService = require('../services/promptGenerationService');
@@ -731,8 +796,8 @@ router.post('/generate-prompts', authenticateToken, async (req, res) => {
       console.log('🔍 Matching results:', {
         topicFound: !!topic,
         personaFound: !!persona,
-        topicMatch: topic ? { id: topic._id, name: topic.name } : null,
-        personaMatch: persona ? { id: persona._id, type: persona.type } : null
+        topicMatch: topic ? { _id: topic._id, name: topic.name } : null,
+        personaMatch: persona ? { _id: persona._id, type: persona.type } : null
       });
 
       if (!topic || !persona) {
@@ -742,8 +807,8 @@ router.post('/generate-prompts', authenticateToken, async (req, res) => {
             personaType: promptData.personaType,
             queryType: promptData.queryType
           },
-          availableTopics: selectedTopics.map(t => t.name),
-          availablePersonas: selectedPersonas.map(p => p.type)
+          availableTopics: selectedTopics.filter(t => t.name).map(t => t.name),
+          availablePersonas: selectedPersonas.filter(p => p.type).map(p => p.type)
         });
         continue;
       }
@@ -759,13 +824,13 @@ router.post('/generate-prompts', authenticateToken, async (req, res) => {
         metadata: {
           generatedBy: 'ai',
           targetPersonas: [persona.type],
-          targetCompetitors: selectedCompetitors.map(c => c.name)
+          targetCompetitors: selectedCompetitors.filter(c => c.name).map(c => c.name)
         }
       });
 
       await prompt.save();
       savedPrompts.push({
-        id: prompt._id,
+        _id: prompt._id,
         topicName: topic.name,
         personaType: persona.type,
         promptText: prompt.text,
@@ -801,6 +866,9 @@ router.post('/generate-prompts', authenticateToken, async (req, res) => {
     });
   }
 });
+
+// Export the extractBrandContext function for testing
+module.exports.extractBrandContext = extractBrandContext;
 
 module.exports = router;
 

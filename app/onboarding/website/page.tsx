@@ -63,6 +63,8 @@ export default function WebsitePage() {
         console.log('🏁 Setting analysisCompleted flag and storing analysis results')
         updateData({
           websiteUrl: url,
+          // Store URL analysis ID for linking data
+          urlAnalysisId: response.data.urlAnalysisId,
           // Store analysis results for use in later steps
           analysisResults: response.data.analysis,
           // Set flag to indicate analysis is complete

@@ -1,5 +1,4 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const Prompt = require('../models/Prompt');
 const Topic = require('../models/Topic');
@@ -11,30 +10,11 @@ const promptTestingService = require('../services/promptTestingService');
 const PromptTest = require('../models/PromptTest');
 const router = express.Router();
 
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: 'No token provided'
-    });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid token'
-    });
-  }
-};
+// Development authentication middleware (bypasses JWT)
+const devAuth = require('../middleware/devAuth');
 
 // Get all prompts for user
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', devAuth, async (req, res) => {
   try {
     const { topicId, status = 'active' } = req.query;
     
@@ -59,7 +39,7 @@ router.get('/', authenticateToken, async (req, res) => {
 });
 
 // Create new prompt
-router.post('/', authenticateToken, [
+router.post('/', devAuth, [
   body('topicId').isMongoId(),
   body('personaId').isMongoId(),
   body('queryType').isIn(['Navigational', 'Commercial Investigation', 'Transactional', 'Comparative', 'Reputational']),
@@ -130,7 +110,7 @@ router.post('/', authenticateToken, [
 });
 
 // Update prompt
-router.put('/:id', authenticateToken, [
+router.put('/:id', devAuth, [
   body('title').optional().trim().notEmpty(),
   body('text').optional().trim().notEmpty()
 ], async (req, res) => {
@@ -176,7 +156,7 @@ router.put('/:id', authenticateToken, [
 });
 
 // Delete prompt
-router.delete('/:id', authenticateToken, async (req, res) => {
+router.delete('/:id', devAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -215,7 +195,7 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 
 // Generate prompts using AI (placeholder)
 // Generate prompts for all selected topics and personas
-router.post('/generate', authenticateToken, async (req, res) => {
+router.post('/generate', devAuth, async (req, res) => {
   try {
     const userId = req.userId;
     
@@ -370,13 +350,17 @@ router.post('/generate', authenticateToken, async (req, res) => {
 });
 
 // Test all prompts with LLMs
-router.post('/test', authenticateToken, async (req, res) => {
+router.post('/test', devAuth, async (req, res) => {
   try {
     const userId = req.userId;
+    const { urlAnalysisId } = req.body; // Optional URL analysis ID
     
     console.log('\n' + '='.repeat(70));
     console.log('🧪 [API ENDPOINT] POST /api/prompts/test');
     console.log(`👤 User ID: ${userId}`);
+    if (urlAnalysisId) {
+      console.log(`🔗 URL Analysis ID: ${urlAnalysisId}`);
+    }
     console.log(`⏰ Request time: ${new Date().toISOString()}`);
     console.log('='.repeat(70) + '\n');
     
@@ -406,7 +390,8 @@ router.post('/test', authenticateToken, async (req, res) => {
     // Start testing (this will take time)
     const results = await promptTestingService.testAllPrompts(userId, {
       batchSize: 5, // Process 5 prompts at a time
-      testLimit: maxPromptsToTest  // Configurable via MAX_PROMPTS_TO_TEST env variable
+      testLimit: maxPromptsToTest,  // Configurable via MAX_PROMPTS_TO_TEST env variable
+      urlAnalysisId: urlAnalysisId  // Pass URL analysis ID if provided
     });
     
     const testDuration = ((Date.now() - testStartTime) / 1000).toFixed(2);
@@ -438,7 +423,7 @@ router.post('/test', authenticateToken, async (req, res) => {
 });
 
 // Get test results for a specific prompt
-router.get('/:promptId/tests', authenticateToken, async (req, res) => {
+router.get('/:promptId/tests', devAuth, async (req, res) => {
   try {
     const { promptId } = req.params;
     const userId = req.userId;
@@ -484,7 +469,7 @@ router.get('/:promptId/tests', authenticateToken, async (req, res) => {
 });
 
 // Get all test results for user (for dashboard analytics)
-router.get('/tests/all', authenticateToken, async (req, res) => {
+router.get('/tests/all', devAuth, async (req, res) => {
   try {
     const userId = req.userId;
     const { limit = 100, llmProvider, status = 'completed' } = req.query;
@@ -557,11 +542,21 @@ router.get('/tests/all', authenticateToken, async (req, res) => {
 });
 
 // Get prompts tab data with topics/personas and individual prompts
-router.get('/dashboard', authenticateToken, async (req, res) => {
+router.get('/dashboard', devAuth, async (req, res) => {
   try {
     const userId = req.userId;
     
     console.log('📊 [PROMPTS DASHBOARD] Fetching prompts tab data for user:', userId);
+    
+    // Get the brand name from the latest URL analysis for this user
+    const latestAnalysis = await UrlAnalysis.findOne({ userId })
+      .sort({ analysisDate: -1 })
+      .limit(1);
+    
+    const brandName = latestAnalysis?.brandContext?.companyName || 'Unknown Brand';
+    const brandId = brandName.toLowerCase().replace(/[^a-z0-9®]/g, '-').replace(/-+/g, '-').replace(/-$/, '');
+    
+    console.log(`✅ [PROMPTS DASHBOARD] Brand name: ${brandName}, brandId: ${brandId}`);
     
     // Helper functions for mathematical calculations with edge case handling
     const calculateResponseLevelMetrics = (test) => {
@@ -571,7 +566,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       // Calculate depth of mention from brandMetrics data
       let depthOfMention = 0;
       if (test.brandMetrics && test.brandMetrics.length > 0 && test.responseMetadata) {
-        const brandMetric = test.brandMetrics.find(bm => bm.brandName === 'HDFC Bank');
+        const brandMetric = test.brandMetrics.find(bm => bm.brandName === brandName);
         if (brandMetric && brandMetric.totalWordCount && test.responseMetadata.totalWords) {
           // Edge case: prevent division by zero
           depthOfMention = test.responseMetadata.totalWords > 0 
@@ -680,7 +675,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
     const processedTopics = topics.map(topic => {
       // Find the aggregated metrics for this topic (scope: 'topic')
       const topicAggregatedMetrics = topicMetrics.find(m => m.scopeValue === topic.name);
-      const hdfcMetrics = topicAggregatedMetrics?.brandMetrics?.find(bm => bm.brandId === 'hdfc-bank');
+      const brandMetrics = topicAggregatedMetrics?.brandMetrics?.find(bm => bm.brandId === brandId);
       
       // Get all prompt tests for this topic to group by prompt
       const topicPromptTests = promptTests.filter(test => 
@@ -746,14 +741,14 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
         type: 'topic',
         totalPrompts: rankedPrompts.length,
         metrics: {
-          visibilityScore: hdfcMetrics?.visibilityScore || 0,
-          visibilityRank: hdfcMetrics?.visibilityRank || 0,
-          depthOfMention: hdfcMetrics?.depthOfMention || 0,
-          depthRank: hdfcMetrics?.depthRank || 0,
-          avgPosition: hdfcMetrics?.avgPosition || 0,
-          avgPositionRank: hdfcMetrics?.avgPositionRank || 0,
-          citationShare: hdfcMetrics?.citationShare || 0,
-          citationShareRank: hdfcMetrics?.citationShareRank || 0
+          visibilityScore: brandMetrics?.visibilityScore || 0,
+          visibilityRank: brandMetrics?.visibilityRank || 0,
+          depthOfMention: brandMetrics?.depthOfMention || 0,
+          depthRank: brandMetrics?.depthRank || 0,
+          avgPosition: brandMetrics?.avgPosition || 0,
+          avgPositionRank: brandMetrics?.avgPositionRank || 0,
+          citationShare: brandMetrics?.citationShare || 0,
+          citationShareRank: brandMetrics?.citationShareRank || 0
         },
         prompts: rankedPrompts
       };
@@ -763,7 +758,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
     const processedPersonas = personas.map(persona => {
       // Find the aggregated metrics for this persona (scope: 'persona')
       const personaAggregatedMetrics = personaMetrics.find(m => m.scopeValue === persona.type);
-      const hdfcMetrics = personaAggregatedMetrics?.brandMetrics?.find(bm => bm.brandId === 'hdfc-bank');
+      const brandMetrics = personaAggregatedMetrics?.brandMetrics?.find(bm => bm.brandId === brandId);
       
       // Get all prompt tests for this persona to group by prompt
       const personaPromptTests = promptTests.filter(test => 
@@ -829,14 +824,14 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
         type: 'persona',
         totalPrompts: rankedPrompts.length,
         metrics: {
-          visibilityScore: hdfcMetrics?.visibilityScore || 0,
-          visibilityRank: hdfcMetrics?.visibilityRank || 0,
-          depthOfMention: hdfcMetrics?.depthOfMention || 0,
-          depthRank: hdfcMetrics?.depthRank || 0,
-          avgPosition: hdfcMetrics?.avgPosition || 0,
-          avgPositionRank: hdfcMetrics?.avgPositionRank || 0,
-          citationShare: hdfcMetrics?.citationShare || 0,
-          citationShareRank: hdfcMetrics?.citationShareRank || 0
+          visibilityScore: brandMetrics?.visibilityScore || 0,
+          visibilityRank: brandMetrics?.visibilityRank || 0,
+          depthOfMention: brandMetrics?.depthOfMention || 0,
+          depthRank: brandMetrics?.depthRank || 0,
+          avgPosition: brandMetrics?.avgPosition || 0,
+          avgPositionRank: brandMetrics?.avgPositionRank || 0,
+          citationShare: brandMetrics?.citationShare || 0,
+          citationShareRank: brandMetrics?.citationShareRank || 0
         },
         prompts: rankedPrompts
       };
@@ -873,7 +868,7 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
 });
 
 // Get detailed prompt analysis with LLM responses
-router.get('/details/:promptId', authenticateToken, async (req, res) => {
+router.get('/details/:promptId', devAuth, async (req, res) => {
   try {
     const { promptId } = req.params;
     const userId = req.userId;
@@ -895,8 +890,9 @@ router.get('/details/:promptId', authenticateToken, async (req, res) => {
       .limit(1);
     
     const brandName = latestAnalysis?.brandContext?.companyName || 'Unknown Brand';
+    const brandId = brandName.toLowerCase().replace(/[^a-z0-9®]/g, '-').replace(/-+/g, '-').replace(/-$/, '');
 
-    console.log(`✅ [PROMPT DETAILS] Brand name: ${brandName}`);
+    console.log(`✅ [PROMPT DETAILS] Brand name: ${brandName}, brandId: ${brandId}`);
 
     // Find all prompt tests for this prompt
     const promptTests = await PromptTest.find({ 

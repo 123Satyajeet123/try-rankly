@@ -130,9 +130,9 @@ const metricsRoutes = require('./routes/metrics');
 const analyticsRoutes = require('./routes/analytics');
 const urlAnalysisRoutes = require('./routes/urlAnalysis');
 const clustersRoutes = require('./routes/clusters');
-const insightsRoutes = require('./routes/insights');
 const dashboardMetricsRoutes = require('./routes/dashboardMetrics');
 const subjectiveMetricsRoutes = require('./routes/subjectiveMetrics');
+const citationsRoutes = require('./routes/citations');
 
 // Use routes
 app.use('/api/auth', authRoutes);
@@ -146,9 +146,9 @@ app.use('/api/metrics', metricsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/url-analysis', urlAnalysisRoutes);
 app.use('/api/clusters', clustersRoutes);
-app.use('/api/insights', insightsRoutes);
 app.use('/api/dashboard', dashboardMetricsRoutes);
 app.use('/api/subjective-metrics', subjectiveMetricsRoutes);
+app.use('/api/dashboard/citations', citationsRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

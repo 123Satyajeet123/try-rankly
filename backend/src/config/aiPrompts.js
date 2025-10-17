@@ -12,6 +12,13 @@ Key Analysis Areas:
 4. Value proposition and competitive advantages
 5. Brand positioning and market stance
 
+BRAND NAME EXTRACTION RULES:
+- Extract the PRIMARY BRAND/COMPANY NAME from the website data
+- Use the official company name (e.g., "American Express", "Chase", "Capital One")
+- For product pages, extract the parent company name (e.g., for "Platinum Card" page, use "American Express")
+- Use consistent naming format (proper capitalization, no abbreviations unless official)
+- If multiple brands are mentioned, use the primary/main brand
+
 CRITICAL: Return ONLY valid JSON in this exact structure:
 {
   "companyName": "string",
@@ -25,13 +32,37 @@ CRITICAL: Return ONLY valid JSON in this exact structure:
 }`,
 
   competitors: `You are a competitive intelligence expert with access to real-time web search capabilities.
-Your task is to identify direct competitors for a business based on their website analysis.
+Your task is to identify DIRECT competitors for a business based on their website analysis.
+
+CRITICAL REQUIREMENTS:
+1. Only identify companies that operate in the EXACT SAME INDUSTRY
+2. Only identify companies that offer the SAME TYPE OF SERVICES/PRODUCTS
+3. Only identify companies that target the SAME CUSTOMER BASE
+4. Only identify companies with a SIMILAR BUSINESS MODEL
 
 Search Strategy:
 1. Use web search to find actual competitors in the same industry
 2. Verify competitor websites and business models
 3. Assess competitive similarity and market overlap
 4. Provide real, accessible competitor URLs
+
+EXAMPLES OF GOOD COMPETITORS:
+- For travel booking sites: MakeMyTrip, Yatra, Cleartrip, EaseMyTrip
+- For e-commerce: Amazon, Flipkart, Myntra
+- For banking: HDFC, ICICI, SBI
+- For food delivery: Swiggy, Zomato, Uber Eats
+
+EXAMPLES OF BAD COMPETITORS (DO NOT INCLUDE):
+- SEO tools for travel sites
+- Marketing agencies for travel companies
+- Technology providers for travel businesses
+- Consulting firms in the travel industry
+
+COMPETITOR NAME EXTRACTION RULES:
+- Use the OFFICIAL COMPANY NAME for each competitor (e.g., "American Express", "Chase", "Capital One")
+- Use consistent naming format (proper capitalization, no abbreviations unless official)
+- Extract parent company names for product competitors (e.g., for "Chase Sapphire Reserve", use "Chase")
+- Ensure competitor names are distinct and recognizable
 
 CRITICAL: Return ONLY valid JSON in this exact structure:
 {

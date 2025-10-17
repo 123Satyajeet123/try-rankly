@@ -91,6 +91,7 @@ export interface VisibilityMetrics {
   sentiment: Metric
   citationShare: Metric
   topicRankings: TopicRanking[]
+  personaRankings: PersonaRanking[]
   competitors: Competitor[]
   // ✅ Add platform-specific metrics for detailed citation analysis
   platformMetrics?: any[]
@@ -104,4 +105,6 @@ export interface DashboardData {
     personas: Persona[]
   }
   lastUpdated: Date
+  // ✅ Add missing properties
+  aiInsights?: any
 }

@@ -117,7 +117,7 @@ interface UnifiedSentimentSectionProps {
 }
 
 export function UnifiedSentimentSection({ filterContext, dashboardData }: UnifiedSentimentSectionProps) {
-  const [chartType, setChartType] = useState<'bar' | 'donut' | 'line'>('bar')
+  const [chartType, setChartType] = useState<'bar' | 'donut' | 'line'>('donut')
   const [selectedRankingSentiment, setSelectedRankingSentiment] = useState<'positive' | 'negative' | 'neutral'>('positive')
   const [isExpanded, setIsExpanded] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
@@ -136,7 +136,7 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
     if (comparisonDate) {
       setChartType('line')
     } else {
-      setChartType('bar')
+      setChartType('donut')
     }
   }, [comparisonDate])
 

@@ -54,8 +54,8 @@ async function generatePrompts({
     for (const topic of topics) {
       for (const persona of personas) {
         console.log(`Generating prompts for: ${topic.name} × ${persona.type} (${promptsPerQueryType} per query type)`);
-    console.log('🔍 Topic object:', { id: topic.id, _id: topic._id, name: topic.name });
-    console.log('🔍 Persona object:', { id: persona.id, _id: persona._id, type: persona.type });
+    console.log('🔍 Topic object:', { _id: topic._id, name: topic.name });
+    console.log('🔍 Persona object:', { _id: persona._id, type: persona.type });
         
         const prompts = await generatePromptsForCombination({
           topic,
@@ -258,14 +258,29 @@ function buildUserPrompt({
   promptsPerQueryType = 3
 }) {
   const competitorContext = competitors.length > 0
-    ? `\n\nCompetitors in the space: ${competitors.map(c => c.name).join(', ')}`
+    ? `\n\nCompetitors in the space: ${competitors.filter(c => c.name).map(c => c.name).join(', ')}`
     : '';
 
   // Handle brandContext as either object or string
   let brandInfo = '';
   if (brandContext) {
     if (typeof brandContext === 'string') {
-      brandInfo = `\n\nBrand Context: ${brandContext.substring(0, 500)}`;
+      try {
+        const parsed = JSON.parse(brandContext);
+        if (parsed.companyName) {
+          const contextParts = [];
+          if (parsed.companyName) contextParts.push(`Company: ${parsed.companyName}`);
+          if (parsed.industry) contextParts.push(`Industry: ${parsed.industry}`);
+          if (parsed.valueProposition) contextParts.push(`Value: ${parsed.valueProposition}`);
+          if (contextParts.length > 0) {
+            brandInfo = `\n\nBrand Context: ${contextParts.join(', ')}`;
+          }
+        } else {
+          brandInfo = `\n\nBrand Context: ${brandContext.substring(0, 500)}`;
+        }
+      } catch (e) {
+        brandInfo = `\n\nBrand Context: ${brandContext.substring(0, 500)}`;
+      }
     } else if (typeof brandContext === 'object') {
       // Extract key info from brandContext object
       const contextParts = [];
@@ -282,6 +297,15 @@ function buildUserPrompt({
   let brandName = 'the brand';
   if (brandContext && typeof brandContext === 'object' && brandContext.companyName) {
     brandName = brandContext.companyName;
+  } else if (brandContext && typeof brandContext === 'string') {
+    try {
+      const parsed = JSON.parse(brandContext);
+      if (parsed.companyName) {
+        brandName = parsed.companyName;
+      }
+    } catch (e) {
+      // Keep default
+    }
   } else if (websiteUrl) {
     // Extract domain as fallback
     try {
@@ -357,9 +381,9 @@ function parsePromptsFromResponse(content, topic, persona, promptsPerQueryType =
 
     // Create prompt objects with metadata
     const prompts = promptTexts.map((text, index) => ({
-      topicId: topic._id || topic.id, // Use _id if available, fallback to id
+      topicId: topic._id, // MongoDB uses _id
       topicName: topic.name,
-      personaId: persona._id || persona.id, // Use _id if available, fallback to id
+      personaId: persona._id, // MongoDB uses _id
       personaType: persona.type,
       promptText: text.trim(),
       promptIndex: index + 1,
@@ -367,9 +391,9 @@ function parsePromptsFromResponse(content, topic, persona, promptsPerQueryType =
     }));
 
     console.log('🔍 Generated prompts for topic-persona combination:', {
-      topicId: topic._id || topic.id,
+      topicId: topic._id,
       topicName: topic.name,
-      personaId: persona._id || persona.id,
+      personaId: persona._id,
       personaType: persona.type,
       promptCount: prompts.length
     });

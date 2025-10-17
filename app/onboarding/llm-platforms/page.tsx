@@ -33,11 +33,6 @@ const llmPlatforms = [
     favicon: 'https://claude.ai/favicon.ico',
     description: 'Anthropic\'s AI assistant'
   },
-  {
-    name: 'Grok',
-    favicon: 'https://img.icons8.com/?size=512&id=USGXKHXKl9X7&format=png',
-    description: 'X\'s AI assistant'
-  }
 ]
 
 export default function LLMPlatformsPage() {
@@ -133,13 +128,13 @@ export default function LLMPlatformsPage() {
           // STEP 1: Test prompts with all LLMs
           console.log('🧪 [Step 1/2] Starting multi-LLM testing...')
           setButtonText('Testing with LLMs...')
-          const testResponse = await apiService.testPrompts()
+          const testResponse = await apiService.testPrompts(data.urlAnalysisId)
           console.log('✅ [Step 1/2] Multi-LLM testing completed:', testResponse.data)
           
           // STEP 2: Calculate and aggregate metrics from test results (includes AI insights generation)
           console.log('📊 [Step 2/2] Calculating and aggregating metrics...')
           setButtonText('Calculating metrics...')
-          const metricsResponse = await apiService.calculateMetrics()
+          const metricsResponse = await apiService.calculateMetrics(data.urlAnalysisId)
           
           if (!metricsResponse.success) {
             throw new Error('Metrics calculation failed: ' + (metricsResponse.message || 'Unknown error'))
@@ -315,7 +310,6 @@ export default function LLMPlatformsPage() {
                                   else if (platform.name === 'Gemini') bgColor = 'bg-blue-600'
                                   else if (platform.name === 'Claude') bgColor = 'bg-orange-500'
                                   else if (platform.name === 'Perplexity') bgColor = 'bg-purple-500'
-                                  else if (platform.name === 'Grok') bgColor = 'bg-black'
                                   
                                   parent.innerHTML = `<div class="w-7 h-7 rounded-full ${bgColor} text-white flex items-center justify-center font-bold text-sm">${text}</div>`
                                 }
@@ -357,7 +351,6 @@ export default function LLMPlatformsPage() {
                                   else if (platform.name === 'Gemini') bgColor = 'bg-blue-600'
                                   else if (platform.name === 'Claude') bgColor = 'bg-orange-500'
                                   else if (platform.name === 'Perplexity') bgColor = 'bg-purple-500'
-                                  else if (platform.name === 'Grok') bgColor = 'bg-black'
                                   
                                   parent.innerHTML = `<div class="w-7 h-7 rounded-full ${bgColor} text-white flex items-center justify-center font-bold text-sm">${text}</div>`
                                 }

@@ -205,16 +205,18 @@ class ApiService {
   }
 
   // Test prompts with multi-LLM
-  async testPrompts() {
+  async testPrompts(urlAnalysisId?: string) {
     return this.request('/prompts/test', {
       method: 'POST',
+      body: urlAnalysisId ? JSON.stringify({ urlAnalysisId }) : undefined,
     })
   }
 
   // Calculate metrics from test results
-  async calculateMetrics() {
+  async calculateMetrics(urlAnalysisId?: string) {
     return this.request('/metrics/calculate', {
       method: 'POST',
+      body: urlAnalysisId ? JSON.stringify({ urlAnalysisId }) : undefined,
     })
   }
 
@@ -365,10 +367,12 @@ class ApiService {
   async getDashboardAll(options: {
     dateFrom?: string
     dateTo?: string
+    urlAnalysisId?: string
   } = {}) {
     const params = new URLSearchParams()
     if (options.dateFrom) params.append('dateFrom', options.dateFrom)
     if (options.dateTo) params.append('dateTo', options.dateTo)
+    if (options.urlAnalysisId) params.append('urlAnalysisId', options.urlAnalysisId)
     
     return this.request(`/dashboard/all${params.toString() ? `?${params.toString()}` : ''}`)
   }
@@ -467,7 +471,8 @@ class ApiService {
 
   // Analysis endpoints
   async getAnalyses() {
-    return this.request('/metrics/analyses')
+    // Add cache-busting parameter to ensure fresh data
+    return this.request('/metrics/analyses?_t=' + Date.now())
   }
 
   // Prompts Dashboard endpoint - Get topics/personas with their prompts and metrics

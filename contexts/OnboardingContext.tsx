@@ -35,6 +35,7 @@ export interface OnboardingData {
   selectedTopics: Set<string>
   region: string
   language: string
+  urlAnalysisId?: string // Store URL analysis ID
   analysisResults?: any // Store AI analysis results
   generatedPrompts?: any[] // Store generated prompts
   totalPrompts?: number // Store total number of prompts

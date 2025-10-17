@@ -1,37 +1,17 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const PromptTest = require('../models/PromptTest');
 const Prompt = require('../models/Prompt');
 const router = express.Router();
 
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: 'No token provided'
-    });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid token'
-    });
-  }
-};
+// Development authentication middleware (bypasses JWT)
+const devAuth = require('../middleware/devAuth');
 
 /**
  * GET /api/clusters
  * Returns clustered topic analysis
  * Groups related topics/prompts and shows their performance
  */
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', devAuth, async (req, res) => {
   try {
     const { urlAnalysisId } = req.query;
 
@@ -180,7 +160,7 @@ router.get('/', authenticateToken, async (req, res) => {
  * GET /api/clusters/:clusterId
  * Get detailed view of a specific cluster
  */
-router.get('/:clusterId', authenticateToken, async (req, res) => {
+router.get('/:clusterId', devAuth, async (req, res) => {
   try {
     const { clusterId } = req.params;
     const { urlAnalysisId } = req.query;

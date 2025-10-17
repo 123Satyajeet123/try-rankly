@@ -20,18 +20,19 @@ function UnifiedPersonaRankingsSection({ filterContext, dashboardData }: Unified
   const getPersonaRankingsFromDashboard = () => {
     console.log('🔍 [PersonaRankings] Dashboard data:', dashboardData?.metrics?.personaRankings)
     console.log('🔍 [PersonaRankings] Personas data:', dashboardData?.personas)
+    console.log('🔍 [PersonaRankings] Full dashboard data:', dashboardData)
 
     if (!dashboardData?.metrics?.personaRankings || dashboardData.metrics.personaRankings.length === 0) {
       console.log('⚠️ [PersonaRankings] No persona ranking data available')
       return []
     }
 
-    // ✅ Only show personas that have data (competitors with rankings)
+    // ✅ Use the backend-provided persona rankings structure
     return dashboardData.metrics.personaRankings
-      .filter((personaRanking: any) => personaRanking.competitors && personaRanking.competitors.length > 0)
+      .filter((personaRanking: any) => personaRanking.rankings && personaRanking.rankings.length > 0)
       .map((personaRanking: any) => ({
         persona: personaRanking.persona,
-        rankings: personaRanking.competitors
+        rankings: personaRanking.rankings
           .sort((a: any, b: any) => a.rank - b.rank) // ✅ Ensure proper ranking order
           .slice(0, 5) // Show top 5
           .map((competitor: any) => ({

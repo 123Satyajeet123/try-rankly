@@ -17,18 +17,7 @@ import { useSkeletonLoading } from '@/components/ui/with-skeleton-loading'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
 
-// Default fallback data for Citation Share
-const defaultChartData = [
-  { name: 'Housr', score: 100, color: '#3B82F6', comparisonScore: 100 },
-]
-
-// Default trend data
-const defaultTrendData = [
-  { month: 'Jan 1', 'Housr': 100 },
-  { month: 'Jan 8', 'Housr': 100 },
-  { month: 'Jan 15', 'Housr': 100 },
-  { month: 'Jan 22', 'Housr': 100 },
-]
+// ✅ No more default fallback data - use real data from API
 
 interface CitationShareSectionProps {
   filterContext?: {
@@ -56,12 +45,15 @@ const brandColors = [
 // Transform dashboard data to citation share format
 const getChartDataFromDashboard = (dashboardData: any) => {
   if (!dashboardData?.metrics?.competitorsByCitation || dashboardData.metrics.competitorsByCitation.length === 0) {
-    return defaultChartData
+    console.log('⚠️ [CitationShareSection] No citation data available')
+    return []
   }
+
+  console.log('✅ [CitationShareSection] Using real citation data:', dashboardData.metrics.competitorsByCitation)
 
   const chartData = dashboardData.metrics.competitorsByCitation.map((competitor: any, index: number) => ({
     name: competitor.name,
-    score: competitor.score || 0,
+    score: competitor.score || 0, // This is now citationShare from backend
     color: brandColors[index % brandColors.length], // Always use our diverse color palette
     comparisonScore: competitor.score || 0 // For now, use same value for comparison
   }))
@@ -69,7 +61,7 @@ const getChartDataFromDashboard = (dashboardData: any) => {
   return chartData
 }
 
-// Transform dashboard brandMetrics to rankings
+// Transform dashboard citation data to rankings
 const getRankingsFromDashboard = (dashboardData: any) => {
   if (!dashboardData?.metrics?.competitorsByCitation || dashboardData.metrics.competitorsByCitation.length === 0) {
     return []
@@ -79,11 +71,11 @@ const getRankingsFromDashboard = (dashboardData: any) => {
   
   return dashboardData.metrics.competitorsByCitation
     .map((competitor: any) => ({
-      rank: competitor.rank || 1,
+      rank: competitor.rank || 1, // This is citationRank from backend
       name: competitor.name,
-      isOwner: competitor.name === userBrandName || competitor.rank === 1,
-      rankChange: 0, // TODO: Calculate from historical data when available
-      citationShare: competitor.score || 0,
+      isOwner: competitor.isOwner || competitor.name === userBrandName || competitor.rank === 1,
+      rankChange: competitor.change || 0, // TODO: Calculate from historical data when available
+      citationShare: competitor.score || 0, // This is citationShare from backend
       computedScore: competitor.score || 0
     }))
     .sort((a: any, b: any) => a.rank - b.rank)
@@ -116,15 +108,31 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
   
   // Get rankings from dashboard data
   const allRankings = getRankingsFromDashboard(dashboardData)
+
+  // Handle empty data state
+  if (currentChartData.length === 0) {
+    return (
+      <UnifiedCard className="h-full">
+        <UnifiedCardContent className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-muted-foreground">No Citation Data Available</h3>
+            <p className="text-sm text-muted-foreground mt-2">
+              Citation data will appear here once prompt tests are completed and citations are analyzed.
+            </p>
+          </div>
+        </UnifiedCardContent>
+      </UnifiedCard>
+    )
+  }
   
   // Apply filtering based on filter context
   const getFilteredData = () => {
-    if (!filterContext) return { chartData: currentChartData, trendData: defaultTrendData, allRankings }
+    if (!filterContext) return { chartData: currentChartData, trendData: [], allRankings }
 
     const { selectedTopics, selectedPersonas, selectedPlatforms } = filterContext
     
     let filteredChartData = [...currentChartData]
-    let filteredTrendData = [...defaultTrendData]
+    let filteredTrendData: any[] = [] // No trend data for now
     let filteredRankings = [...allRankings]
 
     // Apply topic filtering (simulate by adjusting scores)
@@ -198,10 +206,10 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
   const rankings = getDisplayRankings(filteredRankings)
 
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
-  const [chartType, setChartType] = useState('bar')
+  const [chartType, setChartType] = useState('donut')
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [comparisonDate, setComparisonDate] = useState<Date | undefined>(undefined)
-  const [activePlatform, setActivePlatform] = useState(chartData[0]?.name || 'HDFC Bank Freedom Credit Card')
+  const [activePlatform, setActivePlatform] = useState(chartData[0]?.name || '')
   const [showExpandedRankings, setShowExpandedRankings] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
 
@@ -214,8 +222,8 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
       // Range mode - use line chart for trend view
       setChartType('line')
     } else {
-      // Single date mode - use bar chart for brand share view
-      setChartType('bar')
+      // Single date mode - use donut chart for brand share view
+      setChartType('donut')
     }
   }, [comparisonDate])
 

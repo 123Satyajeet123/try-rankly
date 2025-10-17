@@ -61,6 +61,40 @@ class MetricsCalculator {
     let totalMentionsAllBrands = 0;
     const totalPromptsCount = promptTests.length;
 
+    // ✅ CORRECT: Calculate visibility score based on explicit brand mentions in prompt text
+    // Get unique prompts and check for explicit brand mentions
+    const uniquePrompts = promptTests.reduce((acc, test) => {
+      const promptId = test.promptId.toString();
+      if (!acc[promptId]) {
+        acc[promptId] = {
+          promptId: test.promptId,
+          promptText: test.promptText,
+          tests: []
+        };
+      }
+      acc[promptId].tests.push(test);
+      return acc;
+    }, {});
+
+    const uniquePromptList = Object.values(uniquePrompts);
+    const actualTotalPrompts = uniquePromptList.length;
+    console.log(`📊 [CALCULATOR] Found ${actualTotalPrompts} unique prompts`);
+
+    // Count prompts where each brand is explicitly mentioned in the prompt text
+    const brandPromptCounts = {};
+    brandNames.forEach(brandName => {
+      brandPromptCounts[brandName] = uniquePromptList.filter(prompt => 
+        prompt.promptText.toLowerCase().includes(brandName.toLowerCase())
+      ).length;
+      console.log(`📊 [CALCULATOR] ${brandName} explicitly mentioned in ${brandPromptCounts[brandName]}/${actualTotalPrompts} prompts`);
+    });
+
+    // Set totalPrompts and promptsWithBrand for all brands
+    brandNames.forEach(brandName => {
+      brandData[brandName].totalPrompts = actualTotalPrompts;
+      brandData[brandName].promptsWithBrand = brandPromptCounts[brandName];
+    });
+
     // Process each prompt test
     promptTests.forEach(test => {
       if (!test.brandMetrics || test.brandMetrics.length === 0) {
@@ -92,10 +126,11 @@ class MetricsCalculator {
         }
 
         const data = brandData[brandName];
-        data.totalPrompts++;
+        // ✅ CORRECT: promptsWithBrand is already set based on explicit prompt mentions
+        // Don't increment it here based on LLM responses
 
         if (brandMetric.mentioned) {
-          data.promptsWithBrand++;
+          // Don't increment promptsWithBrand here - it's already set correctly above
           data.totalMentions += brandMetric.mentionCount || 1;
           data.totalWords += brandMetric.totalWordCount || 0;
           

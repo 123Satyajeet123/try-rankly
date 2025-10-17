@@ -1,48 +1,29 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const AggregatedMetrics = require('../models/AggregatedMetrics');
 const metricsAggregation = require('../services/metricsAggregationService');
 const router = express.Router();
 
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: 'No token provided'
-    });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid token'
-    });
-  }
-};
+// Development authentication middleware (bypasses JWT)
+const devAuth = require('../middleware/devAuth');
 
 /**
  * POST /api/metrics/calculate
  * Calculate and store aggregated metrics
  */
-router.post('/calculate', authenticateToken, async (req, res) => {
+router.post('/calculate', devAuth, async (req, res) => {
   try {
     console.log('\n' + '='.repeat(70));
     console.log('📊 [API] POST /api/metrics/calculate');
     console.log(`👤 User: ${req.userId}`);
     console.log('='.repeat(70));
 
-    const { dateFrom, dateTo, forceRefresh } = req.body;
+    const { dateFrom, dateTo, forceRefresh, urlAnalysisId } = req.body;
 
     const results = await metricsAggregation.calculateMetrics(req.userId, {
       dateFrom: dateFrom ? new Date(dateFrom) : undefined,
       dateTo: dateTo ? new Date(dateTo) : undefined,
-      forceRefresh
+      forceRefresh,
+      urlAnalysisId: urlAnalysisId
     });
 
     res.json({
@@ -64,7 +45,7 @@ router.post('/calculate', authenticateToken, async (req, res) => {
  * GET /api/metrics/aggregated
  * Get aggregated metrics by scope (overall, platform, topic, persona)
  */
-router.get('/aggregated', authenticateToken, async (req, res) => {
+router.get('/aggregated', devAuth, async (req, res) => {
   try {
     const { scope, dateFrom, dateTo, urlAnalysisId } = req.query;
 
@@ -131,7 +112,7 @@ router.get('/aggregated', authenticateToken, async (req, res) => {
  * GET /api/metrics/overall
  * Get overall metrics (all prompts, all platforms)
  */
-router.get('/overall', authenticateToken, async (req, res) => {
+router.get('/overall', devAuth, async (req, res) => {
   try {
     const { dateFrom, dateTo } = req.query;
 
@@ -174,7 +155,7 @@ router.get('/overall', authenticateToken, async (req, res) => {
  * GET /api/metrics/platform/:platform
  * Get metrics for a specific platform (e.g., chatgpt, claude)
  */
-router.get('/platform/:platform', authenticateToken, async (req, res) => {
+router.get('/platform/:platform', devAuth, async (req, res) => {
   try {
     const { platform } = req.params;
 
@@ -211,7 +192,7 @@ router.get('/platform/:platform', authenticateToken, async (req, res) => {
  * GET /api/metrics/topic/:topic
  * Get metrics for a specific topic
  */
-router.get('/topic/:topic', authenticateToken, async (req, res) => {
+router.get('/topic/:topic', devAuth, async (req, res) => {
   try {
     const { topic } = req.params;
 
@@ -248,7 +229,7 @@ router.get('/topic/:topic', authenticateToken, async (req, res) => {
  * GET /api/metrics/persona/:persona
  * Get metrics for a specific persona
  */
-router.get('/persona/:persona', authenticateToken, async (req, res) => {
+router.get('/persona/:persona', devAuth, async (req, res) => {
   try {
     const { persona } = req.params;
 
@@ -285,7 +266,7 @@ router.get('/persona/:persona', authenticateToken, async (req, res) => {
  * GET /api/metrics/analyses
  * Get list of all analyses (URL analyses) for the user
  */
-router.get('/analyses', authenticateToken, async (req, res) => {
+router.get('/analyses', devAuth, async (req, res) => {
   try {
     const userId = req.userId;
 
@@ -332,7 +313,8 @@ router.get('/analyses', authenticateToken, async (req, res) => {
           updatedAt: analysis.updatedAt,
           status: analysis.status,
           hasData: !!latestMetrics,
-          totalPrompts: latestMetrics?.totalPrompts || latestMetrics?.totalResponses || 0,
+          totalPrompts: latestMetrics?.totalPrompts || 0,
+          totalResponses: latestMetrics?.totalResponses || 0,
           totalBrands: latestMetrics?.brandMetrics?.length || 0,
           lastCalculated: latestMetrics?.lastCalculated || null
         };

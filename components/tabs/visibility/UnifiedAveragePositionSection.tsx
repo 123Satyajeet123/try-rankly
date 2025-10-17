@@ -100,8 +100,8 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
   }
 
   const getRankingsFromDashboard = () => {
-    // ✅ Use position-specific rankings
-    const positionCompetitors = dashboardData?.metrics?.competitorsByPosition || dashboardData?.metrics?.competitors || []
+    // ✅ Use position-specific rankings from brands array
+    const positionCompetitors = dashboardData?.metrics?.averagePosition?.brands || dashboardData?.metrics?.competitors || []
     
     if (positionCompetitors.length === 0) {
       console.log('⚠️ [AveragePosition] No competitor data available')
@@ -111,7 +111,7 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
     return positionCompetitors.map((competitor: any, index: number) => ({
       rank: competitor.rank, // ✅ Now uses avgPositionRank from backend
       name: competitor.name,
-      isOwner: index === 0, // First is primary brand
+      isOwner: competitor.isOwner || index === 0, // Use isOwner from backend or first as primary
       rankChange: 0, // TODO: Calculate from historical data
       score: competitor.score // ✅ Now uses avgPosition value
     }))
@@ -123,7 +123,7 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
   const trendData = generateTrendData(currentChartData)
   const hasData = currentChartData.length > 0 && currentRankings.length > 0
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
-  const [chartType, setChartType] = useState('bar')
+  const [chartType, setChartType] = useState('donut')
   const [activePlatform, setActivePlatform] = useState(currentChartData[0]?.name || '')
   const [showExpandedRankings, setShowExpandedRankings] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
@@ -139,8 +139,8 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
       // Range mode - use line chart for trend view
       setChartType('line')
     } else {
-      // Single date mode - use bar chart for brand share view
-      setChartType('bar')
+      // Single date mode - use donut chart for brand share view
+      setChartType('donut')
     }
   }, [comparisonDate])
 

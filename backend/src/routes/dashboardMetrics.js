@@ -6,130 +6,188 @@
  */
 
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const AggregatedMetrics = require('../models/AggregatedMetrics');
 const PromptTest = require('../models/PromptTest');
-const PerformanceInsights = require('../models/PerformanceInsights');
 const Topic = require('../models/Topic');
 const Persona = require('../models/Persona');
 const router = express.Router();
 
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: 'No token provided'
-    });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid token'
-    });
-  }
-};
+// Development authentication middleware (bypasses JWT)
+const devAuth = require('../middleware/devAuth');
 
 /**
  * GET /api/dashboard/all
  * 
  * Get all dashboard data in one request (recommended for initial load)
  */
-router.get('/all', authenticateToken, async (req, res) => {
+router.get('/all', devAuth, async (req, res) => {
   try {
-    const { dateFrom, dateTo } = req.query;
+    const { dateFrom, dateTo, urlAnalysisId } = req.query;
     const userId = req.userId;
 
     // Get user's brand from URL analysis
     const UrlAnalysis = require('../models/UrlAnalysis');
-    const urlAnalysis = await UrlAnalysis.findOne({
-      userId: userId
-    })
-    .sort({ analysisDate: -1 })
-    .lean();
+    
+    // If urlAnalysisId is provided, get that specific analysis
+    // Otherwise, get the latest analysis
+    let urlAnalysis;
+    if (urlAnalysisId) {
+      urlAnalysis = await UrlAnalysis.findOne({
+        _id: urlAnalysisId,
+        userId: userId
+      }).lean();
+      
+      if (!urlAnalysis) {
+        return res.status(404).json({
+          success: false,
+          message: 'URL analysis not found'
+        });
+      }
+    } else {
+      urlAnalysis = await UrlAnalysis.findOne({
+        userId: userId
+      })
+      .sort({ analysisDate: -1 })
+      .lean();
+    }
 
     const userBrandName = urlAnalysis?.brandContext?.companyName || null;
+    const currentUrlAnalysisId = urlAnalysis?._id;
 
-    // Get all metrics scopes
+    console.log(`📊 [DASHBOARD] User: ${userId}, URL Analysis ID: ${currentUrlAnalysisId}, Brand: ${userBrandName}`);
+
+    // Build query with optional urlAnalysisId filtering
+    const buildQuery = (scope, additionalFilters = {}) => {
+      const query = { 
+        userId: userId, 
+        scope: scope 
+      };
+      
+      // Only add urlAnalysisId filter if it exists and is not null
+      // Otherwise, don't filter by urlAnalysisId at all to include null values
+      if (currentUrlAnalysisId) {
+        query.urlAnalysisId = currentUrlAnalysisId;
+      }
+      // Note: If currentUrlAnalysisId is null/undefined, we don't add the filter
+      // This allows the query to match records where urlAnalysisId is null
+      
+      if (dateFrom || dateTo) {
+        if (dateFrom) query.dateFrom = { $gte: new Date(dateFrom) };
+        if (dateTo) query.dateTo = { $lte: new Date(dateTo) };
+      }
+      
+      return { ...query, ...additionalFilters };
+    };
+
+    // Get all metrics scopes with proper filtering
+    const overallQuery = buildQuery('overall');
+    const platformQuery = buildQuery('platform');
+    const topicQuery = buildQuery('topic');
+    const personaQuery = buildQuery('persona');
+    
+    console.log(`📊 [DASHBOARD] Queries:`, {
+      overall: overallQuery,
+      platform: platformQuery,
+      topic: topicQuery,
+      persona: personaQuery
+    });
+
     const [overall, platforms, allTopics, allPersonas] = await Promise.all([
-      getFilteredMetrics(userId, { scope: 'overall', dateFrom, dateTo }),
-      AggregatedMetrics.find({ userId: userId, scope: 'platform' }).sort({ lastCalculated: -1 }).lean(),
-      AggregatedMetrics.find({ userId: userId, scope: 'topic' }).sort({ lastCalculated: -1 }).lean(),
-      AggregatedMetrics.find({ userId: userId, scope: 'persona' }).sort({ lastCalculated: -1 }).lean()
+      AggregatedMetrics.findOne(overallQuery).sort({ lastCalculated: -1 }).lean(),
+      AggregatedMetrics.find(platformQuery).sort({ lastCalculated: -1 }).lean(),
+      AggregatedMetrics.find(topicQuery).sort({ lastCalculated: -1 }).lean(),
+      AggregatedMetrics.find(personaQuery).sort({ lastCalculated: -1 }).lean()
     ]);
 
+    console.log(`📊 [DASHBOARD] Results:`, {
+      overall: overall ? 'Found' : 'Not found',
+      platforms: platforms?.length || 0,
+      topics: allTopics?.length || 0,
+      personas: allPersonas?.length || 0
+    });
+
     // Get selected topics and personas from their respective collections
+    // Filter by urlAnalysisId if available, otherwise include null values
+    const selectedTopicQuery = { userId: userId, selected: true };
+    const selectedPersonaQuery = { userId: userId, selected: true };
+    
+    // Only add urlAnalysisId filter if it exists and is not null
+    if (currentUrlAnalysisId) {
+      selectedTopicQuery.urlAnalysisId = currentUrlAnalysisId;
+      selectedPersonaQuery.urlAnalysisId = currentUrlAnalysisId;
+    }
+    // Note: If currentUrlAnalysisId is null/undefined, we don't add the filter
+    // This allows the query to match records where urlAnalysisId is null
+    
     const [selectedTopics, selectedPersonas] = await Promise.all([
-      Topic.find({ userId: userId, selected: true }).lean(),
-      Persona.find({ userId: userId, selected: true }).lean()
+      Topic.find(selectedTopicQuery).lean(),
+      Persona.find(selectedPersonaQuery).lean()
     ]);
 
     // Filter aggregated metrics to only include selected topics and personas
     const selectedTopicNames = selectedTopics.map(t => t.name);
     const selectedPersonaTypes = selectedPersonas.map(p => p.type);
     
-    const topics = allTopics.filter(topic => selectedTopicNames.includes(topic.scopeValue));
-    const personas = allPersonas.filter(persona => selectedPersonaTypes.includes(persona.scopeValue));
-
-    // ✅ Get latest AI-powered Performance Insights
-    let aiInsights = null;
-    try {
-      const latestInsights = await PerformanceInsights.findOne({
-        userId: userId
-      }).sort({ generatedAt: -1 }).lean();
-
-      if (latestInsights) {
-        // Separate insights by category
-        const whatsWorking = latestInsights.insights.filter(i => i.category === 'whats_working');
-        const needsAttention = latestInsights.insights.filter(i => i.category === 'needs_attention');
-        
-        aiInsights = {
-          whatsWorking,
-          needsAttention,
-          all: latestInsights.insights,
-          summary: latestInsights.summary,
-          metadata: {
-            id: latestInsights._id,
-            generatedAt: latestInsights.generatedAt,
-            model: latestInsights.model,
-            totalTests: latestInsights.metricsSnapshot.totalTests
-          }
-        };
-        
-        console.log('✅ AI Insights included in dashboard response:', aiInsights.all.length, 'insights');
-      } else {
-        console.log('⚠️ No AI insights found for user');
-      }
-    } catch (error) {
-      console.error('⚠️ Error fetching AI insights for dashboard:', error.message);
-      // Continue without insights - non-critical
+    console.log(`📊 [DASHBOARD] Selected topics:`, selectedTopicNames);
+    console.log(`📊 [DASHBOARD] Selected personas:`, selectedPersonaTypes);
+    console.log(`📊 [DASHBOARD] Available topic metrics:`, allTopics.map(t => t.scopeValue));
+    console.log(`📊 [DASHBOARD] Available persona metrics:`, allPersonas.map(p => p.scopeValue));
+    
+    let topics = allTopics.filter(topic => selectedTopicNames.includes(topic.scopeValue));
+    let personas = allPersonas.filter(persona => selectedPersonaTypes.includes(persona.scopeValue));
+    
+    // ✅ Fallback: If no selected topics/personas or no matches, show all available
+    if (topics.length === 0 && allTopics.length > 0) {
+      console.log('⚠️ [DASHBOARD] No selected topics match available metrics, showing all topics');
+      topics = allTopics;
     }
+    if (personas.length === 0 && allPersonas.length > 0) {
+      console.log('⚠️ [DASHBOARD] No selected personas match available metrics, showing all personas');
+      personas = allPersonas;
+    }
+    
+    console.log(`📊 [DASHBOARD] Filtered topics:`, topics.length);
+    console.log(`📊 [DASHBOARD] Filtered personas:`, personas.length);
+
 
     res.json({
       success: true,
       data: {
+        // URL Analysis context
+        urlAnalysis: {
+          id: currentUrlAnalysisId,
+          url: urlAnalysis?.url,
+          brandName: userBrandName,
+          analysisDate: urlAnalysis?.analysisDate
+        },
+        
         // Core metrics
         overall: overall,
         platforms: platforms,
         topics: topics,
         personas: personas,
         
-        // Formatted data for components
+        // ✅ NEW: Frontend-compatible data structure
+        metrics: {
+          visibilityScore: formatVisibilityData(overall, userBrandName),
+          depthOfMention: formatDepthData(overall, userBrandName),
+          averagePosition: formatAveragePositionData(overall, userBrandName),
+          topicRankings: formatTopicRankings(topics, userBrandName),
+          personaRankings: formatPersonaRankings(personas, userBrandName),
+          performanceInsights: formatPerformanceInsights(overall, userBrandName),
+          competitors: formatCompetitorsData(overall, userBrandName),
+          // ✅ NEW: Citation-specific data structure for Citations tab
+          competitorsByCitation: formatCompetitorsByCitationData(overall, userBrandName)
+        },
+        
+        // ✅ Keep backward compatibility
         visibility: formatVisibilityData(overall, userBrandName),
         depthOfMention: formatDepthData(overall, userBrandName),
         averagePosition: formatAveragePositionData(overall, userBrandName),
         topicRankings: formatTopicRankings(topics, userBrandName),
         personaRankings: formatPersonaRankings(personas, userBrandName),
         performanceInsights: formatPerformanceInsights(overall, userBrandName),
-        
-        // ✅ AI-Powered Performance Insights
-        aiInsights: aiInsights,
+        competitors: formatCompetitorsData(overall, userBrandName),
         
         // Platform-level data (formatted)
         platforms: platforms.map(p => ({
@@ -158,19 +216,6 @@ router.get('/all', authenticateToken, async (req, res) => {
 // Helper Functions for Data Formatting
 // ============================================================================
 
-/**
- * Get filtered metrics with optional query parameters
- */
-async function getFilteredMetrics(userId, options = {}) {
-  const query = { userId };
-  
-  if (options.scope) query.scope = options.scope;
-  if (options.scopeValue) query.scopeValue = options.scopeValue;
-  
-  return await AggregatedMetrics.findOne(query)
-    .sort({ lastCalculated: -1 })
-    .lean();
-}
 
 /**
  * Format visibility score data for frontend
@@ -180,18 +225,33 @@ function formatVisibilityData(metrics, userBrandName) {
 
   const userBrand = metrics.brandMetrics.find(b => b.brandName === userBrandName) || metrics.brandMetrics[0];
   
+  // Sort brands by rank for consistent ordering
+  const sortedBrands = metrics.brandMetrics
+    .sort((a, b) => a.visibilityRank - b.visibilityRank);
+
   return {
+    // ✅ Frontend expects 'value' property for the main metric
+    value: userBrand.visibilityScore,
+    
+    // ✅ Frontend expects 'data' array for chart visualization
+    data: sortedBrands.map(b => ({
+      name: b.brandName,
+      value: b.visibilityScore,
+      fill: getColorForBrand(b.brandName)
+    })),
+    
+    // ✅ Keep existing structure for backward compatibility
     current: {
       score: userBrand.visibilityScore,
       rank: userBrand.visibilityRank
     },
-    brands: metrics.brandMetrics.map(b => ({
+    brands: sortedBrands.map(b => ({
       name: b.brandName,
       score: b.visibilityScore,
       rank: b.visibilityRank,
       isOwner: b.brandName === userBrandName,
       color: getColorForBrand(b.brandName)
-    })).sort((a, b) => a.rank - b.rank)
+    }))
   };
 }
 
@@ -203,18 +263,33 @@ function formatDepthData(metrics, userBrandName) {
 
   const userBrand = metrics.brandMetrics.find(b => b.brandName === userBrandName) || metrics.brandMetrics[0];
   
+  // Sort brands by rank for consistent ordering
+  const sortedBrands = metrics.brandMetrics
+    .sort((a, b) => a.depthRank - b.depthRank);
+
   return {
+    // ✅ Frontend expects 'value' property for the main metric
+    value: userBrand.depthOfMention,
+    
+    // ✅ Frontend expects 'data' array for chart visualization
+    data: sortedBrands.map(b => ({
+      name: b.brandName,
+      value: b.depthOfMention,
+      fill: getColorForBrand(b.brandName)
+    })),
+    
+    // ✅ Keep existing structure for backward compatibility
     current: {
       score: userBrand.depthOfMention,
       rank: userBrand.depthRank
     },
-    brands: metrics.brandMetrics.map(b => ({
+    brands: sortedBrands.map(b => ({
       name: b.brandName,
       score: b.depthOfMention,
       rank: b.depthRank,
       isOwner: b.brandName === userBrandName,
       color: getColorForBrand(b.brandName)
-    })).sort((a, b) => a.rank - b.rank)
+    }))
   };
 }
 
@@ -226,18 +301,33 @@ function formatAveragePositionData(metrics, userBrandName) {
 
   const userBrand = metrics.brandMetrics.find(b => b.brandName === userBrandName) || metrics.brandMetrics[0];
   
+  // Sort brands by rank for consistent ordering
+  const sortedBrands = metrics.brandMetrics
+    .sort((a, b) => a.avgPositionRank - b.avgPositionRank);
+
   return {
+    // ✅ Frontend expects 'value' property for the main metric
+    value: userBrand.avgPosition,
+    
+    // ✅ Frontend expects 'data' array for chart visualization
+    data: sortedBrands.map(b => ({
+      name: b.brandName,
+      value: b.avgPosition,
+      fill: getColorForBrand(b.brandName)
+    })),
+    
+    // ✅ Keep existing structure for backward compatibility
     current: {
       score: userBrand.avgPosition,
       rank: userBrand.avgPositionRank
     },
-    brands: metrics.brandMetrics.map(b => ({
+    brands: sortedBrands.map(b => ({
       name: b.brandName,
       score: b.avgPosition,
       rank: b.avgPositionRank,
       isOwner: b.brandName === userBrandName,
       color: getColorForBrand(b.brandName)
-    })).sort((a, b) => a.rank - b.rank)
+    }))
   };
 }
 
@@ -379,6 +469,67 @@ function formatPerformanceInsights(metrics, userBrandName) {
 }
 
 /**
+ * Format competitors data for frontend (matches Competitor interface)
+ */
+function formatCompetitorsData(metrics, userBrandName) {
+  if (!metrics || !metrics.brandMetrics) return [];
+
+  // Sort brands by visibility rank for consistent ordering
+  const sortedBrands = metrics.brandMetrics
+    .sort((a, b) => a.visibilityRank - b.visibilityRank);
+
+  return sortedBrands.map((brand, index) => ({
+    id: brand.brandId || `brand-${index}`,
+    name: brand.brandName,
+    logo: '', // Will be handled by frontend favicon logic
+    score: brand.visibilityScore,
+    rank: brand.visibilityRank,
+    change: 0, // TODO: Calculate from historical data
+    trend: 'stable', // TODO: Calculate from historical data
+    // Sentiment data
+    sentimentScore: brand.sentimentScore,
+    sentimentBreakdown: brand.sentimentBreakdown,
+    // Citation data
+    citationShare: brand.citationShare,
+    citationRank: brand.citationShareRank,
+    brandCitationsTotal: brand.brandCitationsTotal,
+    earnedCitationsTotal: brand.earnedCitationsTotal,
+    socialCitationsTotal: brand.socialCitationsTotal,
+    totalCitations: brand.totalCitations
+  }));
+}
+
+/**
+ * Format competitors data specifically for Citations tab (matches citations frontend expectations)
+ */
+function formatCompetitorsByCitationData(metrics, userBrandName) {
+  if (!metrics || !metrics.brandMetrics) return [];
+
+  // Sort brands by citation share rank for citation-specific ordering
+  const sortedBrands = metrics.brandMetrics
+    .sort((a, b) => a.citationShareRank - b.citationShareRank);
+
+  return sortedBrands.map((brand, index) => ({
+    id: brand.brandId || `brand-${index}`,
+    name: brand.brandName,
+    // Citation-specific fields that frontend expects
+    score: brand.citationShare, // Frontend expects 'score' for citation share
+    rank: brand.citationShareRank,
+    change: 0, // TODO: Calculate from historical data
+    trend: 'stable', // TODO: Calculate from historical data
+    // Citation breakdown data
+    citationShare: brand.citationShare,
+    citationRank: brand.citationShareRank,
+    brandCitationsTotal: brand.brandCitationsTotal,
+    earnedCitationsTotal: brand.earnedCitationsTotal,
+    socialCitationsTotal: brand.socialCitationsTotal,
+    totalCitations: brand.totalCitations,
+    // Additional citation data
+    isOwner: brand.brandName === userBrandName
+  }));
+}
+
+/**
  * Get brand color based on name (matches frontend colors)
  */
 function getColorForBrand(brandName) {
@@ -398,7 +549,7 @@ function getColorForBrand(brandName) {
 }
 
 // Get real citation details for a specific brand and type
-router.get('/citations/:brandName/:type', authenticateToken, async (req, res) => {
+router.get('/citations/:brandName/:type', devAuth, async (req, res) => {
   try {
     const { brandName, type } = req.params;
     const userId = req.userId;
@@ -413,6 +564,37 @@ router.get('/citations/:brandName/:type', authenticateToken, async (req, res) =>
       .lean();
 
     const citationMap = new Map();
+
+    // Helper function to extract URLs from raw response
+    const extractUrlsFromResponse = (rawResponse) => {
+      const urlRegex = /https?:\/\/[^\s\)\]\}]+/g;
+      const urls = rawResponse.match(urlRegex) || [];
+      // Clean up URLs by removing trailing punctuation
+      return urls.map(url => url.replace(/[\)\]\}]+$/, ''));
+    };
+
+    // Helper function to map citation references to URLs
+    const mapCitationRefToUrl = (rawResponse, citationRef) => {
+      // Clean up URL if it's already a URL
+      if (citationRef && citationRef.startsWith('http')) {
+        return citationRef.replace(/[\)\]\}]+$/, ''); // Remove trailing punctuation
+      }
+      
+      // Try to extract citation number from reference like "citation_2"
+      const match = citationRef?.match(/citation_(\d+)/);
+      if (match) {
+        const citationNum = parseInt(match[1]);
+        const urls = extractUrlsFromResponse(rawResponse);
+        
+        // Map citation number to URL index (citation_1 = first URL, citation_2 = second URL, etc.)
+        if (citationNum > 0 && citationNum <= urls.length) {
+          return urls[citationNum - 1];
+        }
+      }
+      
+      // Fallback to original reference
+      return citationRef;
+    };
 
     // Extract real citations from prompt tests and group by URL
     promptTests.forEach(test => {
@@ -433,9 +615,17 @@ router.get('/citations/:brandName/:type', authenticateToken, async (req, res) =>
                 return llmProvider || 'Unknown';
               };
 
+              // Map citation reference to actual URL
+              const actualUrl = mapCitationRefToUrl(test.rawResponse, citation.url);
+
+              // Skip citations that couldn't be mapped to actual URLs
+              if (!actualUrl || actualUrl.startsWith('citation_')) {
+                return; // Skip this citation
+              }
+
               const citationData = {
                 id: `${test._id}-${citation._id}`,
-                url: citation.url,
+                url: actualUrl,
                 platform: getPlatformName(test.llmProvider, test.llmModel),
                 context: citation.context,
                 type: citation.type,
@@ -451,9 +641,9 @@ router.get('/citations/:brandName/:type', authenticateToken, async (req, res) =>
               };
 
               // Group by URL
-              if (!citationMap.has(citation.url)) {
-                citationMap.set(citation.url, {
-                  url: citation.url,
+              if (!citationMap.has(actualUrl)) {
+                citationMap.set(actualUrl, {
+                  url: actualUrl,
                   context: citation.context,
                   type: citation.type,
                   platforms: new Set(),
@@ -461,7 +651,7 @@ router.get('/citations/:brandName/:type', authenticateToken, async (req, res) =>
                 });
               }
 
-              const groupedCitation = citationMap.get(citation.url);
+              const groupedCitation = citationMap.get(actualUrl);
               groupedCitation.platforms.add(citationData.platform);
               
               // Deduplicate prompts by promptText

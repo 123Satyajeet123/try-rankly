@@ -20,18 +20,25 @@ function UnifiedTopicRankingsSection({ filterContext, dashboardData }: UnifiedTo
   const getTopicRankingsFromDashboard = () => {
     console.log('🔍 [TopicRankings] Dashboard data:', dashboardData?.metrics?.topicRankings)
     console.log('🔍 [TopicRankings] Topics data:', dashboardData?.topics)
+    
+    if (dashboardData?.metrics?.topicRankings) {
+      console.log('🔍 [TopicRankings] First topic ranking:', dashboardData.metrics.topicRankings[0])
+      if (dashboardData.metrics.topicRankings[0]) {
+        console.log('🔍 [TopicRankings] First topic has rankings:', dashboardData.metrics.topicRankings[0].rankings)
+      }
+    }
 
     if (!dashboardData?.metrics?.topicRankings || dashboardData.metrics.topicRankings.length === 0) {
       console.log('⚠️ [TopicRankings] No topic ranking data available')
       return []
     }
 
-    // ✅ Only show topics that have data (competitors with rankings)
+    // ✅ Use the backend-provided topic rankings structure
     return dashboardData.metrics.topicRankings
-      .filter((topicRanking: any) => topicRanking.competitors && topicRanking.competitors.length > 0)
+      .filter((topicRanking: any) => topicRanking.rankings && topicRanking.rankings.length > 0)
       .map((topicRanking: any) => ({
         topic: topicRanking.topic,
-        rankings: topicRanking.competitors
+        rankings: topicRanking.rankings
           .sort((a: any, b: any) => a.rank - b.rank) // ✅ Ensure proper ranking order
           .slice(0, 5) // Show top 5
           .map((competitor: any) => ({

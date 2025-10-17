@@ -19,6 +19,7 @@ interface Analysis {
   status: string
   hasData: boolean
   totalPrompts: number
+  totalResponses: number
   totalBrands: number
   lastCalculated: string | null
 }
@@ -46,6 +47,7 @@ export function AnalysisSelector({
       const response = await apiService.getAnalyses()
       
       if (response.success) {
+        console.log('🔍 [AnalysisSelector] Fetched analyses:', response.data)
         setAnalyses(response.data)
         
         // Auto-select the first analysis if none is selected
@@ -68,6 +70,15 @@ export function AnalysisSelector({
   }, [])
 
   const selectedAnalysis = analyses.find(a => a.id === selectedAnalysisId)
+  
+  // Debug logging
+  if (selectedAnalysis) {
+    console.log('🔍 [AnalysisSelector] Selected analysis:', selectedAnalysis)
+    console.log('🔍 [AnalysisSelector] totalPrompts:', selectedAnalysis.totalPrompts)
+    console.log('🔍 [AnalysisSelector] totalResponses:', selectedAnalysis.totalResponses)
+    console.log('🔍 [AnalysisSelector] typeof totalResponses:', typeof selectedAnalysis.totalResponses)
+    console.log('🔍 [AnalysisSelector] totalResponses === undefined:', selectedAnalysis.totalResponses === undefined)
+  }
 
   const formatDate = (dateString: string) => {
     try {
@@ -144,7 +155,7 @@ export function AnalysisSelector({
                   variant={selectedAnalysis.hasData ? "default" : "secondary"}
                   className="text-xs"
                 >
-                  {selectedAnalysis.hasData ? `${selectedAnalysis.totalPrompts} prompts` : 'No data'}
+                  {selectedAnalysis.hasData ? `${selectedAnalysis.totalPrompts} prompts • ${selectedAnalysis.totalResponses || 0} tests` : 'No data'}
                 </Badge>
               </div>
             )}
@@ -160,7 +171,7 @@ export function AnalysisSelector({
                     variant={analysis.hasData ? "default" : "secondary"}
                     className="text-xs"
                   >
-                    {analysis.hasData ? `${analysis.totalPrompts} prompts` : 'No data'}
+                    {analysis.hasData ? `${analysis.totalPrompts} prompts • ${analysis.totalResponses || 0} tests` : 'No data'}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">

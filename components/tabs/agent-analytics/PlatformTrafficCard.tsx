@@ -59,7 +59,7 @@ export function PlatformTrafficCard({
   showComparison
 }: PlatformTrafficCardProps) {
   const [hoveredBar, setHoveredBar] = useState<{ platform: string; percentage: number; visits: number; x: number; y: number } | null>(null)
-  const [chartType, setChartType] = useState('bar')
+  const [chartType, setChartType] = useState('donut')
   const [activePlatform, setActivePlatform] = useState(platformData[0].platform)
   const [activeIndex, setActiveIndex] = useState(0)
   const id = "platform-traffic-chart"

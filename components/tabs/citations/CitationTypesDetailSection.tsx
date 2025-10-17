@@ -36,8 +36,11 @@ const platformColors: { [key: string]: string } = {
 // Transform dashboard data to detailed citation types format
 const getDetailedCitationData = (dashboardData: any) => {
   if (!dashboardData?.metrics?.competitorsByCitation || dashboardData.metrics.competitorsByCitation.length === 0) {
+    console.log('⚠️ [CitationTypesDetailSection] No citation data available')
     return { brand: [], earned: [], social: [] }
   }
+
+  console.log('✅ [CitationTypesDetailSection] Using real citation data:', dashboardData.metrics.competitorsByCitation)
 
   const competitors = dashboardData.metrics.competitorsByCitation
   const brandData: any[] = []

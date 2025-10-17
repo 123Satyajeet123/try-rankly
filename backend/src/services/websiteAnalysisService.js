@@ -326,22 +326,42 @@ Provide a structured analysis in JSON format:
   // Task 2: Find competitors
   async findCompetitors(websiteData, url) {
     const prompt = `
-Based on this website analysis, identify the top 4-6 direct competitors in the same industry.
+Based on this website analysis, identify the top 4-6 DIRECT competitors in the SAME INDUSTRY and BUSINESS MODEL.
+
+IMPORTANT: Only identify companies that:
+1. Operate in the EXACT SAME INDUSTRY
+2. Offer the SAME TYPE OF SERVICES/PRODUCTS
+3. Target the SAME CUSTOMER BASE
+4. Have a SIMILAR BUSINESS MODEL
 
 Website Analysis:
 - Company: ${websiteData.businessInfo.companyName}
-- Industry: [Analyze from content]
+- URL: ${url}
+- Industry: [Analyze from content - be specific about the industry]
 - Services: ${websiteData.businessInfo.services.join(', ')}
 - Target Market: [Analyze from content]
+- Business Model: [Analyze from content]
 
-Use web search to find real competitors and return structured data:
+EXAMPLES OF GOOD COMPETITORS:
+- For travel booking sites: MakeMyTrip, Yatra, Cleartrip, EaseMyTrip
+- For e-commerce: Amazon, Flipkart, Myntra
+- For banking: HDFC, ICICI, SBI
+- For food delivery: Swiggy, Zomato, Uber Eats
+
+EXAMPLES OF BAD COMPETITORS (DO NOT INCLUDE):
+- SEO tools for travel sites
+- Marketing agencies for travel companies
+- Technology providers for travel businesses
+- Consulting firms in the travel industry
+
+Use web search to find actual competitors and return structured data:
 
 {
   "competitors": [
     {
       "name": "Competitor Company Name",
       "url": "https://competitor-website.com",
-      "reason": "Why they are a competitor",
+      "reason": "Why they are a direct competitor (same industry, same services)",
       "similarity": "High/Medium/Low"
     }
   ]

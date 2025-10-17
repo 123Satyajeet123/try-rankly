@@ -123,7 +123,7 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
   const rankings = getDisplayRankings(filteredRankings)
 
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
-  const [chartType, setChartType] = useState('bar')
+  const [chartType, setChartType] = useState('donut')
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [comparisonDate, setComparisonDate] = useState<Date | undefined>(undefined)
   const [activePlatform, setActivePlatform] = useState(filteredChartData[0]?.name || '')
@@ -161,8 +161,8 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
       // Range mode - use line chart for trend view
       setChartType('line')
     } else {
-      // Single date mode - use bar chart for brand share view
-      setChartType('bar')
+      // Single date mode - use donut chart for brand share view
+      setChartType('donut')
     }
   }, [comparisonDate])
 

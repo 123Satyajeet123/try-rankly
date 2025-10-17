@@ -49,7 +49,7 @@ export default function ResultsPage() {
     const fetchMetrics = async () => {
       try {
         console.log('📊 Fetching dashboard metrics from /api/dashboard/all...')
-        const response = await apiService.getDashboardAll()
+        const response = await apiService.getDashboardAll({ urlAnalysisId: data.urlAnalysisId })
         
         if (response.success) {
           console.log('✅ Metrics fetched successfully:', response.data)
@@ -207,7 +207,7 @@ export default function ResultsPage() {
                       </span>
                     </div>
                     <p className="text-xs font-normal leading-[1.4] text-muted-foreground">
-                      How often your brand appears in AI-generated answers
+                      Percentage of prompts where your brand is mentioned
                     </p>
                   </div>
 
@@ -216,13 +216,13 @@ export default function ResultsPage() {
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-xs font-medium tracking-wide text-foreground">Citation Share</h3>
                       <span className="text-base font-semibold text-foreground">
-                        {metricsData?.overall?.brandMetrics?.[0]?.shareOfVoice 
-                          ? `${Math.round(metricsData.overall.brandMetrics[0].shareOfVoice)}%`
+                        {metricsData?.overall?.brandMetrics?.[0]?.citationShare 
+                          ? `${Math.round(metricsData.overall.brandMetrics[0].citationShare)}%`
                           : '0%'}
                       </span>
                     </div>
                         <p className="text-xs font-normal leading-[1.4] text-muted-foreground">
-                          How often your brand appears in hyperlinks and citations within AI-generated answers
+                          Your brand's share of total citations across all brands
                         </p>
                   </div>
 
@@ -235,8 +235,8 @@ export default function ResultsPage() {
                           Discover hidden strengths and new spaces where your brand can stand out
                         </p>
                         <div className="text-xs text-muted-foreground/70 mb-3 p-2 bg-background/30 rounded">
-                          <strong>Methodology:</strong> Visibility Score = (Brand appearances / Total tests) × 100. 
-                          Citation Share = (Brand hyperlinks / Total hyperlinks) × 100. 
+                          <strong>Methodology:</strong> Visibility Score = (Prompts where brand appears / Total prompts) × 100. 
+                          Citation Share = (Brand citations / Total citations across all brands) × 100. 
                           <em>LLMs are explicitly requested to provide citations and hyperlinks.</em>
                           Each prompt is tested across 4 LLMs for comprehensive analysis.
                         </div>

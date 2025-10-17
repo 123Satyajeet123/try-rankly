@@ -20,8 +20,6 @@ const UrlAnalysis = require('../models/UrlAnalysis');
 const Topic = require('../models/Topic');
 const Persona = require('../models/Persona');
 const Competitor = require('../models/Competitor');
-const PerformanceInsights = require('../models/PerformanceInsights');
-const insightsGenerationService = require('./insightsGenerationService');
 
 class MetricsAggregationService {
   constructor() {
@@ -87,64 +85,11 @@ class MetricsAggregationService {
       console.log('   Personas:', results.persona.length, 'saved');
       console.log('   Total calculations:', totalCalculations);
 
-      // ✅ Generate AI-powered Performance Insights after metrics aggregation
-      let insightsGenerated = false;
-      if (results.overall) {
-        try {
-          console.log('🧠 Generating AI-powered Performance Insights...');
-          
-          const context = {
-            brandName: results.overall.brandMetrics?.[0]?.brandName || 'Your Brand',
-            userId,
-            urlAnalysisId: results.overall.urlAnalysisId,
-            totalPrompts: results.overall.totalPrompts,
-            totalResponses: results.overall.totalResponses
-          };
-
-          const insightsResult = await insightsGenerationService.generateInsights(
-            { overall: results.overall, platforms: results.platform, topics: results.topic, personas: results.persona },
-            context
-          );
-
-          console.log(`✅ AI Insights generated: ${insightsResult.insights.length} insights`);
-          console.log('   What\'s Working:', insightsResult.insights.filter(i => i.category === 'whats_working').length);
-          console.log('   Needs Attention:', insightsResult.insights.filter(i => i.category === 'needs_attention').length);
-          
-          // ✅ Save insights to database
-          const performanceInsights = new PerformanceInsights({
-            userId,
-            urlAnalysisId: results.overall.urlAnalysisId,
-            model: insightsResult.metadata.model,
-            metricsSnapshot: {
-              totalTests: results.overall.totalResponses || 0,
-              totalBrands: results.overall.totalBrands || 0,
-              totalPrompts: results.overall.totalPrompts || 0,
-              dateRange: {
-                from: results.overall.dateFrom,
-                to: results.overall.dateTo
-              }
-            },
-            insights: insightsResult.insights,
-            summary: insightsResult.summary
-          });
-
-          await performanceInsights.save();
-          console.log('💾 AI Insights saved to database');
-          console.log('   Insights ID:', performanceInsights._id);
-          
-          insightsGenerated = true;
-          
-        } catch (error) {
-          console.error('⚠️ AI Insights generation failed (non-critical):', error.message);
-          // Don't fail the entire process if insights generation fails
-        }
-      }
 
       return { 
         success: true, 
         results,
-        totalCalculations,
-        insightsGenerated
+        totalCalculations
       };
 
     } catch (error) {
@@ -352,7 +297,7 @@ class MetricsAggregationService {
     
     // ✅ Step 3: Initialize with ALL brands (user brand + selected competitors)
     const allBrandNames = new Set([userBrandName]);
-    selectedCompetitors.forEach(comp => allBrandNames.add(comp.name));
+    selectedCompetitors.filter(comp => comp.name).forEach(comp => allBrandNames.add(comp.name));
     
     // ✅ Step 4: Add brands mentioned in tests (for manually added competitors)
     tests.forEach(test => {
@@ -473,11 +418,19 @@ class MetricsAggregationService {
       }
     });
 
-    // ✅ Set totalAppearances to count of unique prompts
-    brandData.totalAppearances = brandData.uniquePromptIds.size;
+    // ✅ CORRECT: Calculate totalAppearances based on explicit brand mentions in prompt text
+    // Count unique prompts where the brand name is explicitly mentioned in the prompt text
+    const uniquePromptsWithExplicitMention = new Set();
+    tests.forEach(test => {
+      if (test.promptText && test.promptText.toLowerCase().includes(brandName.toLowerCase())) {
+        uniquePromptsWithExplicitMention.add(test.promptId.toString());
+      }
+    });
     
-    console.log(`     ✅ Total unique prompts where ${brandName} appears: ${brandData.totalAppearances}`);
-    console.log(`     📊 Total mentions across all tests: ${brandData.totalMentions}`);
+    brandData.totalAppearances = uniquePromptsWithExplicitMention.size;
+    
+    console.log(`     ✅ Total unique prompts where ${brandName} is explicitly mentioned in prompt text: ${brandData.totalAppearances}`);
+    console.log(`     📊 Total mentions across all LLM responses: ${brandData.totalMentions}`);
 
     // Calculate total unique prompts in the dataset (for visibility score denominator)
     const totalPrompts = new Set(tests.map(t => t.promptId?.toString()).filter(Boolean)).size;
@@ -514,7 +467,7 @@ class MetricsAggregationService {
 
     // 4. Citation Share = Will be calculated later in assignRanks()
     // Formula: CitationShare(b) = (Total citations of Brand b / Total citations of all brands) × 100
-    const citationShare = 0; // Placeholder, calculated in assignRanks()
+    const citationShare = 0; // Will be calculated in assignRanks() with proper formula
 
     // 5. Sentiment Score = Average sentiment score
     const sentimentScore = brandData.sentimentScores.length > 0
@@ -595,11 +548,13 @@ class MetricsAggregationService {
 
     // Calculate Citation Share (needs total citations across all brands)
     // Formula: CitationShare(b) = (Total citations of Brand b / Total citations of all brands) × 100
-    const totalCitations = brandMetrics.reduce((sum, b) => sum + (b.totalCitations || 0), 0);
+    // Calculate citation shares using the correct formula:
+    // CitationShare(b, scope) = (Total citations of Brand b within scope) / (Total citations of all brands within scope) × 100
+    const totalCitationsAllBrands = brandMetrics.reduce((sum, b) => sum + (b.totalCitations || 0), 0);
     
     brandMetrics.forEach(b => {
-      b.citationShare = totalCitations > 0
-        ? parseFloat(((b.totalCitations / totalCitations) * 100).toFixed(2))
+      b.citationShare = totalCitationsAllBrands > 0
+        ? parseFloat(((b.totalCitations / totalCitationsAllBrands) * 100).toFixed(2))
         : 0;
     });
 

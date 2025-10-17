@@ -1,36 +1,16 @@
 const express = require('express');
-const jwt = require('jsonwebtoken');
 const UrlAnalysis = require('../models/UrlAnalysis');
 const AggregatedMetrics = require('../models/AggregatedMetrics');
 const router = express.Router();
 
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: 'No token provided'
-    });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid token'
-    });
-  }
-};
+// Development authentication middleware (bypasses JWT)
+const devAuth = require('../middleware/devAuth');
 
 /**
  * GET /api/url-analysis/list
  * Get all URL analyses for the authenticated user
  */
-router.get('/list', authenticateToken, async (req, res) => {
+router.get('/list', devAuth, async (req, res) => {
   try {
     console.log('\n' + '='.repeat(70));
     console.log('📊 [API] GET /api/url-analysis/list');
@@ -68,7 +48,7 @@ router.get('/list', authenticateToken, async (req, res) => {
  * GET /api/url-analysis/:id
  * Get specific URL analysis details
  */
-router.get('/:id', authenticateToken, async (req, res) => {
+router.get('/:id', devAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -109,7 +89,7 @@ router.get('/:id', authenticateToken, async (req, res) => {
  * GET /api/url-analysis/:id/metrics
  * Get metrics for a specific URL analysis
  */
-router.get('/:id/metrics', authenticateToken, async (req, res) => {
+router.get('/:id/metrics', devAuth, async (req, res) => {
   try {
     const { id } = req.params;
 

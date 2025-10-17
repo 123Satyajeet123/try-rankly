@@ -145,7 +145,6 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
       'Claude': 'https://claude.ai/favicon.ico',
       'Gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
       'Perplexity': 'https://www.perplexity.ai/favicon.ico',
-      'Grok': isDarkMode ? 'https://www.google.com/s2/favicons?domain=x.ai&sz=16&color=white' : 'https://grok.x.ai/favicon.ico'
     }
     return faviconMap[platformName as keyof typeof faviconMap] || `https://www.google.com/s2/favicons?domain=${platformName.toLowerCase()}.com&sz=16`
   }
@@ -161,16 +160,8 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
   const [sidebarMode, setSidebarMode] = useState<'topics' | 'personas'>('topics')
   const [isCollapsed, setIsCollapsed] = useState(true)
   const [showDropdown, setShowDropdown] = useState(false)
-  const [availableTopics, setAvailableTopics] = useState([
-    "All Topics",
-    "Conversion Rate Optimization", 
-    "Personalization"
-  ])
-  const [availablePersonas, setAvailablePersonas] = useState([
-    "All Personas",
-    "Marketing Manager",
-    "Product Manager"
-  ])
+  const [availableTopics, setAvailableTopics] = useState<string[]>([])
+  const [availablePersonas, setAvailablePersonas] = useState<string[]>([])
   const [tableSortColumn, setTableSortColumn] = useState<string | null>(null)
   const [tableSortDirection, setTableSortDirection] = useState<'asc' | 'desc'>('asc')
 
@@ -418,235 +409,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
     link.click()
     document.body.removeChild(link)
   }
-  const [prompts, setPrompts] = useState([
-    // TOPIC 1: Personalization (5 prompts)
-    {
-      id: 1,
-      prompt: "is fibr a good tool for personalization",
-      topic: "Personalization",
-      persona: "Marketing Manager",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "4 days ago",
-      createdAt: "4 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    {
-      id: 2,
-      prompt: "how to implement AI-driven personalization strategies",
-      topic: "Personalization",
-      persona: "Growth Hacker",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "3 days ago",
-      createdAt: "3 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    {
-      id: 3,
-      prompt: "best practices for user behavior personalization",
-      topic: "Personalization",
-      persona: "Marketing Manager",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "2 days ago",
-      createdAt: "2 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    {
-      id: 4,
-      prompt: "personalization tools for e-commerce optimization",
-      topic: "Personalization",
-      persona: "Growth Hacker",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "1 day ago",
-      createdAt: "1 day ago",
-      icon: "dots",
-      isNew: false
-    },
-    {
-      id: 5,
-      prompt: "AI personalization vs traditional segmentation methods",
-      topic: "Personalization",
-      persona: "Marketing Manager",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "Today",
-      createdAt: "Today",
-      icon: "dots",
-      isNew: true
-    },
-    
-    // TOPIC 2: Conversion Rate Optimization (5 prompts)
-    {
-      id: 6,
-      prompt: "best conversion rate optimization services using AI",
-      topic: "Conversion Rate Optimization",
-      persona: "Growth Hacker",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "6 days ago",
-      createdAt: "6 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    {
-      id: 7,
-      prompt: "AI-powered CRO tools for marketing teams",
-      topic: "Conversion Rate Optimization",
-      persona: "Marketing Manager",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "5 days ago",
-      createdAt: "5 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    {
-      id: 8,
-      prompt: "conversion optimization strategies for landing pages",
-      topic: "Conversion Rate Optimization",
-      persona: "Growth Hacker",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "4 days ago",
-      createdAt: "4 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    {
-      id: 9,
-      prompt: "CRO best practices for e-commerce marketing",
-      topic: "Conversion Rate Optimization",
-      persona: "Marketing Manager",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "3 days ago",
-      createdAt: "3 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    {
-      id: 10,
-      prompt: "conversion rate optimization case studies",
-      topic: "Conversion Rate Optimization",
-      persona: "Growth Hacker",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "2 days ago",
-      createdAt: "2 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    
-    // PERSONA 1: Marketing Manager (5 prompts)
-    {
-      id: 11,
-      prompt: "marketing automation tools for lead generation",
-      topic: "Marketing Automation",
-      persona: "Marketing Manager",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "7 days ago",
-      createdAt: "7 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    {
-      id: 12,
-      prompt: "email marketing strategies for B2B campaigns",
-      topic: "Email Marketing",
-      persona: "Marketing Manager",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "6 days ago",
-      createdAt: "6 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    {
-      id: 13,
-      prompt: "content marketing for brand awareness",
-      topic: "Content Marketing",
-      persona: "Marketing Manager",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "5 days ago",
-      createdAt: "5 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    {
-      id: 14,
-      prompt: "social media marketing best practices",
-      topic: "Social Media",
-      persona: "Marketing Manager",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "4 days ago",
-      createdAt: "4 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    {
-      id: 15,
-      prompt: "marketing analytics and ROI measurement",
-      topic: "Marketing Analytics",
-      persona: "Marketing Manager",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "3 days ago",
-      createdAt: "3 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    
-    // PERSONA 2: Growth Hacker (5 prompts)
-    {
-      id: 16,
-      prompt: "viral growth strategies for startups",
-      topic: "Viral Growth",
-      persona: "Growth Hacker",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "8 days ago",
-      createdAt: "8 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    {
-      id: 17,
-      prompt: "user acquisition through referral programs",
-      topic: "Referral Marketing",
-      persona: "Growth Hacker",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "7 days ago",
-      createdAt: "7 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    {
-      id: 18,
-      prompt: "growth hacking experiments and A/B testing",
-      topic: "Growth Experiments",
-      persona: "Growth Hacker",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "6 days ago",
-      createdAt: "6 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    {
-      id: 19,
-      prompt: "product-led growth strategies",
-      topic: "Product-Led Growth",
-      persona: "Growth Hacker",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "5 days ago",
-      createdAt: "5 days ago",
-      icon: "dots",
-      isNew: false
-    },
-    {
-      id: 20,
-      prompt: "growth metrics and funnel optimization",
-      topic: "Growth Metrics",
-      persona: "Growth Hacker",
-      platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
-      updatedAt: "4 days ago",
-      createdAt: "4 days ago",
-      icon: "dots",
-      isNew: false
-    }
-  ])
+  const [prompts, setPrompts] = useState<any[]>([])
 
   console.log('PromptsSection rendered, showPromptBuilder:', showPromptBuilder)
 
@@ -958,8 +721,8 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
       }))
     }
     
-    // Fallback to mock data logic if real data not available
-    const filtered = getFilteredPrompts()
+    // No real data available, return empty array
+    return []
     
     // For "All" case, we need to create a custom grouping that shows both topics and personas
     if (sortBy === 'all') {
@@ -1096,13 +859,11 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
           'Perplexity': '**Fibr** is indeed a strong tool for personalization, offering real-time data processing and machine learning capabilities that help businesses deliver targeted content to their users. According to TechCrunch (2024), Fibr has raised $50M in Series B funding, validating its market position [1]. The platform\'s key differentiators include its proprietary recommendation engine and seamless integration with popular marketing automation tools [2]. Industry analysts at Gartner have recognized Fibr as a "Challenger" in the Personalization Platforms category [3]. Their API-first approach allows for easy integration with existing tech stacks, making it particularly appealing to enterprise customers.',
           'Gemini': 'For personalization needs, **Fibr** provides excellent scalability and integration options with existing systems, making it a viable choice for enterprise-level implementations. The platform supports up to 10 million concurrent users with sub-100ms response times, as documented in their technical specifications [1]. Fibr\'s machine learning models are trained on over 2 billion user interactions, ensuring accurate personalization recommendations [2]. According to their security documentation, the platform is SOC 2 Type II compliant and supports GDPR compliance out of the box [3]. Recent partnerships with Salesforce and HubSpot have expanded Fibr\'s ecosystem integration capabilities [4].',
           'Claude': '**Fibr** demonstrates robust personalization capabilities through its adaptive algorithms and user behavior analysis, positioning it as a competitive solution in the market. The platform uses advanced deep learning models to process real-time user data and deliver personalized experiences across web, mobile, and email channels [1]. According to a 2024 Forrester Wave report, Fibr scored highest in the "Innovation" category among personalization platforms [2]. Their customer base includes Fortune 500 companies like Nike and Starbucks, who have reported significant improvements in conversion rates after implementing Fibr [3]. The platform\'s pricing starts at $500/month for mid-market businesses and scales based on user volume and feature requirements [4].',
-          'Grok': '**Fibr** represents the next generation of personalization technology, combining real-time AI processing with advanced behavioral analytics. The platform leverages cutting-edge machine learning algorithms to create highly targeted user experiences that drive engagement and conversion rates [1]. According to recent industry analysis, Fibr\'s AI engine processes over 5 billion user interactions daily, making it one of the most data-rich personalization platforms available [2]. The solution offers seamless integration with existing marketing technology stacks and provides comprehensive analytics for performance optimization [3]. Enterprise clients report average engagement increases of 42% within the first quarter of implementation [4].'
         } : {
           'ChatGPT': 'For conversion rate optimization services using AI, **Optimizely** stands out as a leading platform that combines traditional A/B testing with advanced machine learning capabilities. According to their 2024 product roadmap, Optimizely now offers AI-powered personalization that can automatically adjust test parameters based on user behavior patterns [1]. The platform has processed over 1 trillion experiments and serves more than 9,000 brands worldwide [2]. Recent research by Forrester shows that companies using Optimizely\'s AI features see 23% higher conversion rates compared to traditional testing methods [3]. Their integration with popular analytics tools like Google Analytics 4 and Adobe Analytics makes it particularly valuable for enterprise clients.',
           'Perplexity': '**Unbounce** is a strong contender in AI-powered conversion rate optimization, particularly known for its intelligent landing page builder. According to their latest case study published in Marketing Land (2024), Unbounce\'s AI writing assistant has helped clients improve conversion rates by an average of 27% [1]. The platform uses machine learning to analyze over 1.5 billion conversions and automatically suggests copy improvements [2]. Industry reports indicate that Unbounce\'s Smart Traffic feature, which uses AI to route visitors to their best-converting page variants, has increased conversion rates by up to 30% for mid-market businesses [3]. Their pricing starts at $90/month and includes unlimited landing pages and A/B tests.',
           'Gemini': '**VWO** (Visual Website Optimizer) offers comprehensive AI-driven conversion optimization with its proprietary AI engine that analyzes user behavior across multiple touchpoints. According to their technical documentation, VWO\'s AI can process real-time data from over 2,000 websites and automatically suggest optimization opportunities [1]. The platform\'s SmartStats feature uses Bayesian statistics and machine learning to provide faster, more accurate test results [2]. Recent partnerships with Shopify and WordPress have expanded VWO\'s reach to over 300,000 websites globally [3]. Their enterprise clients report average conversion rate improvements of 22% within the first quarter of implementation [4]. VWO\'s pricing ranges from $199/month for small businesses to custom enterprise solutions.',
           'Claude': '**Hotjar** has evolved beyond heatmap analytics to become a comprehensive AI-powered conversion optimization platform. Their AI Insights feature analyzes user behavior patterns and automatically identifies conversion bottlenecks [1]. According to a 2024 study by ConversionXL, Hotjar\'s AI recommendations have helped businesses increase conversion rates by an average of 19% [2]. The platform processes over 40 billion user interactions monthly and serves more than 500,000 websites worldwide [3]. Hotjar\'s recent integration with popular CRM platforms like HubSpot and Salesforce has made it particularly valuable for B2B companies looking to optimize their sales funnels [4]. Their pricing starts at $32/month and includes unlimited heatmaps and session recordings.',
-          'Grok': '**ConvertFlow** emerges as a cutting-edge AI-powered conversion optimization platform that combines advanced behavioral analytics with real-time personalization. The platform uses machine learning to analyze user intent and automatically optimize conversion funnels across multiple touchpoints [1]. According to recent industry reports, ConvertFlow\'s AI engine processes over 3 billion user interactions monthly and has helped businesses achieve average conversion rate improvements of 31% [2]. The solution offers seamless integration with popular e-commerce platforms and provides comprehensive analytics for performance tracking [3]. Enterprise clients report significant ROI improvements within the first month of implementation [4].'
         }
       }
     })
@@ -1436,14 +1197,14 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="start" className="min-w-[var(--radix-dropdown-menu-trigger-width)]" onCloseAutoFocus={(e) => e.preventDefault()}>
-                          {['All', 'ChatGPT', 'Perplexity', 'Gemini', 'Claude', 'Grok'].map((platform) => (
+                          {['All', 'ChatGPT', 'Perplexity', 'Gemini', 'Claude'].map((platform) => (
                             <DropdownMenuCheckboxItem
                               key={platform}
                               checked={platform === 'All' ? row.platforms?.length === 5 : row.platforms?.includes(platform) || false}
                               onCheckedChange={(checked) => {
                                 let newPlatforms: string[] = []
                                 if (platform === 'All') {
-                                  newPlatforms = checked ? ['ChatGPT', 'Perplexity', 'Gemini', 'Claude', 'Grok'] : []
+                                  newPlatforms = checked ? ['ChatGPT', 'Perplexity', 'Gemini', 'Claude'] : []
                                 } else {
                                   const currentPlatforms = row.platforms || []
                                   newPlatforms = checked 
@@ -1659,9 +1420,6 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
       {/* Header Section - Outside the box */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold leading-none tracking-tight text-foreground">
-            {realPromptsData ? `${realPromptsData.summary.totalPrompts} prompts` : loading ? 'Loading...' : '0 prompts'}
-          </h2>
           {realPromptsData && (
             <p className="text-sm text-muted-foreground mt-1">
               {realPromptsData.summary.totalTopics} topics • {realPromptsData.summary.totalPersonas} personas

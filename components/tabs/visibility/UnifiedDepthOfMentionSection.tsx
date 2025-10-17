@@ -73,8 +73,8 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
   }
 
   const getRankingsFromDashboard = () => {
-    // ✅ Use depth-specific rankings
-    const depthCompetitors = dashboardData?.metrics?.competitorsByDepth || dashboardData?.metrics?.competitors || []
+    // ✅ Use depth-specific rankings from brands array
+    const depthCompetitors = dashboardData?.metrics?.depthOfMention?.brands || dashboardData?.metrics?.competitors || []
     
     if (depthCompetitors.length === 0) {
       console.log('⚠️ [DepthOfMention] No competitor data available')
@@ -84,7 +84,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
     return depthCompetitors.map((competitor: any, index: number) => ({
       rank: competitor.rank, // ✅ Now uses depthRank from backend
       name: competitor.name,
-      isOwner: index === 0, // First is primary brand
+      isOwner: competitor.isOwner || index === 0, // Use isOwner from backend or first as primary
       rankChange: 0, // TODO: Calculate from historical data
       score: competitor.score // ✅ Now uses depthOfMention score
     }))
@@ -96,7 +96,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
   const trendData = generateTrendData(currentChartData)
   const hasData = currentChartData.length > 0 && currentRankings.length > 0
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
-  const [chartType, setChartType] = useState('bar')
+  const [chartType, setChartType] = useState('donut')
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [comparisonDate, setComparisonDate] = useState<Date | undefined>(undefined)
   const [activePlatform, setActivePlatform] = useState(currentChartData[0]?.name || '')
@@ -132,8 +132,8 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
       // Range mode - use line chart for trend view
       setChartType('line')
     } else {
-      // Single date mode - use bar chart for brand share view
-      setChartType('bar')
+      // Single date mode - use donut chart for brand share view
+      setChartType('donut')
     }
   }, [comparisonDate])
 

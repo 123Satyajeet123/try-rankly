@@ -45,16 +45,18 @@ interface CitationTypesSectionProps {
 // Transform dashboard data to citation types format
 const getCitationDataFromDashboard = (dashboardData: any) => {
   if (!dashboardData?.metrics?.competitorsByCitation || dashboardData.metrics.competitorsByCitation.length === 0) {
-    // Return empty array instead of default data to avoid showing mock values
+    console.log('⚠️ [CitationTypesSection] No citation data available')
     return []
   }
+
+  console.log('✅ [CitationTypesSection] Using real citation data:', dashboardData.metrics.competitorsByCitation)
 
   const citationData = dashboardData.metrics.competitorsByCitation.map((competitor: any, index: number) => {
     // Get citation breakdown from the competitor data
     const brandCitations = competitor.brandCitationsTotal || 0
     const socialCitations = competitor.socialCitationsTotal || 0
     const earnedCitations = competitor.earnedCitationsTotal || 0
-    const totalCitations = brandCitations + socialCitations + earnedCitations
+    const totalCitations = competitor.totalCitations || (brandCitations + socialCitations + earnedCitations)
     
     // Calculate percentages
     const brand = totalCitations > 0 ? (brandCitations / totalCitations) * 100 : 0
@@ -68,7 +70,7 @@ const getCitationDataFromDashboard = (dashboardData: any) => {
       earned: Math.round(earned * 10) / 10,
       total: totalCitations > 0 ? 100 : 0,
       color: brandColors[index % brandColors.length], // Always use our diverse color palette
-      isOwner: index === 0,
+      isOwner: competitor.isOwner || index === 0,
       comparisonBrand: brand,
       comparisonSocial: social,
       comparisonEarned: earned,
@@ -84,10 +86,10 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
   const currentCitationData = getCitationDataFromDashboard(dashboardData)
   
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
-  const [chartType, setChartType] = useState('bar')
+  const [chartType, setChartType] = useState('donut')
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [comparisonDate, setComparisonDate] = useState<Date | undefined>(undefined)
-  const [activePlatform, setActivePlatform] = useState(currentCitationData[0]?.name || 'HDFC Bank Freedom Credit Card')
+  const [activePlatform, setActivePlatform] = useState(currentCitationData[0]?.name || '')
   const [showExpandedRankings, setShowExpandedRankings] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const [selectedCitationType, setSelectedCitationType] = useState('earned')
@@ -117,8 +119,8 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
       // Range mode - use line chart for trend view
       setChartType('line')
     } else {
-      // Single date mode - use bar chart for brand share view
-      setChartType('bar')
+      // Single date mode - use donut chart for brand share view
+      setChartType('donut')
     }
   }, [comparisonDate])
 
