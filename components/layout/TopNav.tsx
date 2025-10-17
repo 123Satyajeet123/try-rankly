@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Filter, Globe, ChevronDown, Users, Plus } from 'lucide-react'
+import { Filter, Globe, ChevronDown, Users } from 'lucide-react'
 import { useFilters } from '@/contexts/FilterContext'
 import { useTheme } from 'next-themes'
 import { useRouter } from 'next/navigation'
@@ -83,9 +83,6 @@ export function TopNav({ activeTab, onTabChange, dashboardData }: TopNavProps) {
     fetchFilterOptions()
   }, []) // Run once on mount
 
-  const handleStartNewAnalysis = () => {
-    router.push('/onboarding')
-  }
   
   const tabs = [
     { id: 'visibility', label: 'Visibility' },
@@ -236,16 +233,8 @@ export function TopNav({ activeTab, onTabChange, dashboardData }: TopNavProps) {
         </TabsList>
         </Tabs>
 
-        {/* Filter controls and New Analysis button - Top right */}
+        {/* Filter controls - Top right */}
         <div className="flex space-x-3 pr-4">
-          <Button 
-            onClick={handleStartNewAnalysis}
-            size="sm"
-            className="body-text bg-primary text-primary-foreground hover:bg-primary/90"
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            New Analysis
-          </Button>
           
           {activeTab !== 'prompts' && (
             <div className="flex space-x-3">

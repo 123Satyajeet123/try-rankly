@@ -504,8 +504,9 @@ Be thorough, accurate, and helpful in your responses.`;
    */
   categorizeCitation(url, brandName, allBrands = []) {
     // Handle citation markers (e.g., "citation_1", "citation_2")
+    // ✅ FIX: Citation markers are just placeholder references, not actual brand citations
     if (url.startsWith('citation_')) {
-      return { type: 'brand', brand: brandName, confidence: 0.8 };
+      return { type: 'unknown', brand: null, confidence: 0.0 };
     }
     
     const urlLower = url.toLowerCase();
@@ -862,9 +863,9 @@ Be thorough, accurate, and helpful in your responses.`;
       const allBrandCitations = citations.filter(cit => {
         const urlLower = cit.url.toLowerCase();
         
-        // For citation markers, count them if brand is mentioned
+        // ✅ FIX: Citation markers are just placeholder references, not actual citations
         if (cit.url.startsWith('citation_')) {
-          return mentionCount > 0; // If brand is mentioned, citation markers count as citations
+          return false; // Don't count citation markers as citations
         }
         
         // For URLs, check if they contain any of the brand patterns

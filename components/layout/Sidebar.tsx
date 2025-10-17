@@ -1,7 +1,7 @@
 'use client'
 
 import { Button } from '@/components/ui/button'
-import { Sun, Moon, BarChart3, MessageSquare, Globe, HelpCircle, LogOut, Plus } from 'lucide-react'
+import { Sun, Moon, BarChart3, MessageSquare, Globe, HelpCircle, LogOut } from 'lucide-react'
 import { useTheme } from 'next-themes'
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
@@ -24,9 +24,6 @@ export function Sidebar() {
     router.push('/')
   }
 
-  const handleStartNewAnalysis = () => {
-    router.push('/onboarding')
-  }
 
   const navItems = [
     {
@@ -77,14 +74,6 @@ export function Sidebar() {
 
       {/* Footer */}
       <div className="p-4 border-t border-border/60 space-y-4">
-        <Button 
-          onClick={handleStartNewAnalysis}
-          className="w-full justify-start h-10 px-3 body-text bg-primary text-primary-foreground hover:bg-primary/90"
-        >
-          <Plus className="mr-3 h-4 w-4" />
-          Start New Analysis
-        </Button>
-        
         <Button variant="ghost" className="w-full justify-start h-10 px-3 body-text">
           <HelpCircle className="mr-3 h-4 w-4" />
           Contact us
