@@ -4,6 +4,7 @@ import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
 import { useSkeletonLoading } from '@/components/ui/with-skeleton-loading'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
+import { truncateForDisplay, truncateForChart, truncateForRanking, truncateForTooltip } from '@/lib/textUtils'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 interface UnifiedTopicRankingsSectionProps {

@@ -94,7 +94,8 @@ export default function LLMPlatformsPage() {
       const selectionResponse = await apiService.updateSelections(
         selectedCompetitorUrls,
         selectedTopicNames,
-        selectedPersonaTypes
+        selectedPersonaTypes,
+        data.urlAnalysisId // ✅ Pass the analysis ID for proper data isolation
       )
 
       console.log('✅ Selections saved:', selectionResponse)

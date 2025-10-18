@@ -23,6 +23,7 @@ export function TopNav({ activeTab, onTabChange, dashboardData }: TopNavProps) {
     selectedPlatforms, 
     selectedTopics, 
     selectedPersonas, 
+    selectedAnalysisId,
     setSelectedPlatforms, 
     setSelectedTopics, 
     setSelectedPersonas 
@@ -40,11 +41,11 @@ export function TopNav({ activeTab, onTabChange, dashboardData }: TopNavProps) {
   useEffect(() => {
     const fetchFilterOptions = async () => {
       try {
-        console.log('🔄 [TopNav] Fetching topics and personas from database...')
+        console.log('🔄 [TopNav] Fetching topics and personas from database...', { selectedAnalysisId })
         
         const [topicsResponse, personasResponse] = await Promise.all([
-          apiService.getTopics(),
-          apiService.getPersonas()
+          apiService.getTopics(selectedAnalysisId),
+          apiService.getPersonas(selectedAnalysisId)
         ])
 
         if (topicsResponse.success && topicsResponse.data) {
@@ -81,7 +82,7 @@ export function TopNav({ activeTab, onTabChange, dashboardData }: TopNavProps) {
     }
 
     fetchFilterOptions()
-  }, []) // Run once on mount
+  }, [selectedAnalysisId]) // Re-run when selectedAnalysisId changes
 
   
   const tabs = [
@@ -225,7 +226,7 @@ export function TopNav({ activeTab, onTabChange, dashboardData }: TopNavProps) {
             <TabsTrigger 
               key={tab.id} 
               value={tab.id} 
-                className="relative px-4 py-2 body-text rounded-none border-0 bg-transparent hover:text-gray-900 text-gray-600 data-[state=active]:bg-transparent data-[state=active]:text-gray-900 data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-gray-900 transition-colors"
+                className="relative px-4 py-2 body-text rounded-none border-0 bg-transparent hover:text-foreground text-muted-foreground data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-foreground transition-colors"
             >
               {tab.label}
             </TabsTrigger>

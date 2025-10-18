@@ -545,15 +545,36 @@ router.get('/tests/all', devAuth, async (req, res) => {
 router.get('/dashboard', devAuth, async (req, res) => {
   try {
     const userId = req.userId;
+    const { urlAnalysisId } = req.query; // Get analysis ID from query parameter
     
     console.log('📊 [PROMPTS DASHBOARD] Fetching prompts tab data for user:', userId);
+    console.log('📊 [PROMPTS DASHBOARD] Requested analysis ID:', urlAnalysisId);
     
-    // Get the brand name from the latest URL analysis for this user
-    const latestAnalysis = await UrlAnalysis.findOne({ userId })
-      .sort({ analysisDate: -1 })
-      .limit(1);
+    // Get the specific analysis or fallback to latest
+    let analysis;
+    if (urlAnalysisId) {
+      analysis = await UrlAnalysis.findOne({ userId, _id: urlAnalysisId });
+      if (!analysis) {
+        return res.status(404).json({
+          success: false,
+          message: 'Analysis not found'
+        });
+      }
+    } else {
+      // Fallback to latest analysis if no ID provided
+      analysis = await UrlAnalysis.findOne({ userId })
+        .sort({ analysisDate: -1 })
+        .limit(1);
+    }
     
-    const brandName = latestAnalysis?.brandContext?.companyName || 'Unknown Brand';
+    if (!analysis) {
+      return res.status(404).json({
+        success: false,
+        message: 'No analysis found'
+      });
+    }
+    
+    const brandName = analysis?.brandContext?.companyName || 'Unknown Brand';
     const brandId = brandName.toLowerCase().replace(/[^a-z0-9®]/g, '-').replace(/-+/g, '-').replace(/-$/, '');
     
     console.log(`✅ [PROMPTS DASHBOARD] Brand name: ${brandName}, brandId: ${brandId}`);
@@ -645,26 +666,29 @@ router.get('/dashboard', devAuth, async (req, res) => {
       });
     };
     
-    // Get topics and personas
-    const topics = await Topic.find({ userId }).lean();
-    const personas = await Persona.find({ userId }).lean();
+    // Get only SELECTED topics and personas for the specified analysis
+    const topics = await Topic.find({ userId, urlAnalysisId: analysis._id, selected: true }).lean();
+    const personas = await Persona.find({ userId, urlAnalysisId: analysis._id, selected: true }).lean();
     
-    // Get aggregated metrics for topics and personas
+    // Get aggregated metrics for topics and personas for the specified analysis
     const AggregatedMetrics = require('../models/AggregatedMetrics');
     const topicMetrics = await AggregatedMetrics.find({ 
       userId, 
-      scope: 'topic' 
+      scope: 'topic',
+      urlAnalysisId: analysis._id
     }).lean();
     
     const personaMetrics = await AggregatedMetrics.find({ 
       userId, 
-      scope: 'persona' 
+      scope: 'persona',
+      urlAnalysisId: analysis._id
     }).lean();
     
-    // Get individual prompt test results for metrics
+    // Get individual prompt test results for metrics for the specified analysis
     const promptTests = await PromptTest.find({ 
       userId, 
-      status: 'completed' 
+      status: 'completed',
+      urlAnalysisId: analysis._id
     })
     .populate('promptId', 'text queryType topicId personaId')
     .populate('topicId', 'name')

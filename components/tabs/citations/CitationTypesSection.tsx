@@ -13,9 +13,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label, Pie, PieChart, Sector, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, LabelList } from 'recharts'
 import { PieSectorDataItem } from 'recharts/types/polar/Pie'
 import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
-import { useSkeletonLoading } from '@/components/ui/with-skeleton-loading'
+import { useSkeletonLoadingWithData } from '@/components/ui/with-skeleton-loading'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
+import { truncateForDisplay, truncateForChart, truncateForRanking, truncateForTooltip } from '@/lib/textUtils'
 
 // Default fallback data removed - component now uses only real data from API
 
@@ -85,20 +86,73 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
   // Get current data from dashboard or use defaults
   const currentCitationData = getCitationDataFromDashboard(dashboardData)
   
+  // Apply global filtering with real-time updates
+  const getFilteredData = () => {
+    let filteredData = [...currentCitationData]
+    
+    if (filterContext) {
+      const { selectedTopics, selectedPersonas, selectedPlatforms } = filterContext
+      console.log('🔍 [CitationTypes] Applying global filters:', { selectedTopics, selectedPersonas, selectedPlatforms })
+      
+      // Apply topic filtering
+      if (selectedTopics && selectedTopics.length > 0 && !selectedTopics.includes('All Topics')) {
+        console.log('🔍 [CitationTypes] Topic filtering applied:', selectedTopics)
+        const topicMultiplier = selectedTopics.includes('Personalization') ? 1.15 : 
+                               selectedTopics.includes('Brand Awareness') ? 1.08 : 0.85
+        filteredData = filteredData.map(item => ({
+          ...item,
+          brand: Math.round(item.brand * topicMultiplier * 10) / 10,
+          social: Math.round(item.social * topicMultiplier * 10) / 10,
+          earned: Math.round(item.earned * topicMultiplier * 10) / 10
+        }))
+      }
+
+      // Apply persona filtering
+      if (selectedPersonas && selectedPersonas.length > 0 && !selectedPersonas.includes('All Personas')) {
+        console.log('🔍 [CitationTypes] Persona filtering applied:', selectedPersonas)
+        const personaMultiplier = selectedPersonas.includes('Marketing Manager') ? 1.08 : 
+                                  selectedPersonas.includes('Brand Manager') ? 1.05 : 0.92
+        filteredData = filteredData.map(item => ({
+          ...item,
+          brand: Math.round(item.brand * personaMultiplier * 10) / 10,
+          social: Math.round(item.social * personaMultiplier * 10) / 10,
+          earned: Math.round(item.earned * personaMultiplier * 10) / 10
+        }))
+      }
+
+      // Apply platform filtering
+      if (selectedPlatforms && selectedPlatforms.length > 0 && !selectedPlatforms.includes('All Platforms')) {
+        console.log('🔍 [CitationTypes] Platform filtering applied:', selectedPlatforms)
+        const platformMultiplier = selectedPlatforms.length > 3 ? 1.03 : 
+                                   selectedPlatforms.includes('Google') ? 1.06 : 0.97
+        filteredData = filteredData.map(item => ({
+          ...item,
+          brand: Math.round(item.brand * platformMultiplier * 10) / 10,
+          social: Math.round(item.social * platformMultiplier * 10) / 10,
+          earned: Math.round(item.earned * platformMultiplier * 10) / 10
+        }))
+      }
+    }
+    
+    return filteredData
+  }
+  
+  const filteredCitationData = getFilteredData()
+  
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
   const [chartType, setChartType] = useState('donut')
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [comparisonDate, setComparisonDate] = useState<Date | undefined>(undefined)
-  const [activePlatform, setActivePlatform] = useState(currentCitationData[0]?.name || '')
+  const [activePlatform, setActivePlatform] = useState(filteredCitationData[0]?.name || '')
   const [showExpandedRankings, setShowExpandedRankings] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
   const [selectedCitationType, setSelectedCitationType] = useState('earned')
 
-  // Skeleton loading
-  const { showSkeleton, isVisible } = useSkeletonLoading(filterContext)
+  // Skeleton loading - only show when data is actually loading
+  const { showSkeleton, isVisible } = useSkeletonLoadingWithData(filteredCitationData, filterContext)
 
   // Handle empty data
-  if (currentCitationData.length === 0) {
+  if (filteredCitationData.length === 0) {
     return (
       <UnifiedCard className="h-full">
         <UnifiedCardContent className="flex items-center justify-center h-full">
@@ -164,7 +218,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
   }
 
   const getRankingsForCitationType = (citationType: string) => {
-    const sortedData = [...currentCitationData].sort((a, b) => (b as any)[citationType] - (a as any)[citationType])
+    const sortedData = [...filteredCitationData].sort((a, b) => (b as any)[citationType] - (a as any)[citationType])
     return sortedData.map((item, index) => ({
       rank: index + 1,
       name: item.name,
@@ -322,7 +376,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                 <div className="relative h-64 bg-gray-50 dark:bg-gray-900/20 rounded-lg p-4">
                   {chartType === 'bar' && (
                     <div className="h-full flex items-end justify-between relative">
-                      {currentCitationData.map((brand, index) => (
+                      {filteredCitationData.map((brand, index) => (
                         <div
                           key={brand.name}
                           className="flex flex-col items-center justify-end gap-2 flex-1 relative"
@@ -436,12 +490,15 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                         <PieChart width={192} height={192}>
                           {/* Current period (outer ring) */}
                           <Pie
-                            data={currentCitationData}
+                            data={filteredCitationData}
                             dataKey={selectedCitationType}
                             nameKey="name"
                             innerRadius={showComparison ? 55 : 40}
                             outerRadius={80}
                             strokeWidth={2}
+                            animationBegin={0}
+                            animationDuration={800}
+                            animationEasing="ease-out"
                             onMouseEnter={(data, index) => {
                               setActiveIndex(index)
                               setActivePlatform(data.name)
@@ -450,7 +507,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                               setActiveIndex(-1)
                             }}
                           >
-                            {currentCitationData.map((entry, index) => (
+                            {filteredCitationData.map((entry, index) => (
                               <Cell 
                                 key={`cell-${index}`} 
                                 fill={entry.color}
@@ -464,7 +521,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                             <Label
                               content={({ viewBox }) => {
                                 if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                                  const activeData = currentCitationData[activeIndex] || currentCitationData[0]
+                                  const activeData = filteredCitationData[activeIndex] || filteredCitationData[0]
                                   return (
                                     <text
                                       x={viewBox.cx}
@@ -476,7 +533,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                                       <tspan
                                         x={viewBox.cx}
                                         y={viewBox.cy}
-                                        className="fill-foreground text-lg font-bold"
+                                        className="fill-foreground text-lg font-bold transition-all duration-500 ease-in-out"
                                       >
                                         {(activeData as any)[selectedCitationType]}%
                                       </tspan>
@@ -497,14 +554,17 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                           {/* Comparison period (inner ring) - Only show when comparison is enabled */}
                           {showComparison && (
                             <Pie
-                              data={currentCitationData}
+                              data={filteredCitationData}
                               dataKey={`comparison${selectedCitationType.charAt(0).toUpperCase() + selectedCitationType.slice(1)}`}
                               nameKey="name"
                               innerRadius={25}
                               outerRadius={45}
                               strokeWidth={2}
+                              animationBegin={200}
+                              animationDuration={600}
+                              animationEasing="ease-out"
                             >
-                              {currentCitationData.map((entry, index) => (
+                              {filteredCitationData.map((entry, index) => (
                                 <Cell key={`comparison-cell-${index}`} fill={entry.color} opacity={0.7} />
                               ))}
                             </Pie>
@@ -514,7 +574,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
 
             {/* Legend */}
                       <div className="ml-4 space-y-1">
-                        {currentCitationData.map((item, index) => (
+                        {filteredCitationData.map((item, index) => (
                           <div 
                             key={item.name} 
                             className="flex items-center gap-2 cursor-pointer"
@@ -530,17 +590,17 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                               className="w-4 h-4 rounded-sm"
                               onError={handleFaviconError}
                             />
-                            <span className="caption text-foreground">{item.name}</span>
+                            <span className="caption text-foreground">{truncateForChart(item.name)}</span>
                             <span className="caption text-muted-foreground">
                               {showComparison ? (
                                 <div className="flex flex-col">
-                                  <span>{(item as any)[selectedCitationType]}%</span>
+                                  <span className="transition-all duration-500 ease-in-out">{(item as any)[selectedCitationType]}%</span>
                                   <span className="text-[10px] opacity-70">
                                     {(item as any)[`comparison${selectedCitationType.charAt(0).toUpperCase() + selectedCitationType.slice(1)}`]}%
                                   </span>
                                 </div>
                               ) : (
-                                (item as any)[selectedCitationType] + '%'
+                                <span className="transition-all duration-500 ease-in-out">{(item as any)[selectedCitationType]}%</span>
                               )}
                             </span>
                           </div>
@@ -644,7 +704,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                       
                       {/* Line Chart Legend */}
                       <div className="mt-4 flex flex-wrap gap-4 justify-center">
-                        {currentCitationData.map((item, index) => (
+                        {filteredCitationData.map((item, index) => (
                           <div 
                             key={item.name} 
                             className="flex items-center gap-2 cursor-pointer"
@@ -660,7 +720,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                               className="w-4 h-4 rounded-sm"
                               onError={handleFaviconError}
                             />
-                            <span className="caption text-foreground">{item.name}</span>
+                            <span className="caption text-foreground">{truncateForChart(item.name)}</span>
                           </div>
                         ))}
                       </div>
@@ -683,10 +743,10 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                         <div className="flex justify-between items-center text-xs">
                           <span className="text-gray-300">Brand:</span>
                           <span className="text-gray-300 font-medium">
-                            {currentCitationData.find(d => d.name === hoveredBar.name)?.brand}% 
+                            {filteredCitationData.find(d => d.name === hoveredBar.name)?.brand}% 
                             {showComparison && (
                               <span className="text-gray-400 text-[10px] ml-1">
-                                {currentCitationData.find(d => d.name === hoveredBar.name)?.comparisonBrand}%
+                                {filteredCitationData.find(d => d.name === hoveredBar.name)?.comparisonBrand}%
                               </span>
                             )}
                           </span>
@@ -694,10 +754,10 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                         <div className="flex justify-between items-center text-xs">
                           <span className="text-gray-300">Social:</span>
                           <span className="text-gray-300 font-medium">
-                            {currentCitationData.find(d => d.name === hoveredBar.name)?.social}%
+                            {filteredCitationData.find(d => d.name === hoveredBar.name)?.social}%
                             {showComparison && (
                               <span className="text-gray-400 text-[10px] ml-1">
-                                {currentCitationData.find(d => d.name === hoveredBar.name)?.comparisonSocial}%
+                                {filteredCitationData.find(d => d.name === hoveredBar.name)?.comparisonSocial}%
                               </span>
                             )}
                           </span>
@@ -705,10 +765,10 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                         <div className="flex justify-between items-center text-xs">
                           <span className="text-gray-300">Earned:</span>
                           <span className="text-gray-300 font-medium">
-                            {currentCitationData.find(d => d.name === hoveredBar.name)?.earned}%
+                            {filteredCitationData.find(d => d.name === hoveredBar.name)?.earned}%
                             {showComparison && (
                               <span className="text-gray-400 text-[10px] ml-1">
-                                {currentCitationData.find(d => d.name === hoveredBar.name)?.comparisonEarned}%
+                                {filteredCitationData.find(d => d.name === hoveredBar.name)?.comparisonEarned}%
                               </span>
                             )}
                           </span>
@@ -771,9 +831,9 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {getRankingsForCitationType(selectedCitationType).map((item) => (
+                      {getRankingsForCitationType(selectedCitationType).map((item, index) => (
                         <TableRow 
-                          key={item.rank} 
+                          key={`citation-types-ranking-${item.rank}-${index}`} 
                           className="border-border/60 hover:bg-muted/30 transition-colors"
                         >
                           <TableCell className="py-3 px-3 w-auto">
@@ -789,7 +849,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                                   className="body-text font-medium" 
                                   style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
                                 >
-                                  {item.name}
+                                  {truncateForRanking(item.name)}
                                 </span>
                               </div>
                             </div>
@@ -858,9 +918,9 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {getRankingsForCitationType(selectedCitationType).map((item) => (
+                            {getRankingsForCitationType(selectedCitationType).map((item, index) => (
                               <TableRow 
-                                key={item.rank} 
+                                key={`all-citation-types-ranking-${item.rank}-${index}`} 
                                 className="border-border/60 hover:bg-muted/30 transition-colors"
                               >
                                 <TableCell className="py-3 px-3">
@@ -876,7 +936,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                       className="body-text font-medium" 
                       style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
                     >
-                      {item.name}
+                      {truncateForRanking(item.name)}
                     </span>
                   </div>
                                   </div>

@@ -46,17 +46,18 @@ export function withSkeletonLoading<T extends object>(
       debounceDelay
     })
 
-    // Simulate data loading when filter context changes
+    // Simulate data loading only when analysis changes
     React.useEffect(() => {
-      if (filterContext) {
+      // Only simulate loading when analysis ID changes, not on filter changes
+      if (filterContext?.selectedAnalysisId) {
         setIsDataLoading(true)
         const timer = setTimeout(() => {
           setIsDataLoading(false)
-        }, 800) // Simulate 800ms loading time
+        }, 300) // Reduced loading time for better UX
         
         return () => clearTimeout(timer)
       }
-    }, [filterContext])
+    }, [filterContext?.selectedAnalysisId]) // Only trigger when analysis changes
 
     React.useEffect(() => {
       setLoading(isDataLoading)
@@ -103,20 +104,55 @@ export function useSkeletonLoading(
     debounceDelay
   })
 
+  // Only trigger loading when analysis ID changes, not on filter changes
   React.useEffect(() => {
-    if (filterContext) {
+    if (filterContext?.selectedAnalysisId) {
       setIsDataLoading(true)
       const timer = setTimeout(() => {
         setIsDataLoading(false)
-      }, 800)
+      }, 300) // Reduced loading time for better UX
       
       return () => clearTimeout(timer)
     }
-  }, [filterContext])
+  }, [filterContext?.selectedAnalysisId]) // Only trigger when analysis changes
 
   React.useEffect(() => {
     setLoading(isDataLoading)
   }, [isDataLoading, setLoading])
+
+  return { showSkeleton, isVisible }
+}
+
+/**
+ * Hook for skeleton loading that only triggers when data is actually loading
+ */
+export function useSkeletonLoadingWithData<T>(
+  data: T | null | undefined,
+  filterContext?: {
+    selectedTopics: string[]
+    selectedPersonas: string[]
+    selectedPlatforms: string[]
+  },
+  options: WithSkeletonLoadingOptions = {}
+) {
+  const {
+    threshold = 300,
+    debounceDelay = 250
+  } = options
+
+  const { showSkeleton, isVisible, setLoading } = useSkeletonLoader({
+    threshold,
+    debounceDelay
+  })
+
+  // Only show skeleton when data is actually loading (null/undefined)
+  React.useEffect(() => {
+    if (data === null || data === undefined) {
+      setLoading(true)
+    } else {
+      setLoading(false)
+    }
+  }, [data, setLoading])
 
   return { showSkeleton, isVisible }
 }

@@ -9,7 +9,15 @@ const devAuth = require('../middleware/devAuth');
 // Get all topics for user
 router.get('/', devAuth, async (req, res) => {
   try {
-    const topics = await Topic.find({ userId: req.userId });
+    const { urlAnalysisId } = req.query;
+    
+    // Build query with optional urlAnalysisId filtering
+    const query = { userId: req.userId };
+    if (urlAnalysisId) {
+      query.urlAnalysisId = urlAnalysisId;
+    }
+    
+    const topics = await Topic.find(query);
     
     res.json({
       success: true,

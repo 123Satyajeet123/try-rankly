@@ -9,7 +9,15 @@ const devAuth = require('../middleware/devAuth');
 // Get all personas for user
 router.get('/', devAuth, async (req, res) => {
   try {
-    const personas = await Persona.find({ userId: req.userId });
+    const { urlAnalysisId } = req.query;
+    
+    // Build query with optional urlAnalysisId filtering
+    const query = { userId: req.userId };
+    if (urlAnalysisId) {
+      query.urlAnalysisId = urlAnalysisId;
+    }
+    
+    const personas = await Persona.find(query);
     
     res.json({
       success: true,

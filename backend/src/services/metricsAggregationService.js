@@ -123,7 +123,7 @@ class MetricsAggregationService {
 
     // Upsert (replace existing or create new)
     await AggregatedMetrics.findOneAndUpdate(
-      { userId, scope: 'overall', scopeValue: 'all' },
+      { userId, scope: 'overall', scopeValue: 'all', urlAnalysisId: filters.urlAnalysisId || null },
       metricsDoc,
       { upsert: true, new: true }
     );
@@ -163,7 +163,7 @@ class MetricsAggregationService {
       };
 
       await AggregatedMetrics.findOneAndUpdate(
-        { userId, scope: 'platform', scopeValue: platform },
+        { userId, scope: 'platform', scopeValue: platform, urlAnalysisId: filters.urlAnalysisId || null },
         metricsDoc,
         { upsert: true, new: true }
       );
@@ -209,7 +209,7 @@ class MetricsAggregationService {
       };
 
       await AggregatedMetrics.findOneAndUpdate(
-        { userId, scope: 'topic', scopeValue: topicName },
+        { userId, scope: 'topic', scopeValue: topicName, urlAnalysisId: filters.urlAnalysisId || null },
         metricsDoc,
         { upsert: true, new: true }
       );
@@ -255,7 +255,7 @@ class MetricsAggregationService {
       };
 
       await AggregatedMetrics.findOneAndUpdate(
-        { userId, scope: 'persona', scopeValue: personaType },
+        { userId, scope: 'persona', scopeValue: personaType, urlAnalysisId: filters.urlAnalysisId || null },
         metricsDoc,
         { upsert: true, new: true }
       );
@@ -315,7 +315,7 @@ class MetricsAggregationService {
 
     // ✅ Step 5: Calculate metrics for ALL brands (including those with 0 mentions)
     for (const brandName of allBrandNames) {
-      const metrics = this.calculateSingleBrandMetrics(brandName, tests);
+      const metrics = this.calculateSingleBrandMetrics(brandName, tests, userBrandName);
       brandMetrics.push(metrics);
     }
 
@@ -328,7 +328,7 @@ class MetricsAggregationService {
   /**
    * Calculate all metrics for a single brand across tests
    */
-  calculateSingleBrandMetrics(brandName, tests) {
+  calculateSingleBrandMetrics(brandName, tests, userBrandName) {
     const brandData = {
       brandId: brandName.toLowerCase().replace(/\s+/g, '-'),
       brandName,
@@ -412,8 +412,22 @@ class MetricsAggregationService {
         if (brandMetric.sentimentScore !== undefined && brandMetric.sentimentScore !== null) {
           brandData.sentimentScores.push(brandMetric.sentimentScore);
         }
-        if (brandMetric.sentiment) {
-          brandData.sentimentCounts[brandMetric.sentiment]++;
+        
+        // ✅ FIXED: Sentiment calculation logic
+        let sentiment;
+        if (brandName === userBrandName) {
+          // For main brand (Amazon India), use the overall test sentiment
+          sentiment = test.scorecard?.sentiment;
+        } else {
+          // For competitors, use overall test sentiment when they are mentioned
+          const competitorsMentioned = test.scorecard?.competitorsMentioned || [];
+          if (competitorsMentioned.includes(brandName)) {
+            sentiment = test.scorecard?.sentiment;
+          }
+        }
+        
+        if (sentiment) {
+          brandData.sentimentCounts[sentiment]++;
         }
       }
     });

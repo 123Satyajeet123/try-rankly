@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useState, ReactNode } from 'react'
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react'
 
 interface FilterContextType {
   selectedTopics: string[]
@@ -20,6 +20,11 @@ export function FilterProvider({ children }: { children: ReactNode }) {
   const [selectedPersonas, setSelectedPersonas] = useState<string[]>(['All Personas'])
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['All Platforms'])
   const [selectedAnalysisId, setSelectedAnalysisId] = useState<string | null>(null)
+
+  // Debug logging for selectedAnalysisId changes
+  useEffect(() => {
+    console.log('🔍 [FilterContext] selectedAnalysisId changed to:', selectedAnalysisId)
+  }, [selectedAnalysisId])
 
   return (
     <FilterContext.Provider value={{

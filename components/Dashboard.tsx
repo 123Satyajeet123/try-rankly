@@ -32,7 +32,7 @@ export function Dashboard({ initialTab }: DashboardProps) {
   const [isPromptBuilderFullScreen, setIsPromptBuilderFullScreen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const { selectedTopics, selectedPersonas, selectedPlatforms, selectedAnalysisId, setSelectedAnalysisId } = useFilters()
+  const { selectedTopics, selectedPersonas, selectedPlatforms, selectedAnalysisId, setSelectedAnalysisId, setSelectedTopics, setSelectedPersonas, setSelectedPlatforms } = useFilters()
   
   // Redirect to signin if not authenticated
   useEffect(() => {
@@ -49,7 +49,10 @@ export function Dashboard({ initialTab }: DashboardProps) {
     debounceDelay: 250
   })
 
-  // Load dashboard data on component mount and when filters change
+  // Track previous analysis ID to detect changes
+  const [previousAnalysisId, setPreviousAnalysisId] = useState<string | null>(null)
+
+  // Load dashboard data only when analysis changes
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
@@ -59,8 +62,13 @@ export function Dashboard({ initialTab }: DashboardProps) {
         
         console.log('🔄 [Dashboard] Loading dashboard data...')
         
-        // Clear cache to ensure fresh data for correct user
-        dashboardService.clearCache()
+        // Clear cache only when analysis actually changes
+        if (selectedAnalysisId !== previousAnalysisId) {
+          console.log('🔄 [Dashboard] Analysis changed, clearing cache for new analysis')
+          dashboardService.clearCacheForAnalysis(selectedAnalysisId || 'default')
+          dashboardService.clearPromptsCacheForAnalysis(selectedAnalysisId || 'default')
+          setPreviousAnalysisId(selectedAnalysisId)
+        }
         
         const filters = {
           platforms: selectedPlatforms,
@@ -89,7 +97,7 @@ export function Dashboard({ initialTab }: DashboardProps) {
     }
 
     loadDashboardData()
-  }, [selectedTopics, selectedPersonas, selectedPlatforms, selectedAnalysisId, setGlobalLoading])
+  }, [selectedAnalysisId, setGlobalLoading, previousAnalysisId]) // Only reload when analysis changes
 
   // Remove redundant global loading effect since we now handle it directly in loadDashboardData
 
@@ -137,7 +145,7 @@ export function Dashboard({ initialTab }: DashboardProps) {
             <div className="p-6">
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground mx-auto mb-4"></div>
-                <div className="text-gray-600">Checking authentication...</div>
+                <div className="text-muted-foreground">Checking authentication...</div>
               </div>
             </div>
           </div>
@@ -161,13 +169,13 @@ export function Dashboard({ initialTab }: DashboardProps) {
             <TopNavSkeleton />
             <div className="p-6">
               <div className="space-y-6">
-                <div className="h-8 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-8 bg-muted rounded animate-pulse"></div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {[...Array(4)].map((_, i) => (
-                    <div key={i} className="h-32 bg-gray-200 rounded animate-pulse"></div>
+                    <div key={`skeleton-${i}`} className="h-32 bg-muted rounded animate-pulse"></div>
                   ))}
                 </div>
-                <div className="h-64 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-64 bg-muted rounded animate-pulse"></div>
               </div>
             </div>
           </div>
@@ -189,10 +197,10 @@ export function Dashboard({ initialTab }: DashboardProps) {
                 <div className="text-red-500 text-lg font-semibold mb-2">
                   Failed to load dashboard data
                 </div>
-                <div className="text-gray-600 mb-4">{error}</div>
+                <div className="text-muted-foreground mb-4">{error}</div>
                 <button 
                   onClick={() => window.location.reload()} 
-                  className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
                 >
                   Retry
                 </button>
@@ -209,21 +217,21 @@ export function Dashboard({ initialTab }: DashboardProps) {
     return (
       <div className="min-h-screen bg-background">
         <div className="flex">
-          <Sidebar activeTab={activeTab} onTabChange={setActiveTab} />
+          <Sidebar />
           <div className="flex-1">
             <TopNav activeTab={activeTab} onTabChange={setActiveTab} />
             <div className="p-6">
               <div className="text-center py-12">
                 <div className="max-w-md mx-auto">
-                  <div className="text-gray-500 text-lg font-semibold mb-2">
+                  <div className="text-muted-foreground text-lg font-semibold mb-2">
                     {error || 'No dashboard data available'}
                   </div>
-                  <div className="text-gray-400 mb-4">
+                  <div className="text-muted-foreground/70 mb-4">
                     Please complete the onboarding process to see your analytics
                   </div>
                   <a 
                     href="/onboarding" 
-                    className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90"
                   >
                     Start Onboarding
                   </a>
@@ -240,7 +248,8 @@ export function Dashboard({ initialTab }: DashboardProps) {
     const filterContext = {
       selectedTopics,
       selectedPersonas,
-      selectedPlatforms
+      selectedPlatforms,
+      selectedAnalysisId
     }
 
     switch (activeTab) {
@@ -288,7 +297,7 @@ export function Dashboard({ initialTab }: DashboardProps) {
         )}
 
         {/* Content Area */}
-        <main className={`flex-1 overflow-auto ${isPromptBuilderFullScreen ? 'bg-background' : 'bg-gray-50 dark:bg-neutral-950'}`}>
+        <main className={`flex-1 overflow-auto ${isPromptBuilderFullScreen ? 'bg-background' : 'bg-muted/30'}`}>
           <div className={isPromptBuilderFullScreen ? '' : 'px-2 py-4'}>
             {renderTabContent()}
           </div>

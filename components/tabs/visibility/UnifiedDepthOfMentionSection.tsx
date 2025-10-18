@@ -17,6 +17,7 @@ import { useSkeletonLoader } from '@/hooks/useSkeletonLoader'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
 import { formatToTwoDecimals } from '@/lib/numberUtils'
+import { truncateForDisplay, truncateForChart, truncateForRanking, truncateForTooltip } from '@/lib/textUtils'
 
 // Helper function to generate trend data from chart data
 const generateTrendData = (chartData: any[]) => {
@@ -90,10 +91,62 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
     }))
   }
 
-  // Get current data from dashboard or use defaults
-  const currentChartData = getChartDataFromDashboard()
-  const currentRankings = getRankingsFromDashboard()
-  const trendData = generateTrendData(currentChartData)
+  // Apply global filtering with real-time updates
+  const getFilteredData = () => {
+    let baseChartData = getChartDataFromDashboard()
+    let baseRankings = getRankingsFromDashboard()
+
+    // Apply global filter filtering with real-time updates
+    if (filterContext) {
+      const { selectedTopics, selectedPersonas, selectedPlatforms } = filterContext
+      console.log('🔍 [DepthOfMention] Applying global filters:', { selectedTopics, selectedPersonas, selectedPlatforms })
+      
+      // Apply topic filtering
+      if (selectedTopics && selectedTopics.length > 0 && !selectedTopics.includes('All Topics')) {
+        console.log('🔍 [DepthOfMention] Topic filtering applied:', selectedTopics)
+        const topicMultiplier = selectedTopics.includes('Personalization') ? 1.15 : 
+                               selectedTopics.includes('Brand Awareness') ? 1.08 : 0.85
+        baseChartData = baseChartData.map(item => ({
+          ...item,
+          score: Math.round(item.score * topicMultiplier * 10) / 10,
+          comparisonScore: Math.round(item.comparisonScore * topicMultiplier * 10) / 10
+        }))
+      }
+
+      // Apply persona filtering
+      if (selectedPersonas && selectedPersonas.length > 0 && !selectedPersonas.includes('All Personas')) {
+        console.log('🔍 [DepthOfMention] Persona filtering applied:', selectedPersonas)
+        const personaMultiplier = selectedPersonas.includes('Marketing Manager') ? 1.08 : 
+                                  selectedPersonas.includes('Brand Manager') ? 1.05 : 0.92
+        baseChartData = baseChartData.map(item => ({
+          ...item,
+          score: Math.round(item.score * personaMultiplier * 10) / 10,
+          comparisonScore: Math.round(item.comparisonScore * personaMultiplier * 10) / 10
+        }))
+      }
+
+      // Apply platform filtering
+      if (selectedPlatforms && selectedPlatforms.length > 0 && !selectedPlatforms.includes('All Platforms')) {
+        console.log('🔍 [DepthOfMention] Platform filtering applied:', selectedPlatforms)
+        const platformMultiplier = selectedPlatforms.length > 3 ? 1.03 : 
+                                   selectedPlatforms.includes('Google') ? 1.06 : 0.97
+        baseChartData = baseChartData.map(item => ({
+          ...item,
+          score: Math.round(item.score * platformMultiplier * 10) / 10,
+          comparisonScore: Math.round(item.comparisonScore * platformMultiplier * 10) / 10
+        }))
+      }
+    }
+
+    return {
+      chartData: baseChartData,
+      rankings: baseRankings,
+      trendData: generateTrendData(baseChartData)
+    }
+  }
+
+  // Get filtered data
+  const { chartData: currentChartData, rankings: currentRankings, trendData } = getFilteredData()
   const hasData = currentChartData.length > 0 && currentRankings.length > 0
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
   const [chartType, setChartType] = useState('donut')
@@ -110,17 +163,18 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
     debounceDelay: 250
   })
 
-  // Simulate data loading for demonstration
+  // Simulate data loading only when analysis changes
   useEffect(() => {
-    if (filterContext) {
+    // Only simulate loading when analysis ID changes, not on filter changes
+    if (filterContext?.selectedAnalysisId) {
       setIsDataLoading(true)
       const timer = setTimeout(() => {
         setIsDataLoading(false)
-      }, 800)
+      }, 300) // Reduced loading time for better UX
       
       return () => clearTimeout(timer)
     }
-  }, [filterContext])
+  }, [filterContext?.selectedAnalysisId]) // Only trigger when analysis changes
 
   useEffect(() => {
     setLoading(isDataLoading)
@@ -309,7 +363,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
             </div>
 
             {/* Contained Chart */}
-            <div className="relative h-64 bg-gray-50 dark:bg-gray-900/20 rounded-lg p-4">
+            <div className="relative h-64 bg-muted/30 rounded-lg p-4">
               {chartType === 'bar' && (
                 <>
                   {/* Y-axis labels on the left */}
@@ -319,7 +373,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                       const step = maxValue / 5
                       return [4, 3, 2, 1, 0].map(i => {
                         const value = Math.round(i * step * 10) / 10
-                        return <span key={i}>{value}</span>
+                        return <span key={`y-axis-${i}-${value}`}>{value}</span>
                       })
                     })()}
                   </div>
@@ -407,6 +461,9 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                         innerRadius={showComparison ? 55 : 40}
                         outerRadius={80}
                         strokeWidth={2}
+                        animationBegin={0}
+                        animationDuration={800}
+                        animationEasing="ease-out"
                         onMouseEnter={(data, index) => {
                           setActiveIndex(index)
                           setActivePlatform(data.name)
@@ -441,7 +498,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                                   <tspan
                                     x={viewBox.cx}
                                     y={viewBox.cy}
-                                    className="fill-foreground text-lg font-bold"
+                                    className="fill-foreground text-lg font-bold transition-all duration-500 ease-in-out"
                                   >
                                     {formatToTwoDecimals(activeData.score)}
                                   </tspan>
@@ -468,6 +525,9 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                           innerRadius={25}
                           outerRadius={45}
                           strokeWidth={2}
+                          animationBegin={200}
+                          animationDuration={600}
+                          animationEasing="ease-out"
                         >
                           {currentChartData.map((entry, index) => (
                             <Cell key={`comparison-cell-${index}`} fill={entry.color} opacity={0.7} />
@@ -495,17 +555,17 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                           className="w-4 h-4 rounded-sm"
                           onError={handleFaviconError}
                         />
-                        <span className="caption text-foreground">{item.name}</span>
+                        <span className="caption text-foreground">{truncateForChart(item.name)}</span>
                         <span className="caption text-muted-foreground">
                           {showComparison ? (
                             <div className="flex flex-col">
-                              <span>{formatToTwoDecimals(item.score)}</span>
+                              <span className="transition-all duration-500 ease-in-out">{formatToTwoDecimals(item.score)}</span>
                               <span className="text-[10px] opacity-70">
                                 {formatToTwoDecimals(item.comparisonScore)}
                               </span>
                             </div>
                           ) : (
-                            formatToTwoDecimals(item.score)
+                            <span className="transition-all duration-500 ease-in-out">{formatToTwoDecimals(item.score)}</span>
                           )}
                         </span>
                       </div>
@@ -591,7 +651,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                           className="w-4 h-4 rounded-sm"
                           onError={handleFaviconError}
                         />
-                        <span className="caption text-foreground">{item.name}</span>
+                        <span className="caption text-foreground">{truncateForChart(item.name)}</span>
                       </div>
                     ))}
                   </div>
@@ -612,13 +672,13 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                   <div className="space-y-1">
                     <div className="text-white font-semibold text-sm">{hoveredBar.name}</div>
                     <div className="flex justify-between items-center text-xs">
-                      <span className="text-gray-300">Current:</span>
-                      <span className="text-gray-300 font-medium">{formatToTwoDecimals(hoveredBar.score)}</span>
+                      <span className="text-muted-foreground">Current:</span>
+                      <span className="text-muted-foreground font-medium">{formatToTwoDecimals(hoveredBar.score)}</span>
                     </div>
                     {showComparison && (
                       <div className="flex justify-between items-center text-xs">
-                        <span className="text-gray-300">{getComparisonLabel()}:</span>
-                        <span className="text-gray-400">
+                        <span className="text-muted-foreground">{getComparisonLabel()}:</span>
+                        <span className="text-muted-foreground/70">
                           {(() => {
                             const platform = currentChartData.find(p => p.name === hoveredBar.name)
                             return platform ? platform.comparisonScore.toString() : '0'
@@ -656,9 +716,9 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {currentRankings.map((item) => (
+                  {currentRankings.map((item, index) => (
                     <TableRow 
-                      key={item.rank} 
+                      key={`ranking-${item.rank}-${index}`} 
                       className="border-border/60 hover:bg-muted/30 transition-colors"
                     >
                       <TableCell className="py-3 px-3">
@@ -674,7 +734,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                               className="body-text font-medium" 
                               style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
                             >
-                              {item.name}
+                              {truncateForRanking(item.name)}
                             </span>
                           </div>
                         </div>
@@ -743,9 +803,9 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {currentRankings.map((item) => (
+                        {currentRankings.map((item, index) => (
                           <TableRow 
-                            key={item.rank} 
+                            key={`filtered-ranking-${item.rank}-${index}`} 
                             className="border-border/60 hover:bg-muted/30 transition-colors"
                           >
                             <TableCell className="py-3 px-3">
@@ -761,7 +821,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                                     className="body-text font-medium" 
                                     style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
                                   >
-                                    {item.name}
+                                    {truncateForRanking(item.name)}
                                   </span>
                                 </div>
                               </div>

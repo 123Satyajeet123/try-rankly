@@ -14,20 +14,21 @@ import { Settings, ChevronDown, ArrowUp, ArrowDown, Expand, Calendar as Calendar
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Label, LineChart, Line, Tooltip as RechartsTooltip } from 'recharts'
 import { format } from 'date-fns'
 import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
-import { useSkeletonLoading } from '@/components/ui/with-skeleton-loading'
+import { useSkeletonLoadingWithData } from '@/components/ui/with-skeleton-loading'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
+import { truncateForDisplay, truncateForChart, truncateForRanking, truncateForTooltip } from '@/lib/textUtils'
 
-// Default fallback data for Sentiment Analysis
+// Default fallback data for Sentiment Analysis (only used when no real data is available)
 const defaultSentimentData = [
   { 
-    name: 'Housr', 
-    positive: 20, 
+    name: 'No Data', 
+    positive: 0, 
     negative: 0, 
-    neutral: 80,
+    neutral: 100,
     total: 100,
-    color: '#3B82F6',
-    isOwner: true
+    color: '#6B7280',
+    isOwner: false
   }
 ]
 
@@ -40,9 +41,10 @@ interface UnifiedSentimentSectionProps {
   dashboardData?: any
 }
 
-// Transform dashboard data to sentiment format
-const getSentimentDataFromDashboard = (dashboardData: any) => {
+// Transform dashboard data to sentiment format with filtering
+const getSentimentDataFromDashboard = (dashboardData: any, filterContext?: any) => {
   console.log('🔍 [Sentiment] Dashboard data:', dashboardData?.metrics?.competitors)
+  console.log('🔍 [Sentiment] Filter context:', filterContext)
   console.log('🔍 [Sentiment] First competitor sentiment data:', dashboardData?.metrics?.competitors?.[0])
   
   if (!dashboardData?.metrics?.competitors) {
@@ -50,7 +52,19 @@ const getSentimentDataFromDashboard = (dashboardData: any) => {
     return defaultSentimentData
   }
 
-  const sentimentData = dashboardData.metrics.competitors.map((competitor: any, index: number) => {
+  let filteredCompetitors = dashboardData.metrics.competitors
+
+  // Apply global filter filtering with real-time updates
+  if (filterContext) {
+    const { selectedTopics, selectedPersonas, selectedPlatforms } = filterContext
+    console.log('🔍 [Sentiment] Applying global filters:', { selectedTopics, selectedPersonas, selectedPlatforms })
+    
+    // Note: For now, we show real data without artificial multipliers
+    // TODO: Implement proper backend filtering based on selected topics/personas/platforms
+    // This would require additional API endpoints that filter data at the database level
+  }
+
+  const sentimentData = filteredCompetitors.map((competitor: any, index: number) => {
     // Get sentiment breakdown from the competitor data
     const sentimentBreakdown = competitor.sentimentBreakdown || { positive: 0, neutral: 0, negative: 0, mixed: 0 }
     
@@ -117,7 +131,7 @@ interface UnifiedSentimentSectionProps {
 }
 
 export function UnifiedSentimentSection({ filterContext, dashboardData }: UnifiedSentimentSectionProps) {
-  const [chartType, setChartType] = useState<'bar' | 'donut' | 'line'>('donut')
+  const [chartType, setChartType] = useState<'bar' | 'donut' | 'line'>('bar')
   const [selectedRankingSentiment, setSelectedRankingSentiment] = useState<'positive' | 'negative' | 'neutral'>('positive')
   const [isExpanded, setIsExpanded] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
@@ -126,17 +140,17 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
   const [hoveredBar, setHoveredBar] = useState<number | null>(null)
 
   // Get current data from dashboard or use defaults
-  const currentSentimentData = getSentimentDataFromDashboard(dashboardData)
+  const currentSentimentData = getSentimentDataFromDashboard(dashboardData, filterContext)
 
-  // Skeleton loading
-  const { showSkeleton, isVisible } = useSkeletonLoading(filterContext)
+  // Skeleton loading - only show when data is actually loading
+  const { showSkeleton, isVisible } = useSkeletonLoadingWithData(currentSentimentData, filterContext)
 
   // Auto-switch chart type based on comparison date
   useEffect(() => {
     if (comparisonDate) {
       setChartType('line')
     } else {
-      setChartType('donut')
+      setChartType('bar')
     }
   }, [comparisonDate])
 
@@ -302,7 +316,7 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
               </div>
 
                 {/* Chart */}
-                <div className="relative h-48 bg-gray-50 dark:bg-gray-900/20 rounded-lg p-3">
+                <div className="relative h-48 bg-muted/30 rounded-lg p-3">
                   {chartType === 'line' ? (
                     <ResponsiveContainer width="100%" height="100%">
                       <LineChart data={getTrendDataFromDashboard(dashboardData)}>
@@ -348,16 +362,16 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                               <div className="space-y-1">
                                 <div className="text-white font-semibold text-sm">{brand.name}</div>
                                 <div className="flex justify-between items-center text-xs">
-                                  <span className="text-gray-300">Positive:</span>
-                                  <span className="text-gray-300 font-medium">{brand.positive.toFixed(1)}%</span>
+                                  <span className="text-muted-foreground">Positive:</span>
+                                  <span className="text-muted-foreground font-medium">{brand.positive.toFixed(1)}%</span>
                                 </div>
                                 <div className="flex justify-between items-center text-xs">
-                                  <span className="text-gray-300">Negative:</span>
-                                  <span className="text-gray-300 font-medium">{brand.negative.toFixed(1)}%</span>
+                                  <span className="text-muted-foreground">Negative:</span>
+                                  <span className="text-muted-foreground font-medium">{brand.negative.toFixed(1)}%</span>
                                 </div>
                                 <div className="flex justify-between items-center text-xs">
-                                  <span className="text-gray-300">Neutral:</span>
-                                  <span className="text-gray-300 font-medium">{brand.neutral.toFixed(1)}%</span>
+                                  <span className="text-muted-foreground">Neutral:</span>
+                                  <span className="text-muted-foreground font-medium">{brand.neutral.toFixed(1)}%</span>
                                 </div>
                               </div>
                               {/* Arrow pointing down */}
@@ -426,6 +440,9 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                           outerRadius={75}
                           paddingAngle={2}
                           dataKey="value"
+                          animationBegin={0}
+                          animationDuration={800}
+                          animationEasing="ease-out"
                           onMouseEnter={(data, index) => {
                             setActiveIndex(index)
                           }}
@@ -459,7 +476,7 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                                     <tspan
                                       x={viewBox.cx}
                                       y={viewBox.cy}
-                                      className="fill-foreground text-lg font-bold"
+                                      className="fill-foreground text-lg font-bold transition-all duration-500 ease-in-out"
                                     >
                                       {activeData.value}
                                     </tspan>
@@ -495,7 +512,7 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                             className="w-4 h-4 rounded-sm"
                             onError={handleFaviconError}
                           />
-                          <span className="text-sm text-foreground">{item.name}</span>
+                          <span className="text-sm text-foreground">{truncateForChart(item.name)}</span>
                         </div>
                       ))}
                     </div>
@@ -516,7 +533,7 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                             className="w-4 h-4 rounded-sm"
                             onError={handleFaviconError}
                           />
-                          <span className="text-sm text-foreground">{item.name}</span>
+                          <span className="text-sm text-foreground">{truncateForChart(item.name)}</span>
                         </div>
                       ))}
                     </div>
@@ -529,31 +546,25 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
             <div className="space-y-4 pl-8 relative">
                 {/* Top Row - Button Group aligned with Chart Config */}
                 <div className="flex justify-end items-center">
-                  <div className="inline-flex rounded-lg overflow-hidden border border-gray-300">
+                  <div className="inline-flex rounded-lg overflow-hidden border border-border">
                     {(['positive', 'negative', 'neutral'] as const).map((sentiment, index) => (
                       <Button
                         key={sentiment}
                         variant={selectedRankingSentiment === sentiment ? 'default' : 'outline'}
                         size="sm"
                         onClick={() => {
-                          if (chartType === 'donut') {
-                            // Sync with left section when in donut chart mode
-                            setSelectedSentiment(sentiment)
-                            setSelectedRankingSentiment(sentiment)
-                          } else {
-                            // Independent when in bar chart mode
-                            setSelectedRankingSentiment(sentiment)
-                          }
+                          // Independent selection for all chart types
+                          setSelectedRankingSentiment(sentiment)
                         }}
                         className={`
                           body-text rounded-none border-0 text-xs font-medium
                           ${index === 0 ? 'rounded-l-lg' : ''}
                           ${index === 2 ? 'rounded-r-lg' : ''}
                           cursor-pointer
-                          ${index > 0 ? 'border-l border-gray-300' : ''}
+                          ${index > 0 ? 'border-l border-border' : ''}
                           ${selectedRankingSentiment === sentiment 
                             ? 'bg-black text-white hover:bg-black' 
-                            : 'bg-white text-gray-600 hover:bg-gray-50'
+                            : 'bg-background text-muted-foreground hover:bg-muted'
                           }
                         `}
                       >
@@ -583,8 +594,8 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {getRankingsForSentiment(selectedRankingSentiment, currentSentimentData).map((item) => (
-                        <TableRow key={item.rank} className="border-border/60 hover:bg-muted/30 transition-colors">
+                      {getRankingsForSentiment(selectedRankingSentiment, currentSentimentData).map((item, index) => (
+                        <TableRow key={`sentiment-ranking-${item.rank}-${index}`} className="border-border/60 hover:bg-muted/30 transition-colors">
                           <TableCell className="py-3 px-3 w-auto">
                             <div className="flex items-center gap-3">
                               <div className="flex items-center gap-2">
@@ -598,7 +609,7 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                                   className="body-text font-medium"
                                   style={{ color: item.isOwner ? '#2563EB' : 'inherit' }}
                                 >
-                                  {item.name}
+                                  {truncateForRanking(item.name)}
                                 </span>
                               </div>
                             </div>
@@ -668,8 +679,8 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
               </TableRow>
             </TableHeader>
             <TableBody>
-              {getAllRankingsForSentiment(selectedRankingSentiment, currentSentimentData).map((item) => (
-                <TableRow key={item.rank}>
+              {getAllRankingsForSentiment(selectedRankingSentiment, currentSentimentData).map((item, index) => (
+                <TableRow key={`all-sentiment-ranking-${item.rank}-${index}`}>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <img
@@ -681,7 +692,7 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                       <span 
                         className={item.isOwner ? 'font-bold text-[#2563EB]' : 'text-foreground'}
                       >
-                        {item.name}
+                        {truncateForRanking(item.name)}
                       </span>
                     </div>
                   </TableCell>

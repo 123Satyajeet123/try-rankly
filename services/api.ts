@@ -205,18 +205,16 @@ class ApiService {
   }
 
   // Test prompts with multi-LLM
-  async testPrompts(urlAnalysisId?: string) {
+  async testPrompts() {
     return this.request('/prompts/test', {
       method: 'POST',
-      body: urlAnalysisId ? JSON.stringify({ urlAnalysisId }) : undefined,
     })
   }
 
   // Calculate metrics from test results
-  async calculateMetrics(urlAnalysisId?: string) {
+  async calculateMetrics() {
     return this.request('/metrics/calculate', {
       method: 'POST',
-      body: urlAnalysisId ? JSON.stringify({ urlAnalysisId }) : undefined,
     })
   }
 
@@ -379,8 +377,8 @@ class ApiService {
 
   // Competitors endpoints
   async getCompetitors(urlAnalysisId?: string) {
-    // Backend route doesn't use urlAnalysisId, it uses userId from token
-    return this.request(`/competitors`)
+    const params = urlAnalysisId ? `?urlAnalysisId=${urlAnalysisId}` : ''
+    return this.request(`/competitors${params}`)
   }
 
   async updateCompetitor(id: string, data: any) {
@@ -405,8 +403,8 @@ class ApiService {
 
   // Topics endpoints
   async getTopics(urlAnalysisId?: string) {
-    // Backend route doesn't use urlAnalysisId, it uses userId from token
-    return this.request(`/topics`)
+    const params = urlAnalysisId ? `?urlAnalysisId=${urlAnalysisId}` : ''
+    return this.request(`/topics${params}`)
   }
 
   async updateTopic(id: string, data: any) {
@@ -431,8 +429,8 @@ class ApiService {
 
   // Personas endpoints
   async getPersonas(urlAnalysisId?: string) {
-    // Backend route doesn't use urlAnalysisId, it uses userId from token
-    return this.request(`/personas`)
+    const params = urlAnalysisId ? `?urlAnalysisId=${urlAnalysisId}` : ''
+    return this.request(`/personas${params}`)
   }
 
   async updatePersona(id: string, data: any) {
@@ -471,13 +469,13 @@ class ApiService {
 
   // Analysis endpoints
   async getAnalyses() {
-    // Add cache-busting parameter to ensure fresh data
-    return this.request('/metrics/analyses?_t=' + Date.now())
+    return this.request('/metrics/analyses')
   }
 
   // Prompts Dashboard endpoint - Get topics/personas with their prompts and metrics
-  async getPromptsDashboard() {
-    return this.request('/prompts/dashboard')
+  async getPromptsDashboard(urlAnalysisId?: string) {
+    const params = urlAnalysisId ? `?urlAnalysisId=${urlAnalysisId}` : ''
+    return this.request(`/prompts/dashboard${params}`)
   }
 
   async getPromptDetails(promptId: string) {
@@ -518,6 +516,16 @@ class ApiService {
       method: 'POST',
       body: JSON.stringify({ promptIds, brandName }),
     })
+  }
+
+  // Sentiment Breakdown endpoints - uses new sentiment/breakdown endpoint
+  async getPromptSentimentBreakdown(urlAnalysisId?: string, sortBy?: string) {
+    const params = new URLSearchParams()
+    if (urlAnalysisId) params.append('urlAnalysisId', urlAnalysisId)
+    if (sortBy) params.append('sortBy', sortBy)
+    
+    // Use the new sentiment/breakdown endpoint
+    return this.request(`/sentiment/breakdown${params.toString() ? `?${params.toString()}` : ''}`)
   }
 }
 

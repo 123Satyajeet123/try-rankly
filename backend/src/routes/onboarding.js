@@ -367,20 +367,37 @@ router.post('/analyze-website', devAuth, async (req, res) => {
     // Save individual items to respective collections for user selection
     // Note: Cleanup was already handled above by the URL cleanup service
     
+    console.log('🔍 [DEBUG] Starting individual document creation...');
+    console.log('🔍 [DEBUG] Analysis results:', {
+      competitors: analysisResults.competitors?.length || 0,
+      topics: analysisResults.topics?.length || 0,
+      personas: analysisResults.personas?.length || 0
+    });
+    
     // Save competitors
+    console.log('🔍 [DEBUG] Checking competitors:', analysisResults.competitors?.length || 0);
     if (analysisResults.competitors && analysisResults.competitors.length > 0) {
-      const competitorPromises = analysisResults.competitors.map(comp => {
-        return new Competitor({
-          userId: req.userId,
-          name: comp.name,
-          url: comp.url,
-          reason: comp.reason,
-          similarity: comp.similarity,
-          source: 'ai',
-          selected: false
-        }).save();
-      });
-      await Promise.all(competitorPromises);
+      console.log('🔍 [DEBUG] Creating competitors with urlAnalysisId:', urlAnalysis._id);
+      try {
+        const competitorPromises = analysisResults.competitors.map(comp => {
+          return new Competitor({
+            userId: req.userId,
+            name: comp.name,
+            url: comp.url,
+            reason: comp.reason,
+            similarity: comp.similarity,
+            source: 'ai',
+            selected: false,
+            urlAnalysisId: urlAnalysis._id // ✅ FIX: Set urlAnalysisId
+          }).save();
+        });
+        await Promise.all(competitorPromises);
+        console.log('✅ [DEBUG] Competitors created successfully');
+      } catch (error) {
+        console.error('❌ [DEBUG] Error creating competitors:', error);
+      }
+    } else {
+      console.log('⚠️ [DEBUG] No competitors to create');
     }
     
     // Save topics
@@ -393,7 +410,8 @@ router.post('/analyze-website', devAuth, async (req, res) => {
           keywords: topic.keywords || [],
           priority: topic.priority,
           source: 'ai',
-          selected: false
+          selected: false,
+          urlAnalysisId: urlAnalysis._id // ✅ FIX: Set urlAnalysisId
         }).save();
       });
       await Promise.all(topicPromises);
@@ -410,7 +428,8 @@ router.post('/analyze-website', devAuth, async (req, res) => {
           goals: persona.goals || [],
           relevance: persona.relevance,
           source: 'ai',
-          selected: false
+          selected: false,
+          urlAnalysisId: urlAnalysis._id // ✅ FIX: Set urlAnalysisId
         }).save();
       });
       await Promise.all(personaPromises);
@@ -577,18 +596,24 @@ router.post('/cleanup-url', devAuth, async (req, res) => {
 // Update selections for competitors, topics, and personas
 router.post('/update-selections', devAuth, async (req, res) => {
   try {
-    const { competitors = [], topics = [], personas = [] } = req.body;
+    const { competitors = [], topics = [], personas = [], urlAnalysisId = null } = req.body;
     const userId = req.userId;
 
     console.log('📝 Updating selections for user:', userId);
     console.log('Competitor names/URLs:', competitors);
     console.log('Topic names:', topics);
     console.log('Persona types:', personas);
+    console.log('URL Analysis ID:', urlAnalysisId);
 
-    // Reset all selections to false first
-    await Competitor.updateMany({ userId }, { selected: false });
-    await Topic.updateMany({ userId }, { selected: false });
-    await Persona.updateMany({ userId }, { selected: false });
+    // ✅ FIX: Only reset selections for the current analysis, not globally
+    const resetQuery = { userId };
+    if (urlAnalysisId) {
+      resetQuery.urlAnalysisId = urlAnalysisId;
+    }
+    
+    await Competitor.updateMany(resetQuery, { selected: false });
+    await Topic.updateMany(resetQuery, { selected: false });
+    await Persona.updateMany(resetQuery, { selected: false });
 
     let competitorsUpdated = 0;
     let topicsUpdated = 0;
@@ -599,7 +624,7 @@ router.post('/update-selections', devAuth, async (req, res) => {
       // First try to find existing competitor
       let result = await Competitor.updateOne(
         { userId, url: compUrl },
-        { selected: true }
+        { selected: true, urlAnalysisId: urlAnalysisId } // ✅ FIX: Set urlAnalysisId
       );
       
       // If no existing competitor found, create a new one (for custom competitors)
@@ -612,7 +637,8 @@ router.post('/update-selections', devAuth, async (req, res) => {
           reason: 'User added manually',
           similarity: 0,
           source: 'user',
-          selected: true
+          selected: true,
+          urlAnalysisId: urlAnalysisId // ✅ FIX: Set urlAnalysisId
         });
         await newCompetitor.save();
         result = { modifiedCount: 1 };
@@ -626,7 +652,7 @@ router.post('/update-selections', devAuth, async (req, res) => {
       // First try to find existing topic
       let result = await Topic.updateOne(
         { userId, name: topicName },
-        { selected: true }
+        { selected: true, urlAnalysisId: urlAnalysisId }
       );
       
       // If no existing topic found, create a new one (for custom topics)
@@ -639,7 +665,8 @@ router.post('/update-selections', devAuth, async (req, res) => {
           keywords: [],
           priority: 1,
           source: 'user',
-          selected: true
+          selected: true,
+          urlAnalysisId: urlAnalysisId
         });
         await newTopic.save();
         result = { modifiedCount: 1 };
@@ -653,7 +680,7 @@ router.post('/update-selections', devAuth, async (req, res) => {
       // First try to find existing persona
       let result = await Persona.updateOne(
         { userId, type: personaType },
-        { selected: true }
+        { selected: true, urlAnalysisId: urlAnalysisId }
       );
       
       // If no existing persona found, create a new one (for custom personas)
@@ -667,7 +694,8 @@ router.post('/update-selections', devAuth, async (req, res) => {
           goals: [],
           relevance: 1,
           source: 'user',
-          selected: true
+          selected: true,
+          urlAnalysisId: urlAnalysisId
         });
         await newPersona.save();
         result = { modifiedCount: 1 };
@@ -712,12 +740,7 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
       });
     }
 
-    // Get selected data
-    const selectedCompetitors = await Competitor.find({ userId, selected: true });
-    const selectedTopics = await Topic.find({ userId, selected: true });
-    const selectedPersonas = await Persona.find({ userId, selected: true });
-
-    // Get latest analysis data
+    // Get latest analysis data first
     const latestAnalysis = await UrlAnalysis.findOne({ userId })
       .sort({ analysisDate: -1 });
 
@@ -727,6 +750,11 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
         message: 'No website analysis found. Please analyze a website first.'
       });
     }
+
+    // Get selected data for the latest analysis
+    const selectedCompetitors = await Competitor.find({ userId, selected: true, urlAnalysisId: latestAnalysis._id });
+    const selectedTopics = await Topic.find({ userId, selected: true, urlAnalysisId: latestAnalysis._id });
+    const selectedPersonas = await Persona.find({ userId, selected: true, urlAnalysisId: latestAnalysis._id });
 
     // Prepare data for prompt generation
     // Configurable via PROMPTS_PER_QUERY_TYPE env variable for stress testing

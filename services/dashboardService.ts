@@ -39,6 +39,15 @@ class DashboardService {
   }
 
   /**
+   * Clear cache for specific analysis
+   */
+  clearCacheForAnalysis(analysisId: string): void {
+    const cacheKey = `dashboard-${analysisId}`
+    console.log('🧹 [DashboardService] Clearing cache for analysis:', analysisId)
+    this.cache.delete(cacheKey)
+  }
+
+  /**
    * Get cached data or fetch fresh data
    */
   private async getCachedData<T>(
@@ -49,8 +58,11 @@ class DashboardService {
     const now = Date.now()
 
     if (cached && (now - cached.timestamp) < this.CACHE_DURATION) {
+      console.log('💾 [DashboardService] Using cached data for key:', cacheKey)
       return { data: cached.data, error: null, loading: false }
     }
+
+    console.log('🔄 [DashboardService] Fetching fresh data for key:', cacheKey)
 
     try {
       const data = await fetchFunction()
@@ -69,7 +81,11 @@ class DashboardService {
    * Get complete dashboard data with all metrics
    */
   async getDashboardData(filters: DashboardFilters = {}): Promise<DashboardServiceResponse<DashboardData>> {
-    const cacheKey = `dashboard-${JSON.stringify(filters)}`
+    // Create cache key based only on analysis ID, not filter selections
+    const analysisId = filters.selectedAnalysisId || filters.urlAnalysisId
+    const cacheKey = `dashboard-${analysisId || 'default'}`
+    console.log('🔑 [DashboardService] Cache key:', cacheKey)
+    console.log('🔑 [DashboardService] Analysis ID for cache key:', analysisId)
     
     return this.getCachedData(cacheKey, async () => {
       console.log('🔄 [DashboardService] Fetching dashboard data with filters:', filters)
@@ -87,6 +103,7 @@ class DashboardService {
         dateTo: filters.dateTo,
         urlAnalysisId: filters.selectedAnalysisId || filters.urlAnalysisId
       })
+      console.log('🔍 [DashboardService] Full filters object:', filters)
       
       const dashboardResponse = await apiService.getDashboardAll({
         dateFrom: filters.dateFrom,
@@ -121,9 +138,9 @@ class DashboardService {
           apiService.getAggregatedMetrics({ ...filters, scope: 'platform' }).catch(e => ({ success: false, data: [] })),
           apiService.getAggregatedMetrics({ ...filters, scope: 'topic' }).catch(e => ({ success: false, data: [] })),
           apiService.getAggregatedMetrics({ ...filters, scope: 'persona' }).catch(e => ({ success: false, data: [] })),
-          apiService.getCompetitors(filters.urlAnalysisId).catch(e => ({ success: false, data: [] })),
-          apiService.getTopics(filters.urlAnalysisId).catch(e => ({ success: false, data: [] })),
-          apiService.getPersonas(filters.urlAnalysisId).catch(e => ({ success: false, data: [] }))
+          apiService.getCompetitors(filters.selectedAnalysisId || filters.urlAnalysisId).catch(e => ({ success: false, data: [] })),
+          apiService.getTopics(filters.selectedAnalysisId || filters.urlAnalysisId).catch(e => ({ success: false, data: [] })),
+          apiService.getPersonas(filters.selectedAnalysisId || filters.urlAnalysisId).catch(e => ({ success: false, data: [] }))
         ])
       
         // Process fallback data (existing code continues below)
@@ -136,9 +153,9 @@ class DashboardService {
       
       // Fetch competitors, topics, personas separately (still needed for filtering)
       const [competitors, topics, personas] = await Promise.all([
-        apiService.getCompetitors(filters.urlAnalysisId).catch(e => ({ success: false, data: [] })),
-        apiService.getTopics(filters.urlAnalysisId).catch(e => ({ success: false, data: [] })),
-        apiService.getPersonas(filters.urlAnalysisId).catch(e => ({ success: false, data: [] }))
+        apiService.getCompetitors(filters.selectedAnalysisId || filters.urlAnalysisId).catch(e => ({ success: false, data: [] })),
+        apiService.getTopics(filters.selectedAnalysisId || filters.urlAnalysisId).catch(e => ({ success: false, data: [] })),
+        apiService.getPersonas(filters.selectedAnalysisId || filters.urlAnalysisId).catch(e => ({ success: false, data: [] }))
       ])
 
       // Extract data from response
@@ -561,6 +578,65 @@ class DashboardService {
     keysToDelete.forEach(key => this.cache.delete(key))
   }
 
+
+  /**
+   * Get prompts dashboard data with caching
+   */
+  async getPromptsDashboardData(filters: DashboardFilters = {}): Promise<DashboardServiceResponse<any>> {
+    const analysisId = filters.selectedAnalysisId || filters.urlAnalysisId
+    const cacheKey = `prompts-${analysisId || 'default'}`
+    
+    console.log('📊 [DashboardService] Getting prompts dashboard data for analysis:', analysisId)
+    
+    // Check cache first
+    const cached = this.cache.get(cacheKey)
+    if (cached && Date.now() - cached.timestamp < this.CACHE_DURATION) {
+      console.log('✅ [DashboardService] Using cached prompts data')
+      return {
+        data: cached.data,
+        error: null,
+        loading: false
+      }
+    }
+
+    try {
+      console.log('🔄 [DashboardService] Fetching fresh prompts data from API')
+      const response = await apiService.getPromptsDashboard(analysisId || undefined)
+      
+      if (response.success && response.data) {
+        // Cache the data
+        this.cache.set(cacheKey, {
+          data: response.data,
+          timestamp: Date.now()
+        })
+        
+        console.log('✅ [DashboardService] Prompts data cached successfully')
+        return {
+          data: response.data,
+          error: null,
+          loading: false
+        }
+      } else {
+        throw new Error('Failed to fetch prompts dashboard data')
+      }
+    } catch (error) {
+      console.error('❌ [DashboardService] Error fetching prompts data:', error)
+      return {
+        data: null,
+        error: error instanceof Error ? error.message : 'Failed to fetch prompts data',
+        loading: false
+      }
+    }
+  }
+
+  /**
+   * Clear cache for prompts data
+   */
+  clearPromptsCacheForAnalysis(analysisId: string): void {
+    const cacheKey = `prompts-${analysisId}`
+    console.log('🧹 [DashboardService] Clearing prompts cache for analysis:', analysisId)
+    this.cache.delete(cacheKey)
+  }
 
   /**
    * Get cache stats

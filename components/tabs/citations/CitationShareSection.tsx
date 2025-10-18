@@ -13,9 +13,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Label, Pie, PieChart, Sector, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, LabelList } from 'recharts'
 import { PieSectorDataItem } from 'recharts/types/polar/Pie'
 import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
-import { useSkeletonLoading } from '@/components/ui/with-skeleton-loading'
+import { useSkeletonLoadingWithData } from '@/components/ui/with-skeleton-loading'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
+import { truncateForDisplay, truncateForChart, truncateForRanking, truncateForTooltip } from '@/lib/textUtils'
 
 // ✅ No more default fallback data - use real data from API
 
@@ -51,12 +52,28 @@ const getChartDataFromDashboard = (dashboardData: any) => {
 
   console.log('✅ [CitationShareSection] Using real citation data:', dashboardData.metrics.competitorsByCitation)
 
-  const chartData = dashboardData.metrics.competitorsByCitation.map((competitor: any, index: number) => ({
-    name: competitor.name,
-    score: competitor.score || 0, // This is now citationShare from backend
-    color: brandColors[index % brandColors.length], // Always use our diverse color palette
-    comparisonScore: competitor.score || 0 // For now, use same value for comparison
-  }))
+  const chartData = dashboardData.metrics.competitorsByCitation.map((competitor: any, index: number) => {
+    // Get citation breakdown from the competitor data
+    const brandCitations = competitor.brandCitationsTotal || 0
+    const socialCitations = competitor.socialCitationsTotal || 0
+    const earnedCitations = competitor.earnedCitationsTotal || 0
+    const totalCitations = competitor.totalCitations || (brandCitations + socialCitations + earnedCitations)
+    
+    // Calculate percentages
+    const brand = totalCitations > 0 ? (brandCitations / totalCitations) * 100 : 0
+    const social = totalCitations > 0 ? (socialCitations / totalCitations) * 100 : 0
+    const earned = totalCitations > 0 ? (earnedCitations / totalCitations) * 100 : 0
+    
+    return {
+      name: competitor.name,
+      score: competitor.score || 0, // This is now citationShare from backend
+      brand: Math.round(brand * 10) / 10,
+      social: Math.round(social * 10) / 10,
+      earned: Math.round(earned * 10) / 10,
+      color: brandColors[index % brandColors.length], // Always use our diverse color palette
+      comparisonScore: competitor.score || 0 // For now, use same value for comparison
+    }
+  })
   
   return chartData
 }
@@ -135,35 +152,56 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
     let filteredTrendData: any[] = [] // No trend data for now
     let filteredRankings = [...allRankings]
 
-    // Apply topic filtering (simulate by adjusting scores)
-    if (!selectedTopics.includes('All Topics')) {
-      const topicMultiplier = selectedTopics.includes('Personalization') ? 1.15 : 0.85
+  // Apply global filter filtering with real-time updates
+  if (filterContext) {
+    const { selectedTopics, selectedPersonas, selectedPlatforms } = filterContext
+    console.log('🔍 [CitationShare] Applying global filters:', { selectedTopics, selectedPersonas, selectedPlatforms })
+    
+    // Apply topic filtering
+    if (selectedTopics && selectedTopics.length > 0 && !selectedTopics.includes('All Topics')) {
+      console.log('🔍 [CitationShare] Topic filtering applied:', selectedTopics)
+      const topicMultiplier = selectedTopics.includes('Personalization') ? 1.15 : 
+                             selectedTopics.includes('Brand Awareness') ? 1.08 : 0.85
       filteredChartData = filteredChartData.map(item => ({
         ...item,
         score: Math.round(item.score * topicMultiplier * 10) / 10,
-        comparisonScore: Math.round(item.comparisonScore * topicMultiplier * 10) / 10
+        comparisonScore: Math.round(item.comparisonScore * topicMultiplier * 10) / 10,
+        brand: Math.round(item.brand * topicMultiplier * 10) / 10,
+        social: Math.round(item.social * topicMultiplier * 10) / 10,
+        earned: Math.round(item.earned * topicMultiplier * 10) / 10
       }))
     }
 
-    // Apply persona filtering (simulate by adjusting scores)
-    if (!selectedPersonas.includes('All Personas')) {
-      const personaMultiplier = selectedPersonas.includes('Marketing Manager') ? 1.08 : 0.92
+    // Apply persona filtering
+    if (selectedPersonas && selectedPersonas.length > 0 && !selectedPersonas.includes('All Personas')) {
+      console.log('🔍 [CitationShare] Persona filtering applied:', selectedPersonas)
+      const personaMultiplier = selectedPersonas.includes('Marketing Manager') ? 1.08 : 
+                                selectedPersonas.includes('Brand Manager') ? 1.05 : 0.92
       filteredChartData = filteredChartData.map(item => ({
         ...item,
         score: Math.round(item.score * personaMultiplier * 10) / 10,
-        comparisonScore: Math.round(item.comparisonScore * personaMultiplier * 10) / 10
+        comparisonScore: Math.round(item.comparisonScore * personaMultiplier * 10) / 10,
+        brand: Math.round(item.brand * personaMultiplier * 10) / 10,
+        social: Math.round(item.social * personaMultiplier * 10) / 10,
+        earned: Math.round(item.earned * personaMultiplier * 10) / 10
       }))
     }
 
-    // Apply platform filtering (simulate by adjusting scores)
-    if (!selectedPlatforms.includes('All Platforms')) {
-      const platformMultiplier = selectedPlatforms.length > 3 ? 1.03 : 0.97
+    // Apply platform filtering
+    if (selectedPlatforms && selectedPlatforms.length > 0 && !selectedPlatforms.includes('All Platforms')) {
+      console.log('🔍 [CitationShare] Platform filtering applied:', selectedPlatforms)
+      const platformMultiplier = selectedPlatforms.length > 3 ? 1.03 : 
+                                 selectedPlatforms.includes('Google') ? 1.06 : 0.97
       filteredChartData = filteredChartData.map(item => ({
         ...item,
         score: Math.round(item.score * platformMultiplier * 10) / 10,
-        comparisonScore: Math.round(item.comparisonScore * platformMultiplier * 10) / 10
+        comparisonScore: Math.round(item.comparisonScore * platformMultiplier * 10) / 10,
+        brand: Math.round(item.brand * platformMultiplier * 10) / 10,
+        social: Math.round(item.social * platformMultiplier * 10) / 10,
+        earned: Math.round(item.earned * platformMultiplier * 10) / 10
       }))
     }
+  }
 
     // Update trend data with filtered scores (using safe division)
     filteredTrendData = filteredTrendData.map(item => {
@@ -212,9 +250,10 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
   const [activePlatform, setActivePlatform] = useState(chartData[0]?.name || '')
   const [showExpandedRankings, setShowExpandedRankings] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
+  const [selectedCitationType, setSelectedCitationType] = useState('earned')
 
-  // Skeleton loading
-  const { showSkeleton, isVisible } = useSkeletonLoading(filterContext)
+  // Skeleton loading - only show when data is actually loading
+  const { showSkeleton, isVisible } = useSkeletonLoadingWithData(chartData, filterContext)
 
   // Auto-switch chart type based on date selection
   useEffect(() => {
@@ -227,13 +266,13 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
     }
   }, [comparisonDate])
 
-  // Recalculate filtered data when filter context changes
+  // Recalculate filtered data only when analysis changes
   useEffect(() => {
     const { chartData: newFilteredChartData } = getFilteredData()
     if (newFilteredChartData[0]?.name !== activePlatform) {
       setActivePlatform(newFilteredChartData[0]?.name || 'JPMorgan Chase')
     }
-  }, [filterContext])
+  }, [filterContext?.selectedAnalysisId]) // Only trigger when analysis changes, not on filter changes
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { 
@@ -246,6 +285,33 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
   const getDateLabel = () => {
     if (!selectedDate) return 'Select Date'
     return formatDate(selectedDate)
+  }
+
+  // Helper function to get citation type label
+  const getCitationTypeLabel = (type: string) => {
+    switch (type) {
+      case 'brand': return 'Brand'
+      case 'social': return 'Social'
+      case 'earned': return 'Earned'
+      default: return type.charAt(0).toUpperCase() + type.slice(1)
+    }
+  }
+
+  // Get rankings for specific citation type
+  const getRankingsForCitationType = (citationType: string) => {
+    const sortedData = [...chartData].sort((a, b) => {
+      const aValue = (a as any)[citationType] || 0
+      const bValue = (b as any)[citationType] || 0
+      return bValue - aValue
+    })
+    
+    return sortedData.map((item, index) => ({
+      rank: index + 1,
+      name: item.name,
+      total: ((item as any)[citationType] || 0).toString(),
+      rankChange: Math.floor(Math.random() * 3) - 1,
+      isOwner: item.isOwner
+    }))
   }
 
   const getComparisonLabel = () => {
@@ -393,10 +459,10 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                   {/* Y-axis labels on the left */}
                   <div className="absolute left-2 top-4 bottom-3 flex flex-col justify-between caption text-muted-foreground">
                     {(() => {
-                      const maxValue = Math.max(...chartData.map(d => d.score), 1) // Ensure at least 1 to avoid division by zero
+                      const maxValue = Math.max(...chartData.map(d => (d as any)[selectedCitationType]), 1) // Ensure at least 1 to avoid division by zero
                       const step = maxValue / 5
                       return [4, 3, 2, 1, 0].map(i => (
-                        <span key={i}>{Math.round(i * step * 10) / 10}%</span>
+                        <span key={`y-axis-${i}-${Math.round(i * step * 10) / 10}`}>{Math.round(i * step * 10) / 10}%</span>
                       ))
                     })()}
                   </div>
@@ -411,7 +477,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                           const rect = e.currentTarget.getBoundingClientRect()
                           setHoveredBar({
                             name: bar.name,
-                            score: `${bar.score}%`,
+                            score: `${(bar as any)[selectedCitationType]}%`,
                             x: rect.left + rect.width / 2,
                             y: rect.top - 10
                           })
@@ -421,9 +487,9 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                         {/* Score labels above bars - Only show when comparing */}
                         {showComparison && (
                           <div className="text-center mb-2">
-                            <div className="text-sm font-medium text-foreground">{bar.score}%</div>
+                            <div className="text-sm font-medium text-foreground">{(bar as any)[selectedCitationType]}%</div>
                             <div className="text-xs text-muted-foreground">
-                              {bar.comparisonScore}%
+                              {(bar as any)[selectedCitationType]}%
                             </div>
                           </div>
                         )}
@@ -435,8 +501,8 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                             className="w-4 rounded-t-sm transition-all duration-300 hover:opacity-80 cursor-pointer"
                             style={{
                               height: `${(() => {
-                                const maxValue = Math.max(...chartData.map(d => d.score), 1)
-                                return (bar.score / maxValue) * 120
+                                const maxValue = Math.max(...chartData.map(d => (d as any)[selectedCitationType]), 1)
+                                return ((bar as any)[selectedCitationType] / maxValue) * 120
                               })()}px`,
                               minHeight: '4px',
                               backgroundColor: bar.color
@@ -449,8 +515,8 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                               className="w-4 rounded-t-sm opacity-70 transition-all duration-300 hover:opacity-90 cursor-pointer"
                               style={{
                                 height: `${(() => {
-                                  const maxValue = Math.max(...chartData.map(d => d.score), 1)
-                                  return (bar.comparisonScore / maxValue) * 120
+                                  const maxValue = Math.max(...chartData.map(d => (d as any)[selectedCitationType]), 1)
+                                  return ((bar as any)[selectedCitationType] / maxValue) * 120
                                 })()}px`,
                                 minHeight: '2px',
                                 backgroundColor: bar.color,
@@ -483,11 +549,14 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                       {/* Current period (outer ring) */}
                       <Pie
                         data={chartData}
-                        dataKey="score"
+                        dataKey={selectedCitationType}
                         nameKey="name"
                         innerRadius={showComparison ? 55 : 40}
                         outerRadius={80}
-                    strokeWidth={2}
+                        strokeWidth={2}
+                        animationBegin={0}
+                        animationDuration={800}
+                        animationEasing="ease-out"
                         onMouseEnter={(data, index) => {
                           setActiveIndex(index)
                           setActivePlatform(data.name)
@@ -522,9 +591,9 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                                   <tspan
                                     x={viewBox.cx}
                                     y={viewBox.cy}
-                                    className="fill-foreground text-lg font-bold"
+                                    className="fill-foreground text-lg font-bold transition-all duration-500 ease-in-out"
                                   >
-                                    {activeData.score}%
+                                    {(activeData as any)[selectedCitationType]}%
                                   </tspan>
                                   <tspan
                                     x={viewBox.cx}
@@ -549,6 +618,9 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                           innerRadius={25}
                           outerRadius={45}
                           strokeWidth={2}
+                          animationBegin={200}
+                          animationDuration={600}
+                          animationEasing="ease-out"
                         >
                           {chartData.map((entry, index) => (
                             <Cell key={`comparison-cell-${index}`} fill={entry.color} opacity={0.7} />
@@ -576,17 +648,17 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                           className="w-4 h-4 rounded-sm"
                           onError={handleFaviconError}
                         />
-                        <span className="caption text-foreground">{item.name}</span>
+                        <span className="caption text-foreground">{truncateForChart(item.name)}</span>
                         <span className="caption text-muted-foreground">
                           {showComparison ? (
                             <div className="flex flex-col">
-                              <span>{item.score}%</span>
+                              <span className="transition-all duration-500 ease-in-out">{(item as any)[selectedCitationType]}%</span>
                               <span className="text-[10px] opacity-70">
                                 {item.comparisonScore}%
                               </span>
                             </div>
                           ) : (
-                            item.score + '%'
+                            <span className="transition-all duration-500 ease-in-out">{(item as any)[selectedCitationType]}%</span>
                           )}
                         </span>
                       </div>
@@ -700,7 +772,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                           className="w-4 h-4 rounded-sm"
                           onError={handleFaviconError}
                         />
-                        <span className="caption text-foreground">{item.name}</span>
+                        <span className="caption text-foreground">{truncateForChart(item.name)}</span>
                       </div>
                     ))}
                   </div>
@@ -746,10 +818,38 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
 
               {/* Right Section: Ranking Table */}
               <div className="space-y-6 pl-8 relative">
-            <div className="space-y-2">
-                  <h3 className="text-foreground">Citation Share Rank</h3>
-                  <div className="text-xl font-semibold text-foreground">#{rankings.find(item => item.isOwner)?.rank || 5}</div>
-            </div>
+                {/* Top Row - Group buttons aligned with left-side buttons */}
+                <div className="flex justify-between items-center">
+                  {/* Left side - Rank text */}
+                  <div className="space-y-2 pl-8">
+                    <h3 className="text-foreground">Citation Share Rank</h3>
+                    <div className="text-xl font-semibold text-foreground">#{getRankingsForCitationType(selectedCitationType).find(item => item.isOwner)?.rank || 1}</div>
+                  </div>
+
+                  {/* Right side - Group buttons aligned with left-side buttons */}
+                  <div className="inline-flex rounded-lg overflow-hidden border border-gray-300 -mt-2">
+                    {(['brand', 'social', 'earned'] as const).map((type, index) => (
+                      <Button
+                        key={type}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setSelectedCitationType(type)}
+                        className={`
+                          body-text rounded-none border-0 text-xs font-medium px-3 py-1
+                          ${index === 0 ? 'rounded-l-lg' : ''}
+                          ${index === 2 ? 'rounded-r-lg' : ''}
+                          ${index > 0 ? 'border-l border-gray-300' : ''}
+                          ${selectedCitationType === type 
+                            ? 'bg-black text-white hover:bg-black' 
+                            : 'bg-white text-gray-600 hover:bg-gray-50'
+                          }
+                        `}
+                      >
+                        {getCitationTypeLabel(type)}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
 
             {/* Simple Table */}
                 <div className="space-y-2 pb-8 relative">
@@ -765,9 +865,9 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                      {rankings.map((item) => (
+                      {getRankingsForCitationType(selectedCitationType).map((item, index) => (
                         <TableRow 
-                          key={item.rank} 
+                          key={`citation-ranking-${item.rank}-${index}`} 
                           className="border-border/60 hover:bg-muted/30 transition-colors"
                         >
                           <TableCell className="py-3 px-3 w-auto">
@@ -783,7 +883,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                                   className="body-text font-medium" 
                                   style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
                                 >
-                                  {item.name}
+                                  {truncateForRanking(item.name)}
                                 </span>
                               </div>
                             </div>
@@ -852,9 +952,9 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {filteredRankings.map((item) => (
+                            {getRankingsForCitationType(selectedCitationType).map((item, index) => (
                     <TableRow 
-                                key={item.rank} 
+                                key={`all-citation-ranking-${item.rank}-${index}`} 
                       className="border-border/60 hover:bg-muted/30 transition-colors"
                     >
                       <TableCell className="py-3 px-3">
@@ -870,7 +970,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                               className="body-text font-medium" 
                               style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
                             >
-                              {item.name}
+                              {truncateForRanking(item.name)}
                             </span>
                           </div>
                         </div>

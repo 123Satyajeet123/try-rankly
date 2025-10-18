@@ -9,7 +9,15 @@ const devAuth = require('../middleware/devAuth');
 // Get all competitors for user
 router.get('/', devAuth, async (req, res) => {
   try {
-    const competitors = await Competitor.find({ userId: req.userId });
+    const { urlAnalysisId } = req.query;
+    
+    // Build query with optional urlAnalysisId filtering
+    const query = { userId: req.userId };
+    if (urlAnalysisId) {
+      query.urlAnalysisId = urlAnalysisId;
+    }
+    
+    const competitors = await Competitor.find(query);
     
     res.json({
       success: true,
