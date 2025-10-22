@@ -108,7 +108,7 @@ class MetricsAggregationService {
 
     const metricsDoc = {
       userId,
-      urlAnalysisId: filters.urlAnalysisId || null,
+      urlAnalysisId: filters.urlAnalysisId,
       scope: 'overall',
       scopeValue: 'all',
       dateFrom: filters.dateFrom ? new Date(filters.dateFrom) : new Date(tests[0].testedAt),
@@ -123,7 +123,7 @@ class MetricsAggregationService {
 
     // Upsert (replace existing or create new)
     await AggregatedMetrics.findOneAndUpdate(
-      { userId, scope: 'overall', scopeValue: 'all', urlAnalysisId: filters.urlAnalysisId || null },
+      { userId, scope: 'overall', scopeValue: 'all', urlAnalysisId: filters.urlAnalysisId },
       metricsDoc,
       { upsert: true, new: true }
     );
@@ -149,7 +149,7 @@ class MetricsAggregationService {
 
       const metricsDoc = {
         userId,
-        urlAnalysisId: filters.urlAnalysisId || null,
+        urlAnalysisId: filters.urlAnalysisId,
         scope: 'platform',
         scopeValue: platform,
         dateFrom: filters.dateFrom ? new Date(filters.dateFrom) : new Date(platformTests[0].testedAt),
@@ -163,7 +163,7 @@ class MetricsAggregationService {
       };
 
       await AggregatedMetrics.findOneAndUpdate(
-        { userId, scope: 'platform', scopeValue: platform, urlAnalysisId: filters.urlAnalysisId || null },
+        { userId, scope: 'platform', scopeValue: platform, urlAnalysisId: filters.urlAnalysisId },
         metricsDoc,
         { upsert: true, new: true }
       );
@@ -195,7 +195,7 @@ class MetricsAggregationService {
 
       const metricsDoc = {
         userId,
-        urlAnalysisId: filters.urlAnalysisId || null,
+        urlAnalysisId: filters.urlAnalysisId,
         scope: 'topic',
         scopeValue: topicName,
         dateFrom: filters.dateFrom ? new Date(filters.dateFrom) : new Date(topicTests[0].testedAt),
@@ -209,7 +209,7 @@ class MetricsAggregationService {
       };
 
       await AggregatedMetrics.findOneAndUpdate(
-        { userId, scope: 'topic', scopeValue: topicName, urlAnalysisId: filters.urlAnalysisId || null },
+        { userId, scope: 'topic', scopeValue: topicName, urlAnalysisId: filters.urlAnalysisId },
         metricsDoc,
         { upsert: true, new: true }
       );
@@ -241,7 +241,7 @@ class MetricsAggregationService {
 
       const metricsDoc = {
         userId,
-        urlAnalysisId: filters.urlAnalysisId || null,
+        urlAnalysisId: filters.urlAnalysisId,
         scope: 'persona',
         scopeValue: personaType,
         dateFrom: filters.dateFrom ? new Date(filters.dateFrom) : new Date(personaTests[0].testedAt),
@@ -255,7 +255,7 @@ class MetricsAggregationService {
       };
 
       await AggregatedMetrics.findOneAndUpdate(
-        { userId, scope: 'persona', scopeValue: personaType, urlAnalysisId: filters.urlAnalysisId || null },
+        { userId, scope: 'persona', scopeValue: personaType, urlAnalysisId: filters.urlAnalysisId },
         metricsDoc,
         { upsert: true, new: true }
       );
