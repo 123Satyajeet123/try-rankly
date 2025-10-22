@@ -868,6 +868,32 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
 
     console.log(`💾 Saved ${savedPrompts.length} prompts to database`);
 
+    // Trigger matrix calculation after prompt generation
+    try {
+      console.log('🔄 Starting matrix calculation...');
+      const MetricsAggregationService = require('../services/metricsAggregationService');
+      const metricsService = new MetricsAggregationService();
+      
+      // Calculate metrics for the current analysis
+      const metricsResult = await metricsService.calculateMetrics(userId, {
+        urlAnalysisId: latestAnalysis._id
+      });
+      
+      if (metricsResult.success) {
+        console.log('✅ Matrix calculation completed successfully');
+        console.log('   Overall metrics:', metricsResult.overall ? 'calculated' : 'skipped');
+        console.log('   Platform metrics:', metricsResult.platform?.length || 0, 'calculated');
+        console.log('   Topic metrics:', metricsResult.topic?.length || 0, 'calculated');
+        console.log('   Persona metrics:', metricsResult.persona?.length || 0, 'calculated');
+      } else {
+        console.log('⚠️  Matrix calculation completed with warnings:', metricsResult.message);
+      }
+    } catch (metricsError) {
+      console.error('❌ Matrix calculation failed:', metricsError.message);
+      // Don't fail the entire request if metrics calculation fails
+      console.log('   Continuing with prompt generation response...');
+    }
+
     res.json({
       success: true,
       message: 'Prompts generated successfully',

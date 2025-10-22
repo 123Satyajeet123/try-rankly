@@ -326,13 +326,13 @@ Provide a structured analysis in JSON format:
   // Task 2: Find competitors
   async findCompetitors(websiteData, url) {
     const prompt = `
-Based on this website analysis, identify the top 4-6 DIRECT competitors in the SAME INDUSTRY and BUSINESS MODEL.
+Based on this website analysis, identify the top 4-6 DIRECT competitors with SIMILAR BUSINESS METRICS.
 
-IMPORTANT: Only identify companies that:
-1. Operate in the EXACT SAME INDUSTRY
-2. Offer the SAME TYPE OF SERVICES/PRODUCTS
-3. Target the SAME CUSTOMER BASE
-4. Have a SIMILAR BUSINESS MODEL
+CRITICAL: Find competitors that match these key factors:
+1. **REVENUE RANGE**: Similar annual revenue (within 2-3x range)
+2. **CATEGORY**: Exact same product/service category
+3. **SEGMENT**: Same market segment (B2B/B2C, enterprise/SMB, etc.)
+4. **FUNDING STAGE**: Similar funding stage (startup/scale-up/enterprise)
 
 Website Analysis:
 - Company: ${websiteData.businessInfo.companyName}
@@ -342,17 +342,30 @@ Website Analysis:
 - Target Market: [Analyze from content]
 - Business Model: [Analyze from content]
 
+COMPETITOR SELECTION CRITERIA:
+- **Revenue Match**: Find companies with similar revenue size
+- **Category Match**: Same product/service category
+- **Segment Match**: Same target market segment
+- **Funding Match**: Similar funding stage and investment level
+- **Geographic Match**: Same or similar geographic markets
+- **Business Model Match**: Similar monetization and business model
+
+SEARCH STRATEGY:
+1. Search for "[Industry] companies with similar revenue to [Company Name]"
+2. Search for "[Category] competitors in [Segment] market"
+3. Search for "[Industry] companies with similar funding stage"
+4. Look for companies in the same market segment with comparable metrics
+
 EXAMPLES OF GOOD COMPETITORS:
-- For travel booking sites: MakeMyTrip, Yatra, Cleartrip, EaseMyTrip
-- For e-commerce: Amazon, Flipkart, Myntra
-- For banking: HDFC, ICICI, SBI
-- For food delivery: Swiggy, Zomato, Uber Eats
+- For SaaS startups: Other SaaS startups with similar ARR and funding
+- For e-commerce: Other e-commerce companies with similar GMV and funding
+- For fintech: Other fintech companies with similar transaction volume and funding
 
 EXAMPLES OF BAD COMPETITORS (DO NOT INCLUDE):
-- SEO tools for travel sites
-- Marketing agencies for travel companies
-- Technology providers for travel businesses
-- Consulting firms in the travel industry
+- Companies in different revenue brackets
+- Companies in different market segments
+- Companies with vastly different funding stages
+- Companies in different geographic markets
 
 Use web search to find actual competitors and return structured data:
 
@@ -361,13 +374,17 @@ Use web search to find actual competitors and return structured data:
     {
       "name": "Competitor Company Name",
       "url": "https://competitor-website.com",
-      "reason": "Why they are a direct competitor (same industry, same services)",
+      "revenue": "Estimated annual revenue range",
+      "category": "Product/service category",
+      "segment": "Market segment (B2B/B2C, enterprise/SMB)",
+      "funding": "Funding stage and amount",
+      "reason": "Why they are a direct competitor (revenue, category, segment, funding match)",
       "similarity": "High/Medium/Low"
     }
   ]
 }
 
-Search for actual competitors and provide real URLs.
+Search for actual competitors with similar business metrics and provide real URLs.
 `;
 
     return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'competitors');
@@ -470,9 +487,13 @@ Provide a structured product analysis in JSON format:
   // Product Task 2: Find product competitors
   async findProductCompetitors(websiteData, url, productData) {
     const prompt = `
-Based on this SPECIFIC PRODUCT analysis, identify direct product-level competitors.
+Based on this SPECIFIC PRODUCT analysis, identify direct product-level competitors with SIMILAR BUSINESS METRICS.
 
-IMPORTANT: Find competitors for THIS SPECIFIC PRODUCT, not the company as a whole.
+CRITICAL: Find products that match these key factors:
+1. **REVENUE RANGE**: Similar product revenue (within 2-3x range)
+2. **CATEGORY**: Exact same product category
+3. **SEGMENT**: Same market segment (B2B/B2C, enterprise/SMB, etc.)
+4. **FUNDING STAGE**: Similar funding stage of the company behind the product
 
 Product Analysis:
 - Product: ${productData?.productName || 'Unknown Product'}
@@ -481,11 +502,37 @@ Product Analysis:
 - Use Cases: ${productData?.useCases.slice(0, 3).join(', ') || 'Not specified'}
 - Pricing: ${productData?.pricing.found ? 'Available' : 'Not specified'}
 
+COMPETITOR SELECTION CRITERIA:
+- **Revenue Match**: Find products from companies with similar revenue size
+- **Category Match**: Same product category and type
+- **Segment Match**: Same target market segment
+- **Funding Match**: Similar funding stage of the parent company
+- **Feature Match**: Similar core features and capabilities
+- **Pricing Match**: Similar pricing model and price range
+
+SEARCH STRATEGY:
+1. Search for "[Product Category] products with similar revenue to [Product Name]"
+2. Search for "[Product Type] competitors in [Segment] market"
+3. Search for "[Product Category] products from companies with similar funding"
+4. Look for products in the same market segment with comparable metrics
+
+EXAMPLES OF GOOD COMPETITORS:
+- For SaaS products: Other SaaS products with similar ARR and funding
+- For e-commerce products: Other e-commerce products with similar GMV and funding
+- For fintech products: Other fintech products with similar transaction volume and funding
+
+EXAMPLES OF BAD COMPETITORS (DO NOT INCLUDE):
+- Products from companies in different revenue brackets
+- Products in different market segments
+- Products from companies with vastly different funding stages
+- Products in different geographic markets
+
 Use web search to find products that:
 1. Compete DIRECTLY with this product (not just the company)
 2. Have similar features and use cases
 3. Target the same customer needs
-4. Provide real product URLs (not just company homepages)
+4. Are from companies with similar business metrics
+5. Provide real product URLs (not just company homepages)
 
 Return structured data:
 {
@@ -493,13 +540,17 @@ Return structured data:
     {
       "name": "Competitor Product Name",
       "url": "https://competitor.com/product-page",
-      "reason": "Why this product competes directly",
+      "revenue": "Estimated product revenue range",
+      "category": "Product category",
+      "segment": "Market segment (B2B/B2C, enterprise/SMB)",
+      "funding": "Parent company funding stage and amount",
+      "reason": "Why this product competes directly (revenue, category, segment, funding match)",
       "similarity": "High/Medium/Low"
     }
   ]
 }
 
-Focus on PRODUCT-LEVEL competition with similar features and pricing.
+Focus on PRODUCT-LEVEL competition with similar business metrics and features.
 `;
 
     return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'productCompetitors');
@@ -610,22 +661,63 @@ Provide a structured category analysis:
   // Category Task 2: Find category competitors
   async findCategoryCompetitors(websiteData, url, categoryData) {
     const prompt = `
-Find competitors in the SAME PRODUCT CATEGORY.
+Find competitors in the SAME PRODUCT CATEGORY with SIMILAR BUSINESS METRICS.
 
-Category: ${categoryData?.categoryName || 'Unknown Category'}
-URL: ${url}
+CRITICAL: Find competitors that match these key factors:
+1. **REVENUE RANGE**: Similar annual revenue (within 2-3x range)
+2. **CATEGORY**: Exact same product category
+3. **SEGMENT**: Same market segment (B2B/B2C, enterprise/SMB, etc.)
+4. **FUNDING STAGE**: Similar funding stage (startup/scale-up/enterprise)
 
-Use web search to find competitors offering similar product categories:
+Category Analysis:
+- Category: ${categoryData?.categoryName || 'Unknown Category'}
+- URL: ${url}
+- Subcategories: ${categoryData?.subcategories.slice(0, 5).join(', ') || 'Not specified'}
+- Target Market: ${categoryData?.targetMarket || 'Not specified'}
+
+COMPETITOR SELECTION CRITERIA:
+- **Revenue Match**: Find companies with similar revenue size in this category
+- **Category Match**: Same product category and subcategories
+- **Segment Match**: Same target market segment
+- **Funding Match**: Similar funding stage and investment level
+- **Geographic Match**: Same or similar geographic markets
+- **Business Model Match**: Similar monetization and business model
+
+SEARCH STRATEGY:
+1. Search for "[Category] companies with similar revenue to [Category Name]"
+2. Search for "[Category] competitors in [Segment] market"
+3. Search for "[Category] companies with similar funding stage"
+4. Look for companies in the same category with comparable metrics
+
+EXAMPLES OF GOOD COMPETITORS:
+- For SaaS categories: Other SaaS companies with similar ARR and funding
+- For e-commerce categories: Other e-commerce companies with similar GMV and funding
+- For fintech categories: Other fintech companies with similar transaction volume and funding
+
+EXAMPLES OF BAD COMPETITORS (DO NOT INCLUDE):
+- Companies in different revenue brackets
+- Companies in different market segments
+- Companies with vastly different funding stages
+- Companies in different geographic markets
+
+Use web search to find competitors offering similar product categories with comparable business metrics:
+
 {
   "competitors": [
     {
-      "name": "string",
-      "url": "string",
-      "reason": "string",
+      "name": "Competitor Company Name",
+      "url": "https://competitor-website.com",
+      "revenue": "Estimated annual revenue range",
+      "category": "Product/service category",
+      "segment": "Market segment (B2B/B2C, enterprise/SMB)",
+      "funding": "Funding stage and amount",
+      "reason": "Why they are a direct competitor (revenue, category, segment, funding match)",
       "similarity": "High/Medium/Low"
     }
   ]
 }
+
+Search for actual competitors with similar business metrics in this category.
 `;
 
     return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'categoryCompetitors');

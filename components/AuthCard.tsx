@@ -27,21 +27,9 @@ export function AuthCard({ mode, onGoogleAuth, onEmailAuth, isLoading, error }: 
   
   // Check if user has existing analysis data
   const checkExistingAnalysis = async (): Promise<boolean> => {
-    try {
-      console.log('🔍 [AuthCard] Checking for existing analysis data...')
-      const response = await apiService.getAggregatedMetrics({ scope: 'overall' })
-      
-      if (response.success && response.data) {
-        console.log('✅ [AuthCard] Found existing analysis data, redirecting to dashboard')
-        return true
-      } else {
-        console.log('ℹ️ [AuthCard] No existing analysis data, redirecting to onboarding')
-        return false
-      }
-    } catch (error) {
-      console.log('ℹ️ [AuthCard] No existing analysis data (or error checking), redirecting to onboarding')
-      return false
-    }
+    // For now, always redirect to dashboard since we're using session-based auth
+    console.log('🔍 [AuthCard] User authenticated, redirecting to dashboard')
+    return true
   }
   
   const handleGoogleAuth = () => {

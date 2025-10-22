@@ -193,13 +193,14 @@ class ApiService {
   }
 
   // Update selections for competitors, topics, and personas
-  async updateSelections(competitors: string[], topics: string[], personas: string[]) {
+  async updateSelections(competitors: string[], topics: string[], personas: string[], urlAnalysisId?: string) {
     return this.request('/onboarding/update-selections', {
       method: 'POST',
       body: JSON.stringify({
         competitors,
         topics,
-        personas
+        personas,
+        urlAnalysisId
       }),
     })
   }

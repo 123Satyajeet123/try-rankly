@@ -13,21 +13,8 @@ export function SigninPageWrapper() {
   useEffect(() => {
     const handleAuthenticatedUser = async () => {
       if (isAuthenticated && !isLoading) {
-        console.log('🔍 [SigninPageWrapper] User already authenticated, checking for existing analysis...')
-        
-        try {
-          const response = await apiService.getAggregatedMetrics({ scope: 'overall' })
-          if (response.success && response.data) {
-            console.log('✅ [SigninPageWrapper] Found existing analysis data, redirecting to dashboard')
-            router.push('/dashboard')
-          } else {
-            console.log('ℹ️ [SigninPageWrapper] No existing analysis data, redirecting to onboarding')
-            router.push('/onboarding/website')
-          }
-        } catch (error) {
-          console.log('ℹ️ [SigninPageWrapper] No existing analysis data (or error checking), redirecting to onboarding')
-          router.push('/onboarding/website')
-        }
+        console.log('🔍 [SigninPageWrapper] User already authenticated, redirecting to dashboard')
+        router.push('/dashboard')
       }
     }
 

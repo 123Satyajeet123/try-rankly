@@ -221,34 +221,57 @@ router.get('/all', devAuth, async (req, res) => {
  * Format visibility score data for frontend
  */
 function formatVisibilityData(metrics, userBrandName) {
-  if (!metrics) return null;
+  if (!metrics || !metrics.brandMetrics || metrics.brandMetrics.length === 0) {
+    console.log('⚠️ [formatVisibilityData] No metrics or brand metrics found');
+    return {
+      value: 0,
+      data: [],
+      current: { score: 0, rank: 0 },
+      brands: []
+    };
+  }
 
   const userBrand = metrics.brandMetrics.find(b => b.brandName === userBrandName) || metrics.brandMetrics[0];
   
+  // Check if userBrand exists and has required properties
+  if (!userBrand || typeof userBrand.visibilityScore === 'undefined') {
+    console.log('⚠️ [formatVisibilityData] User brand not found or missing visibilityScore:', {
+      userBrandName,
+      userBrand: userBrand ? 'exists' : 'null',
+      visibilityScore: userBrand?.visibilityScore
+    });
+    return {
+      value: 0,
+      data: [],
+      current: { score: 0, rank: 0 },
+      brands: []
+    };
+  }
+  
   // Sort brands by rank for consistent ordering
   const sortedBrands = metrics.brandMetrics
-    .sort((a, b) => a.visibilityRank - b.visibilityRank);
+    .sort((a, b) => (a.visibilityRank || 0) - (b.visibilityRank || 0));
 
   return {
     // ✅ Frontend expects 'value' property for the main metric
-    value: userBrand.visibilityScore,
+    value: userBrand.visibilityScore || 0,
     
     // ✅ Frontend expects 'data' array for chart visualization
     data: sortedBrands.map(b => ({
-      name: b.brandName,
-      value: b.visibilityScore,
+      name: b.brandName || 'Unknown',
+      value: b.visibilityScore || 0,
       fill: getColorForBrand(b.brandName)
     })),
     
     // ✅ Keep existing structure for backward compatibility
     current: {
-      score: userBrand.visibilityScore,
-      rank: userBrand.visibilityRank
+      score: userBrand.visibilityScore || 0,
+      rank: userBrand.visibilityRank || 0
     },
     brands: sortedBrands.map(b => ({
-      name: b.brandName,
-      score: b.visibilityScore,
-      rank: b.visibilityRank,
+      name: b.brandName || 'Unknown',
+      score: b.visibilityScore || 0,
+      rank: b.visibilityRank || 0,
       isOwner: b.brandName === userBrandName,
       color: getColorForBrand(b.brandName)
     }))
@@ -259,34 +282,57 @@ function formatVisibilityData(metrics, userBrandName) {
  * Format depth of mention data for frontend
  */
 function formatDepthData(metrics, userBrandName) {
-  if (!metrics) return null;
+  if (!metrics || !metrics.brandMetrics || metrics.brandMetrics.length === 0) {
+    console.log('⚠️ [formatDepthData] No metrics or brand metrics found');
+    return {
+      value: 0,
+      data: [],
+      current: { score: 0, rank: 0 },
+      brands: []
+    };
+  }
 
   const userBrand = metrics.brandMetrics.find(b => b.brandName === userBrandName) || metrics.brandMetrics[0];
   
+  // Check if userBrand exists and has required properties
+  if (!userBrand || typeof userBrand.depthOfMention === 'undefined') {
+    console.log('⚠️ [formatDepthData] User brand not found or missing depthOfMention:', {
+      userBrandName,
+      userBrand: userBrand ? 'exists' : 'null',
+      depthOfMention: userBrand?.depthOfMention
+    });
+    return {
+      value: 0,
+      data: [],
+      current: { score: 0, rank: 0 },
+      brands: []
+    };
+  }
+  
   // Sort brands by rank for consistent ordering
   const sortedBrands = metrics.brandMetrics
-    .sort((a, b) => a.depthRank - b.depthRank);
+    .sort((a, b) => (a.depthRank || 0) - (b.depthRank || 0));
 
   return {
     // ✅ Frontend expects 'value' property for the main metric
-    value: userBrand.depthOfMention,
+    value: userBrand.depthOfMention || 0,
     
     // ✅ Frontend expects 'data' array for chart visualization
     data: sortedBrands.map(b => ({
-      name: b.brandName,
-      value: b.depthOfMention,
+      name: b.brandName || 'Unknown',
+      value: b.depthOfMention || 0,
       fill: getColorForBrand(b.brandName)
     })),
     
     // ✅ Keep existing structure for backward compatibility
     current: {
-      score: userBrand.depthOfMention,
-      rank: userBrand.depthRank
+      score: userBrand.depthOfMention || 0,
+      rank: userBrand.depthRank || 0
     },
     brands: sortedBrands.map(b => ({
-      name: b.brandName,
-      score: b.depthOfMention,
-      rank: b.depthRank,
+      name: b.brandName || 'Unknown',
+      score: b.depthOfMention || 0,
+      rank: b.depthRank || 0,
       isOwner: b.brandName === userBrandName,
       color: getColorForBrand(b.brandName)
     }))
@@ -297,34 +343,57 @@ function formatDepthData(metrics, userBrandName) {
  * Format average position data for frontend
  */
 function formatAveragePositionData(metrics, userBrandName) {
-  if (!metrics) return null;
+  if (!metrics || !metrics.brandMetrics || metrics.brandMetrics.length === 0) {
+    console.log('⚠️ [formatAveragePositionData] No metrics or brand metrics found');
+    return {
+      value: 0,
+      data: [],
+      current: { score: 0, rank: 0 },
+      brands: []
+    };
+  }
 
   const userBrand = metrics.brandMetrics.find(b => b.brandName === userBrandName) || metrics.brandMetrics[0];
   
+  // Check if userBrand exists and has required properties
+  if (!userBrand || typeof userBrand.avgPosition === 'undefined') {
+    console.log('⚠️ [formatAveragePositionData] User brand not found or missing avgPosition:', {
+      userBrandName,
+      userBrand: userBrand ? 'exists' : 'null',
+      avgPosition: userBrand?.avgPosition
+    });
+    return {
+      value: 0,
+      data: [],
+      current: { score: 0, rank: 0 },
+      brands: []
+    };
+  }
+  
   // Sort brands by rank for consistent ordering
   const sortedBrands = metrics.brandMetrics
-    .sort((a, b) => a.avgPositionRank - b.avgPositionRank);
+    .sort((a, b) => (a.avgPositionRank || 0) - (b.avgPositionRank || 0));
 
   return {
     // ✅ Frontend expects 'value' property for the main metric
-    value: userBrand.avgPosition,
+    value: userBrand.avgPosition || 0,
     
     // ✅ Frontend expects 'data' array for chart visualization
     data: sortedBrands.map(b => ({
-      name: b.brandName,
-      value: b.avgPosition,
+      name: b.brandName || 'Unknown',
+      value: b.avgPosition || 0,
       fill: getColorForBrand(b.brandName)
     })),
     
     // ✅ Keep existing structure for backward compatibility
     current: {
-      score: userBrand.avgPosition,
-      rank: userBrand.avgPositionRank
+      score: userBrand.avgPosition || 0,
+      rank: userBrand.avgPositionRank || 0
     },
     brands: sortedBrands.map(b => ({
-      name: b.brandName,
-      score: b.avgPosition,
-      rank: b.avgPositionRank,
+      name: b.brandName || 'Unknown',
+      score: b.avgPosition || 0,
+      rank: b.avgPositionRank || 0,
       isOwner: b.brandName === userBrandName,
       color: getColorForBrand(b.brandName)
     }))
@@ -412,17 +481,47 @@ function formatPersonaRankings(personaMetrics, userBrandName) {
  * Format performance insights (Share of Voice + Position Distribution)
  */
 function formatPerformanceInsights(metrics, userBrandName) {
-  if (!metrics) return null;
+  if (!metrics || !metrics.brandMetrics || metrics.brandMetrics.length === 0) {
+    console.log('⚠️ [formatPerformanceInsights] No metrics or brand metrics found');
+    return {
+      shareOfVoice: {
+        current: { percentage: 0, rank: 0 },
+        brands: []
+      },
+      positionDistribution: {
+        current: { firstRank: 0, secondRank: 0, thirdRank: 0, otherRank: 0 },
+        brands: []
+      }
+    };
+  }
 
   const userBrand = metrics.brandMetrics.find(b => b.brandName === userBrandName) || metrics.brandMetrics[0];
   
+  // Check if userBrand exists and has required properties
+  if (!userBrand) {
+    console.log('⚠️ [formatPerformanceInsights] User brand not found:', {
+      userBrandName,
+      availableBrands: metrics.brandMetrics.map(b => b.brandName)
+    });
+    return {
+      shareOfVoice: {
+        current: { percentage: 0, rank: 0 },
+        brands: []
+      },
+      positionDistribution: {
+        current: { firstRank: 0, secondRank: 0, thirdRank: 0, otherRank: 0 },
+        brands: []
+      }
+    };
+  }
+  
   // Calculate position distribution percentages
-  const totalAppearances = userBrand.count1st + userBrand.count2nd + userBrand.count3rd + (userBrand.countOther || 0);
+  const totalAppearances = (userBrand.count1st || 0) + (userBrand.count2nd || 0) + (userBrand.count3rd || 0) + (userBrand.countOther || 0);
   
   const positionDistribution = totalAppearances > 0 ? {
-    firstRank: parseFloat(((userBrand.count1st / totalAppearances) * 100).toFixed(2)),
-    secondRank: parseFloat(((userBrand.count2nd / totalAppearances) * 100).toFixed(2)),
-    thirdRank: parseFloat(((userBrand.count3rd / totalAppearances) * 100).toFixed(2)),
+    firstRank: parseFloat((((userBrand.count1st || 0) / totalAppearances) * 100).toFixed(2)),
+    secondRank: parseFloat((((userBrand.count2nd || 0) / totalAppearances) * 100).toFixed(2)),
+    thirdRank: parseFloat((((userBrand.count3rd || 0) / totalAppearances) * 100).toFixed(2)),
     otherRank: parseFloat((((userBrand.countOther || 0) / totalAppearances) * 100).toFixed(2))
   } : {
     firstRank: 0,
@@ -434,16 +533,16 @@ function formatPerformanceInsights(metrics, userBrandName) {
   return {
     shareOfVoice: {
       current: {
-        percentage: userBrand.shareOfVoice,
-        rank: userBrand.shareOfVoiceRank
+        percentage: userBrand.shareOfVoice || 0,
+        rank: userBrand.shareOfVoiceRank || 0
       },
       brands: metrics.brandMetrics.map(b => ({
-        name: b.brandName,
-        value: b.shareOfVoice,
-        rank: b.shareOfVoiceRank,
+        name: b.brandName || 'Unknown',
+        value: b.shareOfVoice || 0,
+        rank: b.shareOfVoiceRank || 0,
         color: getColorForBrand(b.brandName),
         isOwner: b.brandName === userBrandName
-      })).sort((a, b) => a.rank - b.rank)
+      })).sort((a, b) => (a.rank || 0) - (b.rank || 0))
     },
     positionDistribution: {
       current: positionDistribution,
@@ -472,30 +571,33 @@ function formatPerformanceInsights(metrics, userBrandName) {
  * Format competitors data for frontend (matches Competitor interface)
  */
 function formatCompetitorsData(metrics, userBrandName) {
-  if (!metrics || !metrics.brandMetrics) return [];
+  if (!metrics || !metrics.brandMetrics || metrics.brandMetrics.length === 0) {
+    console.log('⚠️ [formatCompetitorsData] No metrics or brand metrics found');
+    return [];
+  }
 
   // Sort brands by visibility rank for consistent ordering
   const sortedBrands = metrics.brandMetrics
-    .sort((a, b) => a.visibilityRank - b.visibilityRank);
+    .sort((a, b) => (a.visibilityRank || 0) - (b.visibilityRank || 0));
 
   return sortedBrands.map((brand, index) => ({
     id: brand.brandId || `brand-${index}`,
-    name: brand.brandName,
+    name: brand.brandName || 'Unknown',
     logo: '', // Will be handled by frontend favicon logic
-    score: brand.visibilityScore,
-    rank: brand.visibilityRank,
+    score: brand.visibilityScore || 0,
+    rank: brand.visibilityRank || 0,
     change: 0, // TODO: Calculate from historical data
     trend: 'stable', // TODO: Calculate from historical data
     // Sentiment data
-    sentimentScore: brand.sentimentScore,
-    sentimentBreakdown: brand.sentimentBreakdown,
+    sentimentScore: brand.sentimentScore || 0,
+    sentimentBreakdown: brand.sentimentBreakdown || { positive: 0, neutral: 0, negative: 0, mixed: 0 },
     // Citation data
-    citationShare: brand.citationShare,
-    citationRank: brand.citationShareRank,
-    brandCitationsTotal: brand.brandCitationsTotal,
-    earnedCitationsTotal: brand.earnedCitationsTotal,
-    socialCitationsTotal: brand.socialCitationsTotal,
-    totalCitations: brand.totalCitations
+    citationShare: brand.citationShare || 0,
+    citationRank: brand.citationShareRank || 0,
+    brandCitationsTotal: brand.brandCitationsTotal || 0,
+    earnedCitationsTotal: brand.earnedCitationsTotal || 0,
+    socialCitationsTotal: brand.socialCitationsTotal || 0,
+    totalCitations: brand.totalCitations || 0
   }));
 }
 
@@ -503,27 +605,30 @@ function formatCompetitorsData(metrics, userBrandName) {
  * Format competitors data specifically for Citations tab (matches citations frontend expectations)
  */
 function formatCompetitorsByCitationData(metrics, userBrandName) {
-  if (!metrics || !metrics.brandMetrics) return [];
+  if (!metrics || !metrics.brandMetrics || metrics.brandMetrics.length === 0) {
+    console.log('⚠️ [formatCompetitorsByCitationData] No metrics or brand metrics found');
+    return [];
+  }
 
   // Sort brands by citation share rank for citation-specific ordering
   const sortedBrands = metrics.brandMetrics
-    .sort((a, b) => a.citationShareRank - b.citationShareRank);
+    .sort((a, b) => (a.citationShareRank || 0) - (b.citationShareRank || 0));
 
   return sortedBrands.map((brand, index) => ({
     id: brand.brandId || `brand-${index}`,
-    name: brand.brandName,
+    name: brand.brandName || 'Unknown',
     // Citation-specific fields that frontend expects
-    score: brand.citationShare, // Frontend expects 'score' for citation share
-    rank: brand.citationShareRank,
+    score: brand.citationShare || 0, // Frontend expects 'score' for citation share
+    rank: brand.citationShareRank || 0,
     change: 0, // TODO: Calculate from historical data
     trend: 'stable', // TODO: Calculate from historical data
     // Citation breakdown data
-    citationShare: brand.citationShare,
-    citationRank: brand.citationShareRank,
-    brandCitationsTotal: brand.brandCitationsTotal,
-    earnedCitationsTotal: brand.earnedCitationsTotal,
-    socialCitationsTotal: brand.socialCitationsTotal,
-    totalCitations: brand.totalCitations,
+    citationShare: brand.citationShare || 0,
+    citationRank: brand.citationShareRank || 0,
+    brandCitationsTotal: brand.brandCitationsTotal || 0,
+    earnedCitationsTotal: brand.earnedCitationsTotal || 0,
+    socialCitationsTotal: brand.socialCitationsTotal || 0,
+    totalCitations: brand.totalCitations || 0,
     // Additional citation data
     isOwner: brand.brandName === userBrandName
   }));

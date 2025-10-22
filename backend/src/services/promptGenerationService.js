@@ -202,32 +202,43 @@ async function generatePromptsForCombination({
  */
 function buildSystemPrompt(promptsPerQueryType = 3) {
   const totalPrompts = promptsPerQueryType * 5;
+  const brandedCount = Math.max(1, Math.floor(totalPrompts * 0.15)); // 15% branded (10-20% range)
+  const nonBrandedCount = totalPrompts - brandedCount; // 85% non-branded
   
   return `You are an expert at creating natural, human-like search queries for Answer Engine Optimization (AEO) analysis.
 
 Your task is to generate ${totalPrompts} diverse, realistic prompts that test brand visibility in LLM responses (ChatGPT, Claude, Gemini, Perplexity).
 
-CRITICAL: Generate ${promptsPerQueryType} DIFFERENT prompts for EACH of these 5 AEO-critical query types:
+CRITICAL RATIO REQUIREMENT: 
+- ${nonBrandedCount} prompts (85%) should be NON-BRANDED (generic category/market queries)
+- ${brandedCount} prompts (15%) should be BRANDED (mentioning the specific brand name)
 
-1. **Navigational** (Brand Presence Check): Direct queries about the brand itself
-   - Examples: "What is [Brand]?", "How does [Brand] work?", "Features of [Brand]", "Tell me about [Brand]"
-   - Generate ${promptsPerQueryType} VARIED navigational prompts
+Generate ${promptsPerQueryType} DIFFERENT prompts for EACH of these 5 AEO-critical query types:
 
-2. **Commercial Investigation** (Category Competition): Market/category exploration where brand should appear
-   - Examples: "Best [category] tools in 2025", "Top alternatives to [competitor]", "Compare [category] solutions", "Leading [category] platforms"
-   - Generate ${promptsPerQueryType} VARIED commercial investigation prompts
+1. **Navigational** (Brand Presence Check): Mix of branded and non-branded
+   - NON-BRANDED: "What is [category]?", "How does [category] work?", "Features of [category] tools"
+   - BRANDED: "What is [Brand]?", "How does [Brand] work?", "Features of [Brand]"
+   - Generate ${promptsPerQueryType} VARIED navigational prompts (mix branded/non-branded)
+
+2. **Commercial Investigation** (Category Competition): Market/category exploration
+   - NON-BRANDED: "Best [category] tools in 2025", "Top [category] solutions", "Leading [category] platforms"
+   - BRANDED: "Best [category] tools including [Brand]", "Top alternatives to [Brand]", "Compare [category] solutions with [Brand]"
+   - Generate ${promptsPerQueryType} VARIED commercial investigation prompts (mix branded/non-branded)
 
 3. **Transactional** (Action-Oriented): Ready-to-buy or conversion queries
-   - Examples: "Where to sign up for [category tool]", "Pricing for [brand vs competitor]", "Discount codes for [category]", "How to purchase [category]"
-   - Generate ${promptsPerQueryType} VARIED transactional prompts
+   - NON-BRANDED: "Where to sign up for [category tool]", "Pricing for [category]", "Discount codes for [category]"
+   - BRANDED: "Where to sign up for [Brand]", "Pricing for [Brand]", "Discount codes for [Brand]"
+   - Generate ${promptsPerQueryType} VARIED transactional prompts (mix branded/non-branded)
 
 4. **Comparative** (Brand vs Competitor): Direct brand comparison queries
-   - Examples: "Compare [Brand] vs [Competitor]", "Which is better: [Brand] or [Competitor]", "Pros and cons of [Brand]", "[Brand] versus [Competitor] features"
-   - Generate ${promptsPerQueryType} VARIED comparative prompts
+   - NON-BRANDED: "Compare [category] tools", "Which [category] solution is better?", "Pros and cons of [category] platforms"
+   - BRANDED: "Compare [Brand] vs [Competitor]", "Which is better: [Brand] or [Competitor]", "Pros and cons of [Brand]"
+   - Generate ${promptsPerQueryType} VARIED comparative prompts (mix branded/non-branded)
 
 5. **Reputational** (Trust & Credibility): Reviews, reliability, trust signals
-   - Examples: "Is [Brand] safe to use?", "Reviews of [Brand]", "What do users say about [Brand]?", "[Brand] customer feedback", "Is [Brand] reliable?"
-   - Generate ${promptsPerQueryType} VARIED reputational prompts
+   - NON-BRANDED: "Is [category] safe to use?", "Reviews of [category] tools", "What do users say about [category]?"
+   - BRANDED: "Is [Brand] safe to use?", "Reviews of [Brand]", "What do users say about [Brand]?"
+   - Generate ${promptsPerQueryType} VARIED reputational prompts (mix branded/non-branded)
 
 Requirements:
 - Write from the persona's perspective (their role, challenges, industry context)
@@ -235,6 +246,7 @@ Requirements:
 - Generate EXACTLY ${promptsPerQueryType} prompts per query type (${totalPrompts} prompts total)
 - Each prompt should be 1-2 sentences long and UNIQUE
 - Vary the phrasing, angle, and specificity for each prompt within a query type
+- DISTRIBUTE branded vs non-branded prompts across all query types (not all branded in one type)
 - Use the provided brand name, competitors, and topic context
 
 Output format:
@@ -317,6 +329,8 @@ function buildUserPrompt({
   }
 
   const totalPrompts = promptsPerQueryType * 5;
+  const brandedCount = Math.max(1, Math.floor(totalPrompts * 0.15)); // 15% branded
+  const nonBrandedCount = totalPrompts - brandedCount; // 85% non-branded
   
   return `Generate ${totalPrompts} AEO-focused prompts for brand visibility testing:
 
@@ -333,14 +347,19 @@ ${persona.goals ? `Goals: ${persona.goals.join(', ')}` : ''}
 
 TARGET: ${region}, ${language}${competitorContext}
 
+CRITICAL RATIO REQUIREMENT:
+- ${nonBrandedCount} prompts (85%) should be NON-BRANDED (generic ${topic.name} queries)
+- ${brandedCount} prompts (15%) should be BRANDED (mentioning ${brandName} specifically)
+
 Generate EXACTLY ${totalPrompts} prompts (${promptsPerQueryType} per query type):
-1. Navigational (${promptsPerQueryType} prompts): Direct queries about ${brandName} - vary the angle and specificity
-2. Commercial Investigation (${promptsPerQueryType} prompts): Category/market queries where ${brandName} should appear - use different phrasings
-3. Transactional (${promptsPerQueryType} prompts): Action/buying intent queries - vary from general to specific
-4. Comparative (${promptsPerQueryType} prompts): ${brandName} vs competitor comparisons - use different competitors if available
-5. Reputational (${promptsPerQueryType} prompts): Trust/review queries about ${brandName} - ask from different trust angles
+1. Navigational (${promptsPerQueryType} prompts): Mix of generic ${topic.name} queries and specific ${brandName} queries
+2. Commercial Investigation (${promptsPerQueryType} prompts): Mix of general ${topic.name} market queries and ${brandName}-specific queries
+3. Transactional (${promptsPerQueryType} prompts): Mix of general ${topic.name} buying queries and ${brandName} purchase queries
+4. Comparative (${promptsPerQueryType} prompts): Mix of general ${topic.name} comparisons and ${brandName} vs competitor comparisons
+5. Reputational (${promptsPerQueryType} prompts): Mix of general ${topic.name} trust queries and ${brandName} reputation queries
 
 Write from ${persona.type}'s perspective. Make each prompt unique, natural and conversational.
+DISTRIBUTE branded vs non-branded prompts across all query types (not all branded in one type).
 Return ONLY the JSON array of ${totalPrompts} prompts in the order specified above.`;
 }
 

@@ -66,14 +66,14 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6 md:p-10 relative">
+    <main className="flex min-h-screen items-center justify-center bg-background p-6 md:p-10">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="w-full max-w-4xl relative z-10"
+        className="w-full max-w-4xl"
       >
-        <Card className="w-full overflow-hidden rounded-lg h-[600px] relative">
+        <Card className="w-full overflow-hidden rounded-lg h-[600px]">
           <NavigationArrows previousPath={previousPath} nextPath={allDone && analysisSuccess ? nextPath : undefined} showNext={allDone && analysisSuccess} />
 
           <CardContent className="grid p-0 md:grid-cols-2 h-full">
@@ -139,7 +139,7 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
                     {startSpinning && (
                       <motion.div
                         animate={{ rotate: 360 }}
-                        transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                        transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
                         className="absolute inset-0 w-20 h-20 border-2 border-foreground border-t-transparent rounded-full"
                       />
                     )}
@@ -178,7 +178,7 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
                           ) : index === currentStep ? (
                             <motion.div
                               animate={{ rotate: 360 }}
-                              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                              transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
                               className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full"
                             />
                           ) : (
