@@ -295,27 +295,27 @@ class InsightsService {
   generatePrompt(structuredData, tabType) {
     const { userBrand, competitors, totalPrompts, totalResponses } = structuredData;
     
-    let prompt = `You are an expert brand visibility analyst. Analyze the following ${tabType} data and provide relational tangible insights between the user brand and the competitors across topics, user personas, and platforms.
-    
-    For example:
-    - whatsWorking: "You perform better than your competitors in [specific topic] over [specific platforms]"
-    - needsAttention: "Your competitors are performing better than you in [specific topic] over [specific platforms] and these metric areas need improvement"
+    let prompt = `You are an expert competitive intelligence analyst. Analyze the following ${tabType} data and provide SPECIFIC, DATA-DRIVEN insights comparing the user brand against competitors.
 
-    Please don't just list topic - user persona/metric/platform separately. Mix them together and provide meaningful insights with respect to specific competitors.
+CRITICAL REQUIREMENTS:
+1. Use EXACT numbers and percentages from the data
+2. Name specific competitors and their exact performance
+3. Identify where user brand is winning vs losing
+4. Provide actionable recommendations based on competitor analysis
+5. Focus on competitive advantages and gaps
 
-USER BRAND METRICS:
-- Brand Name: ${userBrand.name}
-- Visibility Score: ${userBrand.visibilityScore}%
+USER BRAND PERFORMANCE:
+- Brand: ${userBrand.name}
+- Visibility: ${userBrand.visibilityScore}%
 - Share of Voice: ${userBrand.shareOfVoice}%
 - Average Position: #${userBrand.averagePosition}
 - Depth of Mention: ${userBrand.depthOfMention}%
 
-
-COMPETITIVE LANDSCAPE:
+COMPETITOR PERFORMANCE:
 ${competitors.map(c => `- ${c.name}: ${c.visibilityScore}% visibility, #${c.rank} position, ${c.shareOfVoice}% SOV`).join('\n')}
 
-DATA VOLUME:
-- Total Prompts Analyzed: ${totalPrompts}
+ANALYSIS SCOPE:
+- Total Prompts: ${totalPrompts}
 - Total Responses: ${totalResponses}
 `;
 
@@ -337,43 +337,40 @@ DATA VOLUME:
 
     prompt += `
 
-CRITICAL: You MUST respond with ONLY the JSON format below. Do NOT include any other text, explanations, or formatting.
+RESPONSE FORMAT - CRITICAL: You MUST respond with ONLY the JSON format below. No other text.
 
-Example response format:
 {
   "whatsWorking": [
     {
-      "description": "GitHub outperforms GitLab 80% vs 20% in AI-Powered Developer Tools across all platforms",
-      "impact": "High",
-      "recommendation": "Leverage this dominance by creating AI-focused marketing campaigns"
+      "description": "[EXACT performance comparison with specific numbers]",
+      "impact": "High|Medium|Low",
+      "recommendation": "[Specific action to take based on competitive advantage]"
     }
   ],
   "needsAttention": [
     {
-      "description": "GitLab is gaining ground with 20% visibility vs GitHub's 85% in collaborative development topics",
-      "impact": "Medium", 
-      "recommendation": "Monitor GitLab's strategies and strengthen collaborative features"
+      "description": "[EXACT performance gap with specific numbers]",
+      "impact": "High|Medium|Low", 
+      "recommendation": "[Specific action to close the gap]"
     }
   ]
 }
 
-Focus on:
-1. RELATIONAL insights between user brand and specific competitors
-2. Cross-topic and cross-platform performance comparisons
-3. Specific numbers and percentages, not vague statements
-4. Tangible competitive advantages/disadvantages
-5. Actionable recommendations based on competitor analysis
+INSIGHT REQUIREMENTS:
+1. WHAT'S WORKING: Show where user brand beats competitors with exact numbers
+2. NEEDS ATTENTION: Show where competitors beat user brand with exact numbers
+3. Use format: "[User Brand] [metric] [exact number] vs [Competitor] [exact number] in [specific area]"
+4. Include specific competitor names and exact percentages/numbers
+5. Focus on competitive positioning and actionable next steps
 
-Requirements:
-- Use specific competitor names (GitLab, AWS CodeCommit, Bitbucket)
-- Include specific numbers and percentages
-- Compare performance across topics, personas, and platforms
-- Be direct and factual, no filler content
-- Focus on what's actually happening vs competitors
+EXAMPLES OF GOOD INSIGHTS:
+- "YourBrand dominates with 78% visibility vs CompetitorA's 45% in banking services topics"
+- "CompetitorB outperforms YourBrand 65% vs 32% in mobile platform responses"
+- "YourBrand ranks #2.1 vs CompetitorC's #4.3 average position in investment advice"
 
-Provide 3-5 insights for each category.
+Provide 3-4 insights per category with specific numbers and competitor names.
 
-REMEMBER: Your response must be ONLY valid JSON with the exact structure shown above. No additional text, no explanations, no markdown formatting.`;
+RESPONSE MUST BE ONLY VALID JSON - NO OTHER TEXT.`;
 
     return prompt;
   }
@@ -382,26 +379,45 @@ REMEMBER: Your response must be ONLY valid JSON with the exact structure shown a
    * Get visibility-specific prompt data
    */
   getVisibilityPromptData(data) {
-    let promptData = '';
+    let promptData = '\n\nDETAILED COMPETITIVE ANALYSIS:\n';
 
     if (data.topicBreakdown && data.topicBreakdown.length > 0) {
-      promptData += '\nTOPIC PERFORMANCE:\n';
+      promptData += '\nTOPIC PERFORMANCE BREAKDOWN:\n';
       data.topicBreakdown.forEach(topic => {
-        promptData += `- ${topic.topic}: User ${topic.userScore}% vs Competitors ${topic.competitorScores.map(cs => `${cs.name}: ${cs.score}%`).join(', ')}\n`;
+        const sortedCompetitors = topic.competitorScores.sort((a, b) => b.score - a.score);
+        const userRank = sortedCompetitors.findIndex(cs => cs.score < topic.userScore) + 1;
+        const totalCompetitors = sortedCompetitors.length;
+        
+        promptData += `\n${topic.topic}:\n`;
+        promptData += `- User Brand: ${topic.userScore}% (Rank #${userRank}/${totalCompetitors + 1})\n`;
+        promptData += `- Top Competitor: ${sortedCompetitors[0].name} ${sortedCompetitors[0].score}%\n`;
+        promptData += `- Performance Gap: ${topic.userScore > sortedCompetitors[0].score ? '+' : ''}${(topic.userScore - sortedCompetitors[0].score).toFixed(1)}%\n`;
       });
     }
 
     if (data.personaBreakdown && data.personaBreakdown.length > 0) {
-      promptData += '\nPERSONA PERFORMANCE:\n';
+      promptData += '\nPERSONA PERFORMANCE BREAKDOWN:\n';
       data.personaBreakdown.forEach(persona => {
-        promptData += `- ${persona.persona}: User ${persona.userScore}% vs Competitors ${persona.competitorScores.map(cs => `${cs.name}: ${cs.score}%`).join(', ')}\n`;
+        const sortedCompetitors = persona.competitorScores.sort((a, b) => b.score - a.score);
+        const userRank = sortedCompetitors.findIndex(cs => cs.score < persona.userScore) + 1;
+        
+        promptData += `\n${persona.persona}:\n`;
+        promptData += `- User Brand: ${persona.userScore}% (Rank #${userRank}/${sortedCompetitors.length + 1})\n`;
+        promptData += `- Top Competitor: ${sortedCompetitors[0].name} ${sortedCompetitors[0].score}%\n`;
+        promptData += `- Performance Gap: ${persona.userScore > sortedCompetitors[0].score ? '+' : ''}${(persona.userScore - sortedCompetitors[0].score).toFixed(1)}%\n`;
       });
     }
 
     if (data.platformBreakdown && data.platformBreakdown.length > 0) {
-      promptData += '\nPLATFORM PERFORMANCE:\n';
+      promptData += '\nPLATFORM PERFORMANCE BREAKDOWN:\n';
       data.platformBreakdown.forEach(platform => {
-        promptData += `- ${platform.platform}: User ${platform.userScore}% vs Competitors ${platform.competitorScores.map(cs => `${cs.name}: ${cs.score}%`).join(', ')}\n`;
+        const sortedCompetitors = platform.competitorScores.sort((a, b) => b.score - a.score);
+        const userRank = sortedCompetitors.findIndex(cs => cs.score < platform.userScore) + 1;
+        
+        promptData += `\n${platform.platform}:\n`;
+        promptData += `- User Brand: ${platform.userScore}% (Rank #${userRank}/${sortedCompetitors.length + 1})\n`;
+        promptData += `- Top Competitor: ${sortedCompetitors[0].name} ${sortedCompetitors[0].score}%\n`;
+        promptData += `- Performance Gap: ${platform.userScore > sortedCompetitors[0].score ? '+' : ''}${(platform.userScore - sortedCompetitors[0].score).toFixed(1)}%\n`;
       });
     }
 
@@ -412,24 +428,77 @@ REMEMBER: Your response must be ONLY valid JSON with the exact structure shown a
    * Get prompts-specific prompt data
    */
   getPromptsPromptData(data) {
-    // Implementation for prompts tab
-    return '\nPROMPT PERFORMANCE:\n[Prompt-specific data would go here]';
+    let promptData = '\n\nPROMPT PERFORMANCE ANALYSIS:\n';
+    
+    if (data.promptPerformance) {
+      promptData += `\nOVERALL PROMPT METRICS:\n`;
+      promptData += `- Total Prompts Generated: ${data.promptPerformance.totalPrompts || 'N/A'}\n`;
+      promptData += `- Success Rate: ${data.promptPerformance.successRate || 'N/A'}%\n`;
+      promptData += `- Average Response Quality: ${data.promptPerformance.avgQuality || 'N/A'}\n`;
+    }
+
+    if (data.topicPerformance && data.topicPerformance.length > 0) {
+      promptData += '\nTOPIC-SPECIFIC PROMPT PERFORMANCE:\n';
+      data.topicPerformance.forEach(topic => {
+        promptData += `\n${topic.topic}:\n`;
+        promptData += `- User Brand Performance: ${topic.userScore}%\n`;
+        promptData += `- Best Competitor: ${topic.competitorScores[0]?.name || 'N/A'} ${topic.competitorScores[0]?.score || 0}%\n`;
+        promptData += `- Performance Gap: ${topic.userScore > (topic.competitorScores[0]?.score || 0) ? '+' : ''}${(topic.userScore - (topic.competitorScores[0]?.score || 0)).toFixed(1)}%\n`;
+      });
+    }
+
+    return promptData;
   }
 
   /**
    * Get sentiment-specific prompt data
    */
   getSentimentPromptData(data) {
-    // Implementation for sentiment tab
-    return '\nSENTIMENT ANALYSIS:\n[Sentiment-specific data would go here]';
+    let promptData = '\n\nSENTIMENT ANALYSIS:\n';
+    
+    if (data.sentimentBreakdown) {
+      promptData += `\nOVERALL SENTIMENT METRICS:\n`;
+      promptData += `- Positive Sentiment: ${data.sentimentBreakdown.positive || 'N/A'}%\n`;
+      promptData += `- Negative Sentiment: ${data.sentimentBreakdown.negative || 'N/A'}%\n`;
+      promptData += `- Neutral Sentiment: ${data.sentimentBreakdown.neutral || 'N/A'}%\n`;
+    }
+
+    if (data.topicSentiment && data.topicSentiment.length > 0) {
+      promptData += '\nTOPIC-SPECIFIC SENTIMENT:\n';
+      data.topicSentiment.forEach(topic => {
+        promptData += `\n${topic.topic}:\n`;
+        promptData += `- User Brand Sentiment: ${topic.userSentiment || 'N/A'}\n`;
+        promptData += `- Competitor Comparison: ${topic.competitorSentiment || 'N/A'}\n`;
+      });
+    }
+
+    return promptData;
   }
 
   /**
    * Get citations-specific prompt data
    */
   getCitationsPromptData(data) {
-    // Implementation for citations tab
-    return '\nCITATION ANALYSIS:\n[Citation-specific data would go here]';
+    let promptData = '\n\nCITATION ANALYSIS:\n';
+    
+    if (data.citationBreakdown) {
+      promptData += `\nOVERALL CITATION METRICS:\n`;
+      promptData += `- Citation Share: ${data.citationBreakdown.share || 'N/A'}%\n`;
+      promptData += `- Total Citations: ${data.citationBreakdown.total || 'N/A'}\n`;
+      promptData += `- Citation Quality Score: ${data.citationBreakdown.quality || 'N/A'}\n`;
+    }
+
+    if (data.platformCitations && data.platformCitations.length > 0) {
+      promptData += '\nPLATFORM-SPECIFIC CITATIONS:\n';
+      data.platformCitations.forEach(platform => {
+        promptData += `\n${platform.platform}:\n`;
+        promptData += `- User Brand Citations: ${platform.userCitations || 'N/A'}\n`;
+        promptData += `- Top Competitor: ${platform.topCompetitor || 'N/A'} ${platform.topCompetitorCitations || 'N/A'}\n`;
+        promptData += `- Citation Gap: ${platform.userCitations > (platform.topCompetitorCitations || 0) ? '+' : ''}${(platform.userCitations - (platform.topCompetitorCitations || 0)).toFixed(1)}\n`;
+      });
+    }
+
+    return promptData;
   }
 
   /**
@@ -447,8 +516,8 @@ REMEMBER: Your response must be ONLY valid JSON with the exact structure shown a
             content: prompt
           }
         ],
-        temperature: 0.3,
-        max_tokens: 2000
+        temperature: 0.1,
+        max_tokens: 1500
       }, {
         headers: {
           'Authorization': `Bearer ${this.openRouterApiKey}`,

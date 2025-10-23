@@ -11,21 +11,25 @@ const devAuth = require('../middleware/devAuth');
  */
 router.post('/generate', devAuth, async (req, res) => {
   try {
-    const { tabType = 'visibility', urlAnalysisId } = req.body;
+    const { tabType = 'visibility', urlAnalysisId, forceRegenerate = false } = req.body;
     const userId = req.userId;
 
-    console.log(`🧠 [Insights API] Generating ${tabType} insights for user ${userId}`);
+    console.log(`🧠 [Insights API] Generating ${tabType} insights for user ${userId}${forceRegenerate ? ' (FORCE REGENERATE)' : ''}`);
 
-    // Check if insights already exist and are fresh
-    const existingInsights = await insightsService.getStoredInsights(userId, urlAnalysisId, tabType);
-    if (existingInsights) {
-      console.log(`✅ [Insights API] Returning cached insights for ${tabType}`);
-      return res.json({
-        success: true,
-        data: existingInsights,
-        cached: true,
-        message: `Fresh ${tabType} insights retrieved from cache`
-      });
+    // Check if insights already exist and are fresh (unless force regenerating)
+    if (!forceRegenerate) {
+      const existingInsights = await insightsService.getStoredInsights(userId, urlAnalysisId, tabType);
+      if (existingInsights) {
+        console.log(`✅ [Insights API] Returning cached insights for ${tabType}`);
+        return res.json({
+          success: true,
+          data: existingInsights,
+          cached: true,
+          message: `Fresh ${tabType} insights retrieved from cache`
+        });
+      }
+    } else {
+      console.log(`🔄 [Insights API] Force regenerating ${tabType} insights - ignoring cache`);
     }
 
     // Generate new insights
@@ -35,7 +39,7 @@ router.post('/generate', devAuth, async (req, res) => {
       success: true,
       data: insights,
       cached: false,
-      message: `${tabType} insights generated successfully`
+      message: `${tabType} insights generated successfully${forceRegenerate ? ' (force regenerated)' : ''}`
     });
 
   } catch (error) {
