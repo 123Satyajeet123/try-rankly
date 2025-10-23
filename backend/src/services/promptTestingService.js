@@ -2,6 +2,7 @@ const axios = require('axios');
 const PromptTest = require('../models/PromptTest');
 const Prompt = require('../models/Prompt');
 const UrlAnalysis = require('../models/UrlAnalysis');
+const { config } = require('../config/hyperparameters');
 
 class PromptTestingService {
   constructor() {
@@ -13,19 +14,14 @@ class PromptTestingService {
       throw new Error('OPENROUTER_API_KEY environment variable is required');
     }
 
-    // OpenRouter model identifiers for different LLMs
-    this.llmModels = {
-      openai: 'openai/gpt-4o',
-      gemini: 'google/gemini-2.5-flash',
-      claude: 'anthropic/claude-3.5-sonnet',
-      perplexity: 'perplexity/sonar-pro'
-    };
+    // Use centralized LLM model configuration
+    this.llmModels = config.llm.models;
 
-    // Configuration: Max prompts to test (controls API costs and testing time)
-    this.maxPromptsToTest = parseInt(process.env.MAX_PROMPTS_TO_TEST) || 20;
+    // Use centralized prompt testing configuration
+    this.maxPromptsToTest = config.prompts.maxToTest;
     
-    // Configuration: Enable aggressive parallelization (process all prompts simultaneously)
-    this.aggressiveParallelization = process.env.AGGRESSIVE_PARALLELIZATION !== 'false';
+    // Use centralized parallelization setting
+    this.aggressiveParallelization = config.prompts.aggressiveParallelization;
 
     console.log('📋 [LLM MODELS] Configured:', this.llmModels);
     console.log(`🎯 [TEST LIMIT] Max prompts to test: ${this.maxPromptsToTest}`);
@@ -353,8 +349,8 @@ Be thorough, accurate, and helpful in your responses.`;
               content: promptText
             }
           ],
-          temperature: 0.7,
-          max_tokens: 1000
+          temperature: config.llm.temperature,
+          max_tokens: config.llm.promptTestingMaxTokens
         },
         {
           headers: {

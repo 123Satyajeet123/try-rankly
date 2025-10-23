@@ -757,8 +757,9 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
     const selectedPersonas = await Persona.find({ userId, selected: true, urlAnalysisId: latestAnalysis._id });
 
     // Prepare data for prompt generation
-    // Configurable via PROMPTS_PER_QUERY_TYPE env variable for stress testing
-    const promptsPerQueryType = parseInt(process.env.PROMPTS_PER_QUERY_TYPE) || 3;
+    // Use centralized configuration
+    const { config } = require('../config/hyperparameters');
+    const promptsPerQueryType = config.prompts.perQueryType;
     
     const promptData = {
       topics: selectedTopics.map(topic => ({
@@ -877,7 +878,7 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
       // Test all prompts automatically
       const testResults = await testingService.testAllPrompts(userId, {
         batchSize: 5,
-        testLimit: parseInt(process.env.MAX_PROMPTS_TO_TEST) || 20,
+        testLimit: config.prompts.maxToTest,
         urlAnalysisId: latestAnalysis._id
       });
       

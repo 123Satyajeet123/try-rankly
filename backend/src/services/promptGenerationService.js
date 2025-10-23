@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { config } = require('../config/hyperparameters');
 
 /**
  * Prompt Generation Service
@@ -9,9 +10,8 @@ const axios = require('axios');
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-// Configuration: Number of prompts to generate per query type
-// For stress testing, increase this value (e.g., 5 = 25 total prompts per combination)
-const PROMPTS_PER_QUERY_TYPE = parseInt(process.env.PROMPTS_PER_QUERY_TYPE) || 3;
+// Use centralized configuration
+const PROMPTS_PER_QUERY_TYPE = config.prompts.perQueryType;
 
 /**
  * Generate prompts for all topic-persona combinations
@@ -131,8 +131,8 @@ async function generatePromptsForCombination({
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.8, // Higher temperature for more creative/varied prompts
-        max_tokens: 2000
+        temperature: config.llm.temperature, // Use centralized temperature setting
+        max_tokens: config.llm.maxTokens
       },
       {
         headers: {
@@ -201,8 +201,8 @@ async function generatePromptsForCombination({
  * Build system prompt for AI
  */
 function buildSystemPrompt(promptsPerQueryType = 3) {
-  const totalPrompts = promptsPerQueryType * 5;
-  const brandedCount = Math.max(1, Math.floor(totalPrompts * 0.15)); // 15% branded (10-20% range)
+  const totalPrompts = promptsPerQueryType * config.prompts.queryTypes.length;
+  const brandedCount = Math.max(1, Math.floor(totalPrompts * config.prompts.brandedPercentage));
   const nonBrandedCount = totalPrompts - brandedCount; // 85% non-branded
   
   return `You are an expert at creating natural, human-like search queries for Answer Engine Optimization (AEO) analysis.
@@ -328,8 +328,8 @@ function buildUserPrompt({
     }
   }
 
-  const totalPrompts = promptsPerQueryType * 5;
-  const brandedCount = Math.max(1, Math.floor(totalPrompts * 0.15)); // 15% branded
+  const totalPrompts = promptsPerQueryType * config.prompts.queryTypes.length;
+  const brandedCount = Math.max(1, Math.floor(totalPrompts * config.prompts.brandedPercentage));
   const nonBrandedCount = totalPrompts - brandedCount; // 85% non-branded
   
   return `Generate ${totalPrompts} AEO-focused prompts for brand visibility testing:

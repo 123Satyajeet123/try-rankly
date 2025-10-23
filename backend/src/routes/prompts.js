@@ -263,8 +263,9 @@ router.post('/generate', devAuth, async (req, res) => {
     }));
 
     // Generate prompts using AI service
-    // Configurable via PROMPTS_PER_QUERY_TYPE env variable
-    const promptsPerQueryType = parseInt(process.env.PROMPTS_PER_QUERY_TYPE) || 3;
+    // Use centralized configuration
+    const { config } = require('../config/hyperparameters');
+    const promptsPerQueryType = config.prompts.perQueryType;
     
     console.log(`📊 Generating ${promptsPerQueryType} prompts per query type (${promptsPerQueryType * 5} per combination)`);
     
@@ -381,8 +382,9 @@ router.post('/test', devAuth, async (req, res) => {
       });
     }
     
-    // Get test limit from environment variable or use default
-    const maxPromptsToTest = parseInt(process.env.MAX_PROMPTS_TO_TEST) || 20;
+    // Use centralized configuration
+    const { config } = require('../config/hyperparameters');
+    const maxPromptsToTest = config.prompts.maxToTest;
     
     console.log(`📊 [START] Testing prompts across 4 LLMs (limit: ${maxPromptsToTest})...`);
     const testStartTime = Date.now();
@@ -390,7 +392,7 @@ router.post('/test', devAuth, async (req, res) => {
     // Start testing (this will take time)
     const results = await promptTestingService.testAllPrompts(userId, {
       batchSize: 5, // Process 5 prompts at a time
-      testLimit: maxPromptsToTest,  // Configurable via MAX_PROMPTS_TO_TEST env variable
+      testLimit: maxPromptsToTest,  // Use centralized configuration
       urlAnalysisId: urlAnalysisId  // Pass URL analysis ID if provided
     });
     
