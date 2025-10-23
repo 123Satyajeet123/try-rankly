@@ -69,18 +69,42 @@ class SubjectiveMetricsService {
       console.log(`   Platforms: ${promptTests.map(pt => pt.llmProvider).join(', ')}`);
       console.log(`   Query: ${prompt.text.substring(0, 100)}...`);
 
-      // 3. Verify brand is mentioned in at least one response
+      // 3. Check if brand is mentioned in any response (case-insensitive)
       const brandFound = promptTests.some(pt => 
         pt.brandMetrics?.some(bm => 
           bm.brandName.toLowerCase() === brandName.toLowerCase() && bm.mentioned
         )
       );
 
-      if (!brandFound) {
-        throw new Error(`Brand "${brandName}" not found in any platform responses`);
+      // Also check if brand is mentioned in the raw response text (case-insensitive)
+      const brandFoundInText = promptTests.some(pt => {
+        const responseText = pt.rawResponse || '';
+        const brandPatterns = [
+          brandName,
+          brandName.toLowerCase(),
+          brandName.toUpperCase(),
+          brandName.charAt(0).toUpperCase() + brandName.slice(1).toLowerCase()
+        ];
+        
+        return brandPatterns.some(pattern => 
+          responseText.toLowerCase().includes(pattern.toLowerCase())
+        );
+      });
+
+      if (!brandFound && !brandFoundInText) {
+        console.log(`⚠️ [SubjectiveMetrics] Brand "${brandName}" not found in any platform responses`);
+        console.log(`   This is common when the brand is not mentioned in LLM responses`);
+        console.log(`   Proceeding with default evaluation values...`);
+        
+        // Return default metrics when brand is not mentioned
+        return await this.createDefaultMetrics(promptId, brandName, userId, promptTests);
       }
 
-      console.log(`✅ [SubjectiveMetrics] Brand "${brandName}" found in responses`);
+      if (brandFound) {
+        console.log(`✅ [SubjectiveMetrics] Brand "${brandName}" found in brand metrics`);
+      } else if (brandFoundInText) {
+        console.log(`✅ [SubjectiveMetrics] Brand "${brandName}" found in response text`);
+      }
 
       // 4. Build unified evaluation prompt with ALL platform responses
       const evaluationPrompt = this.buildUnifiedPrompt(
@@ -688,6 +712,103 @@ EXAMPLE BAD REASONING:
       metrics,
       summary
     };
+  }
+
+  /**
+   * Create default metrics when brand is not mentioned in responses
+   * @param {string} promptId - Prompt ID
+   * @param {string} brandName - Brand name
+   * @param {string} userId - User ID
+   * @param {Array} promptTests - Prompt test data
+   * @returns {Promise<Object>} - Default metrics object
+   */
+  async createDefaultMetrics(promptId, brandName, userId, promptTests) {
+    console.log(`🔧 [SubjectiveMetrics] Creating default metrics for brand "${brandName}"`);
+    
+    // Create default metrics for each platform
+    const platformMetrics = [];
+    
+    for (const test of promptTests) {
+      const defaultMetrics = {
+        platform: test.llmProvider,
+        overallQuality: {
+          score: 1,
+          summary: `Brand "${brandName}" was not mentioned in the ${test.llmProvider} response, resulting in minimal visibility and impact.`
+        },
+        diversity: {
+          score: 1,
+          reasoning: `No brand mentions detected for "${brandName}" in ${test.llmProvider} response.`
+        },
+        clickProbability: {
+          score: 1,
+          reasoning: `Brand "${brandName}" not mentioned, so minimal click probability.`
+        },
+        position: {
+          score: 1,
+          reasoning: `Brand "${brandName}" not found in ${test.llmProvider} response.`
+        },
+        uniqueness: {
+          score: 1,
+          reasoning: `No unique positioning detected for "${brandName}" as it was not mentioned.`
+        },
+        influence: {
+          score: 1,
+          reasoning: `Brand "${brandName}" has minimal influence as it was not mentioned in the response.`
+        },
+        relevance: {
+          score: 1,
+          reasoning: `Brand "${brandName}" not mentioned, so minimal relevance score.`
+        }
+      };
+      
+      platformMetrics.push(defaultMetrics);
+    }
+    
+    // Save to database
+    const subjectiveMetrics = new SubjectiveMetrics({
+      promptId,
+      brandName,
+      userId,
+      platform: 'all',
+      overallQuality: {
+        score: 1,
+        summary: `Brand "${brandName}" was not mentioned in any platform responses, resulting in minimal overall quality score.`
+      },
+      diversity: {
+        score: 1,
+        reasoning: `No brand mentions detected for "${brandName}" across all platforms.`
+      },
+      clickProbability: {
+        score: 1,
+        reasoning: `Brand "${brandName}" not mentioned, so minimal click probability.`
+      },
+      position: {
+        score: 1,
+        reasoning: `Brand "${brandName}" not found in any platform responses.`
+      },
+      uniqueness: {
+        score: 1,
+        reasoning: `No unique positioning detected for "${brandName}" as it was not mentioned.`
+      },
+      influence: {
+        score: 1,
+        reasoning: `Brand "${brandName}" has minimal influence as it was not mentioned in any responses.`
+      },
+      relevance: {
+        score: 1,
+        reasoning: `Brand "${brandName}" not mentioned, so minimal relevance score.`
+      },
+      platformMetrics,
+      evaluationDate: new Date(),
+      tokensUsed: 0,
+      cost: 0
+    });
+    
+    await subjectiveMetrics.save();
+    
+    console.log(`✅ [SubjectiveMetrics] Default metrics saved for brand "${brandName}"`);
+    
+    return subjectiveMetrics;
   }
 }
 

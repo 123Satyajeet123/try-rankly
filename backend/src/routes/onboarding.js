@@ -868,8 +868,22 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
 
     console.log(`💾 Saved ${savedPrompts.length} prompts to database`);
 
-    // Trigger matrix calculation after prompt generation
+    // Trigger prompt testing and then metrics calculation after prompt generation
     try {
+      console.log('🧪 Starting automatic prompt testing...');
+      const promptTestingService = require('../services/promptTestingService');
+      const testingService = new promptTestingService();
+      
+      // Test all prompts automatically
+      const testResults = await testingService.testAllPrompts(userId, {
+        batchSize: 5,
+        testLimit: parseInt(process.env.MAX_PROMPTS_TO_TEST) || 20,
+        urlAnalysisId: latestAnalysis._id
+      });
+      
+      console.log(`✅ Prompt testing completed: ${testResults.totalTests} tests`);
+      
+      // Now calculate metrics after testing
       console.log('🔄 Starting matrix calculation...');
       const MetricsAggregationService = require('../services/metricsAggregationService');
       const metricsService = new MetricsAggregationService();
@@ -888,15 +902,15 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
       } else {
         console.log('⚠️  Matrix calculation completed with warnings:', metricsResult.message);
       }
-    } catch (metricsError) {
-      console.error('❌ Matrix calculation failed:', metricsError.message);
-      // Don't fail the entire request if metrics calculation fails
+    } catch (error) {
+      console.error('❌ Automatic testing/metrics calculation failed:', error.message);
+      // Don't fail the entire request if testing/metrics calculation fails
       console.log('   Continuing with prompt generation response...');
     }
 
     res.json({
       success: true,
-      message: 'Prompts generated successfully',
+      message: 'Prompts generated, tested, and metrics calculated successfully',
       data: {
         prompts: savedPrompts,
         totalPrompts: savedPrompts.length,

@@ -821,9 +821,10 @@ function Onboarding() {
           console.log(`📊 Total prompts: ${response.data.totalPrompts}`)
           console.log('📝 Generated prompts:', response.data.prompts)
 
-          // Redirect to dashboard and start testing
-          console.log('🧪 Redirecting to dashboard and starting prompt testing...')
-          router.push('/dashboard?startTesting=true')
+          // Backend automatically handles testing and metrics calculation
+          console.log('🎯 Backend is automatically testing prompts and calculating metrics...')
+          console.log('📊 Redirecting to dashboard to view results...')
+          router.push('/dashboard')
         } else {
           console.error('❌ Prompt generation failed:', response.message)
           alert(response.message || 'Failed to generate prompts')

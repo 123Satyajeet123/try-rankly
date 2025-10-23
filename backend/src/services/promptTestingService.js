@@ -952,9 +952,17 @@ Be thorough, accurate, and helpful in your responses.`;
   generateBrandPatterns(brandName) {
     const patterns = new Set([brandName]); // Always include exact brand name
     
+    // Add case variations
+    patterns.add(brandName.toLowerCase());
+    patterns.add(brandName.toUpperCase());
+    patterns.add(brandName.charAt(0).toUpperCase() + brandName.slice(1).toLowerCase()); // Title case
+    
     // Remove special characters and normalize
     const cleanBrandName = brandName.replace(/[®™℠©]/g, '').trim();
     patterns.add(cleanBrandName);
+    patterns.add(cleanBrandName.toLowerCase());
+    patterns.add(cleanBrandName.toUpperCase());
+    patterns.add(cleanBrandName.charAt(0).toUpperCase() + cleanBrandName.slice(1).toLowerCase());
     
     // Split brand name into words for intelligent matching
     const words = cleanBrandName.split(/\s+/).filter(w => w.length > 1);
@@ -967,6 +975,9 @@ Be thorough, accurate, and helpful in your responses.`;
     words.forEach(word => {
       if (!commonProductWords.has(word.toLowerCase())) {
         patterns.add(word);
+        patterns.add(word.toLowerCase());
+        patterns.add(word.toUpperCase());
+        patterns.add(word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
       }
     });
     
@@ -974,7 +985,11 @@ Be thorough, accurate, and helpful in your responses.`;
     if (words.length > 1) {
       // Add first two words (common for "Brand Name" patterns)
       if (words.length >= 2) {
-        patterns.add(`${words[0]} ${words[1]}`);
+        const twoWords = `${words[0]} ${words[1]}`;
+        patterns.add(twoWords);
+        patterns.add(twoWords.toLowerCase());
+        patterns.add(twoWords.toUpperCase());
+        patterns.add(twoWords.charAt(0).toUpperCase() + twoWords.slice(1).toLowerCase());
       }
       
       // Add full name without special chars (already added above)
