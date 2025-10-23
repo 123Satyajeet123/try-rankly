@@ -20,26 +20,37 @@
 const config = {
   // ===== PROMPT GENERATION CONFIGURATION =====
   prompts: {
-    // Number of prompts to generate per query type (default: 3)
-    // Total prompts = topics × personas × queryTypes × promptsPerQueryType
-    // Example: 2 topics × 2 personas × 5 query types × 3 prompts = 60 total prompts
-    perQueryType: parseInt(process.env.PROMPTS_PER_QUERY_TYPE) || 3,
+    // Total prompts to generate (default: 50)
+    totalPrompts: parseInt(process.env.TOTAL_PROMPTS) || 50,
     
     // Maximum prompts to test against LLMs (default: 20)
     // Controls API costs and testing time
     maxToTest: parseInt(process.env.MAX_PROMPTS_TO_TEST) || 20,
     
-    // Number of query types (fixed - always 5)
+    // 4 Standard Query Types (removed Comparative & Reputational)
     queryTypes: [
-      'Navigational',
-      'Commercial Investigation', 
-      'Transactional',
-      'Comparative',
-      'Reputational'
+      'Informational',   // Learning/understanding
+      'Navigational',    // Finding/locating
+      'Commercial',      // Research/evaluation (generic only)
+      'Transactional'   // Action/conversion
     ],
     
-    // Percentage of prompts that should be branded (default: 15%)
-    brandedPercentage: 0.15,
+    // Distribution weights for each query type (TOFU-focused)
+    queryTypeWeights: {
+      'Informational': 0.30,    // 30% - highest for TOFU
+      'Commercial': 0.30,       // 30% - second highest
+      'Transactional': 0.20,    // 20%
+      'Navigational': 0.20      // 20%
+    },
+    
+    // Branded vs non-branded ratio
+    brandedPercentage: 0.01,  // 1% branded, 99% non-branded
+    
+    // NEW: Don't include competitors in prompt generation
+    includeCompetitors: false,
+    
+    // NEW: TOFU-focused prompts only
+    tofuFocused: true,
     
     // Enable aggressive parallelization for testing (default: true)
     aggressiveParallelization: process.env.AGGRESSIVE_PARALLELIZATION !== 'false'

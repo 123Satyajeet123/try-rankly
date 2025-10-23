@@ -24,7 +24,7 @@ export function PromptsTab({ onToggleFullScreen, filterContext, dashboardData }:
       <PromptsSection onToggleFullScreen={onToggleFullScreen} filterContext={filterContext} dashboardData={dashboardData} />
       
       {/* Performance Insights Section */}
-      <UnifiedPerformanceInsightsSection filterContext={filterContext} dashboardData={dashboardData} />
+      <UnifiedPerformanceInsightsSection filterContext={filterContext} dashboardData={dashboardData} tabType="prompts" />
     </div>
   )
 }

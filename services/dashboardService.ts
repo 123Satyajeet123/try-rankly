@@ -48,6 +48,48 @@ class DashboardService {
   }
 
   /**
+   * Clear prompts cache for specific analysis
+   */
+  clearPromptsCacheForAnalysis(analysisId: string): void {
+    const cacheKey = `prompts-${analysisId}`
+    console.log('🧹 [DashboardService] Clearing prompts cache for analysis:', analysisId)
+    this.cache.delete(cacheKey)
+  }
+
+  /**
+   * Trigger insights generation for all tabs in background
+   */
+  private async triggerInsightsGeneration(analysisId?: string): Promise<void> {
+    try {
+      console.log('🧠 [DashboardService] Triggering insights generation for all tabs...')
+      
+      // Define all tab types that need insights
+      const tabTypes = ['visibility', 'prompts', 'sentiment', 'citations']
+      
+      // Generate insights for each tab in parallel (non-blocking)
+      const insightsPromises = tabTypes.map(async (tabType) => {
+        try {
+          console.log(`🧠 [DashboardService] Generating insights for ${tabType} tab...`)
+          await apiService.generateInsightsForTab(tabType, analysisId)
+          console.log(`✅ [DashboardService] ${tabType} insights generated successfully`)
+        } catch (error) {
+          console.error(`❌ [DashboardService] Failed to generate ${tabType} insights:`, error)
+          // Don't throw - we want other tabs to continue processing
+        }
+      })
+      
+      // Wait for all insights to complete (but don't block dashboard loading)
+      Promise.allSettled(insightsPromises).then(() => {
+        console.log('✅ [DashboardService] All insights generation completed')
+      })
+      
+    } catch (error) {
+      console.error('❌ [DashboardService] Error triggering insights generation:', error)
+      // Don't throw - insights generation failure shouldn't break dashboard
+    }
+  }
+
+  /**
    * Get cached data or fetch fresh data
    */
   private async getCachedData<T>(
@@ -253,6 +295,10 @@ class DashboardService {
       } else {
         console.log('⚠️ [DashboardService] No AI insights available')
       }
+      
+      // 🧠 Always trigger insights generation for all tabs in background
+      // This ensures each tab has fresh, tab-specific insights
+      this.triggerInsightsGeneration(filters.selectedAnalysisId || filters.urlAnalysisId)
 
       // Add filter options to dashboard data
       const filterOptions = transformFilters({

@@ -27,7 +27,7 @@ export function CitationsTab({ filterContext, dashboardData }: CitationsTabProps
       <CitationTypesDetailSection filterContext={filterContext} dashboardData={dashboardData} />
       
       {/* Performance Insights Section */}
-      <UnifiedPerformanceInsightsSection filterContext={filterContext} dashboardData={dashboardData} />
+      <UnifiedPerformanceInsightsSection filterContext={filterContext} dashboardData={dashboardData} tabType="citations" />
     </div>
   )
 }

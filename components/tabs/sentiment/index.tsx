@@ -25,7 +25,7 @@ export function SentimentTab({ filterContext, dashboardData }: SentimentTabProps
       <SentimentBreakdownSection filterContext={filterContext} dashboardData={dashboardData} />
       
       {/* Performance Insights Section */}
-      <UnifiedPerformanceInsightsSection filterContext={filterContext} dashboardData={dashboardData} />
+      <UnifiedPerformanceInsightsSection filterContext={filterContext} dashboardData={dashboardData} tabType="sentiment" />
     </div>
   )
 }

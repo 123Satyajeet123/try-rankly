@@ -759,7 +759,7 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
     // Prepare data for prompt generation
     // Use centralized configuration
     const { config } = require('../config/hyperparameters');
-    const promptsPerQueryType = config.prompts.perQueryType;
+    const totalPrompts = config.prompts.totalPrompts;
     
     const promptData = {
       topics: selectedTopics.map(topic => ({
@@ -779,20 +779,14 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
       language: user.preferences.language || 'English',
       websiteUrl: user.websiteUrl || '',
       brandContext: extractBrandContext(latestAnalysis),
-      competitors: selectedCompetitors.map(comp => ({
-        name: comp.name,
-        url: comp.url,
-        reason: comp.reason
-      })),
-      promptsPerQueryType
+      // competitors removed - not needed for TOFU queries
+      totalPrompts
     };
 
     console.log('📊 Prompt generation data:', {
       topicsCount: promptData.topics.length,
       personasCount: promptData.personas.length,
-      competitorsCount: promptData.competitors.length,
-      promptsPerQueryType,
-      totalPromptsPerCombination: promptsPerQueryType * 5
+      totalPrompts
     });
 
     console.log('🔍 Available topics:', selectedTopics.map(t => ({ _id: t._id, name: t.name })));

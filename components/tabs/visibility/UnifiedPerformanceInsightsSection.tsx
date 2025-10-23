@@ -25,6 +25,7 @@ import { useSkeletonLoading } from '@/components/ui/with-skeleton-loading'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
 import { truncateForDisplay, truncateForChart, truncateForRanking, truncateForTooltip } from '@/lib/textUtils'
+import apiService from '@/services/api'
 
 interface UnifiedPerformanceInsightsSectionProps {
   filterContext?: {
@@ -33,9 +34,10 @@ interface UnifiedPerformanceInsightsSectionProps {
     selectedPlatforms: string[]
   }
   dashboardData?: any
+  tabType?: string // Add tabType prop to identify which tab this is for
 }
 
-export function UnifiedPerformanceInsightsSection({ filterContext, dashboardData }: UnifiedPerformanceInsightsSectionProps) {
+export function UnifiedPerformanceInsightsSection({ filterContext, dashboardData, tabType = 'visibility' }: UnifiedPerformanceInsightsSectionProps) {
   const { showSkeleton, isVisible } = useSkeletonLoading(filterContext)
   
   // State for insights data
@@ -176,21 +178,54 @@ export function UnifiedPerformanceInsightsSection({ filterContext, dashboardData
     }
   }
 
-  // Get insights data from dashboard (synchronous - no async needed)
+  // Get insights data from dashboard and fetch tab-specific insights
   useEffect(() => {
-    setIsLoading(true)
-    try {
-      const data = getInsightsFromDashboard()
-      setInsightsData(data)
-      console.log('✅ [PerformanceInsights] Insights loaded:', data.whatsWorking.length, 'working,', data.needsAttention.length, 'attention')
-    } catch (error) {
-      console.error('Error loading insights:', error)
-      // Fallback to manual generation
-      const fallbackData = generateInsightsFromMetrics()
-      setInsightsData(fallbackData)
-    } finally {
-      setIsLoading(false)
+    const loadInsights = async () => {
+      setIsLoading(true)
+      try {
+        // First try to get insights from dashboard data
+        const dashboardInsights = getInsightsFromDashboard()
+        if (dashboardInsights.whatsWorking.length > 0 || dashboardInsights.needsAttention.length > 0) {
+          setInsightsData(dashboardInsights)
+          console.log('✅ [PerformanceInsights] Insights loaded from dashboard:', dashboardInsights.whatsWorking.length, 'working,', dashboardInsights.needsAttention.length, 'attention')
+        } else {
+          // If no dashboard insights, try to get existing insights from database first
+          console.log(`🔄 [PerformanceInsights] Fetching existing insights for ${tabType}...`)
+          try {
+            // First try to get existing insights from database
+            const existingResponse = await apiService.getInsightsForTab(tabType)
+            if (existingResponse.success && existingResponse.data) {
+              setInsightsData(existingResponse.data)
+              console.log('✅ [PerformanceInsights] Existing insights loaded from database:', existingResponse.data.whatsWorking?.length || 0, 'working,', existingResponse.data.needsAttention?.length || 0, 'attention')
+            } else {
+              // If no existing insights, generate new ones
+              console.log(`🔄 [PerformanceInsights] No existing insights found, generating new ones for ${tabType}...`)
+              const response = await apiService.generateInsightsForTab(tabType)
+              if (response.success && response.data) {
+                setInsightsData(response.data)
+                console.log('✅ [PerformanceInsights] New insights generated:', response.data.whatsWorking?.length || 0, 'working,', response.data.needsAttention?.length || 0, 'attention')
+              } else {
+                throw new Error('Failed to generate new insights')
+              }
+            }
+          } catch (apiError) {
+            console.error('❌ [PerformanceInsights] Failed to fetch insights:', apiError)
+            // Fallback to manual generation
+            const fallbackData = generateInsightsFromMetrics()
+            setInsightsData(fallbackData)
+          }
+        }
+      } catch (error) {
+        console.error('Error loading insights:', error)
+        // Fallback to manual generation
+        const fallbackData = generateInsightsFromMetrics()
+        setInsightsData(fallbackData)
+      } finally {
+        setIsLoading(false)
+      }
     }
+
+    loadInsights()
   }, [dashboardData]) // Re-calculate when dashboard data changes
 
   const { whatsWorking, needsAttention } = insightsData

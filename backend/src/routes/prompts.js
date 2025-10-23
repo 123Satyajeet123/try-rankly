@@ -42,7 +42,7 @@ router.get('/', devAuth, async (req, res) => {
 router.post('/', devAuth, [
   body('topicId').isMongoId(),
   body('personaId').isMongoId(),
-  body('queryType').isIn(['Navigational', 'Commercial Investigation', 'Transactional', 'Comparative', 'Reputational']),
+  body('queryType').isIn(['Informational', 'Navigational', 'Commercial', 'Transactional']),
   body('title').trim().notEmpty(),
   body('text').trim().notEmpty()
 ], async (req, res) => {
@@ -265,9 +265,9 @@ router.post('/generate', devAuth, async (req, res) => {
     // Generate prompts using AI service
     // Use centralized configuration
     const { config } = require('../config/hyperparameters');
-    const promptsPerQueryType = config.prompts.perQueryType;
+    const totalPrompts = config.prompts.totalPrompts;
     
-    console.log(`📊 Generating ${promptsPerQueryType} prompts per query type (${promptsPerQueryType * 5} per combination)`);
+    console.log(`📊 Generating ${totalPrompts} prompts per combination`);
     
     const generatedPrompts = await generatePrompts({
       topics,
@@ -276,8 +276,8 @@ router.post('/generate', devAuth, async (req, res) => {
       language: 'English',
       websiteUrl: latestAnalysis.url,
       brandContext: latestAnalysis.brandContext || '',
-      competitors: competitorData,
-      promptsPerQueryType
+      // competitors removed - not needed for TOFU queries
+      totalPrompts
     });
 
     console.log(`✨ Generated ${generatedPrompts.length} prompts`);

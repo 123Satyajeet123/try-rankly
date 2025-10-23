@@ -20,19 +20,10 @@ import { truncateForDisplay, truncateForChart, truncateForRanking, truncateForTo
 
 // Default fallback data removed - component now uses only real data from API
 
-// Brand color palette
-const brandColors = [
-  '#3B82F6', // Blue
-  '#EF4444', // Red  
-  '#10B981', // Green
-  '#F59E0B', // Yellow
-  '#8B5CF6', // Purple
-  '#06B6D4', // Cyan
-  '#EC4899', // Pink
-  '#14B8A6', // Teal
-  '#84CC16', // Lime
-  '#F97316'  // Orange
-]
+import { frontendConfig } from '@/lib/config'
+
+// Use centralized brand color palette
+const brandColors = frontendConfig.charts.brandColors
 
 interface CitationTypesSectionProps {
   filterContext?: {

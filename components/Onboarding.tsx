@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import apiService from '@/services/api'
+import { frontendConfig, validateCompetitorCount, validateTopicCount, validatePersonaCount, getValidationMessage } from '@/lib/config'
 
 
 function Onboarding() {
@@ -225,29 +226,29 @@ function Onboarding() {
       // Start animation only once
       const timers: NodeJS.Timeout[] = []
 
-      // Card 1: Show after 0.5s, complete after 2.5s
+      // Card 1: Show after configured delay, complete after 2.5s
       timers.push(setTimeout(() => {
         setCard1Visible(true)
         timers.push(setTimeout(() => setCard1Loaded(true), 2500))
-      }, 500))
+      }, frontendConfig.animations.cardDelays.card1))
 
-      // Card 2: Show after 3.5s, complete after 2.5s
+      // Card 2: Show after configured delay, complete after 2.5s
       timers.push(setTimeout(() => {
         setCard2Visible(true)
         timers.push(setTimeout(() => setCard2Loaded(true), 2500))
-      }, 3500))
+      }, frontendConfig.animations.cardDelays.card2))
 
-      // Card 3: Show after 6.5s, complete after 2.5s
+      // Card 3: Show after configured delay, complete after 2.5s
       timers.push(setTimeout(() => {
         setCard3Visible(true)
         timers.push(setTimeout(() => setCard3Loaded(true), 2500))
-      }, 6500))
+      }, frontendConfig.animations.cardDelays.card3))
 
-      // Card 4: Show after 9.5s, but WAIT for actual API completion (don't auto-complete)
+      // Card 4: Show after configured delay, but WAIT for actual API completion (don't auto-complete)
       timers.push(setTimeout(() => {
         setCard4Visible(true)
         // Don't auto-complete card 4 - wait for analysisComplete signal
-      }, 9500))
+      }, frontendConfig.animations.cardDelays.card4))
 
       // Cleanup function
       return () => {
@@ -356,14 +357,14 @@ function Onboarding() {
     useEffect(() => {
       const timers: NodeJS.Timeout[] = []
 
-      // Step 1: Complete after 2s
-      timers.push(setTimeout(() => setStep1Done(true), 2000))
+      // Step 1: Complete after configured delay
+      timers.push(setTimeout(() => setStep1Done(true), frontendConfig.animations.stepDelays.step1))
 
-      // Step 2: Complete after 4s
-      timers.push(setTimeout(() => setStep2Done(true), 4000))
+      // Step 2: Complete after configured delay
+      timers.push(setTimeout(() => setStep2Done(true), frontendConfig.animations.stepDelays.step2))
 
-      // Step 3: Complete after 6s
-      timers.push(setTimeout(() => setStep3Done(true), 6000))
+      // Step 3: Complete after configured delay
+      timers.push(setTimeout(() => setStep3Done(true), frontendConfig.animations.stepDelays.step3))
 
       return () => {
         timers.forEach(timer => clearTimeout(timer))
@@ -1424,12 +1425,12 @@ function Onboarding() {
             <p className="text-muted-foreground">
               {selectedCount === 0
                 ? 'Select your competitors to continue'
-                : `Selected ${selectedCount} of 4 competitors`
+                : `Selected ${selectedCount} of ${frontendConfig.limits.maxCompetitors} competitors`
               }
             </p>
-            {selectedCount > 4 && (
+            {!validateCompetitorCount(selectedCount) && (
               <p className="text-sm text-red-500 mt-2">
-                Please select no more than 4 competitors
+                {getValidationMessage('competitors')}
               </p>
             )}
           </div>
@@ -1465,12 +1466,12 @@ function Onboarding() {
             <p className="text-muted-foreground">
               {selectedCount === 0
                 ? 'Select your topics to continue'
-                : `Selected ${selectedCount} of 2 topics`
+                : `Selected ${selectedCount} of ${frontendConfig.limits.maxTopics} topics`
               }
             </p>
-            {selectedCount > 2 && (
+            {!validateTopicCount(selectedCount) && (
               <p className="text-sm text-red-500 mt-2">
-                Please select no more than 2 topics
+                {getValidationMessage('topics')}
               </p>
             )}
           </div>
@@ -1506,12 +1507,12 @@ function Onboarding() {
             <p className="text-muted-foreground">
               {selectedCount === 0
                 ? 'Select your personas to continue'
-                : `Selected ${selectedCount} of 2 personas`
+                : `Selected ${selectedCount} of ${frontendConfig.limits.maxPersonas} personas`
               }
             </p>
-            {selectedCount > 2 && (
+            {!validatePersonaCount(selectedCount) && (
               <p className="text-sm text-red-500 mt-2">
-                Please select no more than 2 personas
+                {getValidationMessage('personas')}
               </p>
             )}
           </div>

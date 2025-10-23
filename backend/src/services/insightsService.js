@@ -295,14 +295,27 @@ class InsightsService {
   generatePrompt(structuredData, tabType) {
     const { userBrand, competitors, totalPrompts, totalResponses } = structuredData;
     
-    let prompt = `You are an expert competitive intelligence analyst. Analyze the following ${tabType} data and provide SPECIFIC, DATA-DRIVEN insights comparing the user brand against competitors.
+    let prompt = `You are an expert competitive intelligence analyst and business storyteller. Your job is to transform raw performance data into clear, actionable business insights that executives can instantly understand and act upon.
 
-CRITICAL REQUIREMENTS:
+CRITICAL MISSION: Convert complex data into simple, strategic stories that answer:
+- "Am I winning or losing?"
+- "Against whom and by how much?"
+- "What should I do about it?"
+
+REQUIREMENTS FOR INSIGHTS:
 1. Use EXACT numbers and percentages from the data
 2. Name specific competitors and their exact performance
-3. Identify where user brand is winning vs losing
-4. Provide actionable recommendations based on competitor analysis
-5. Focus on competitive advantages and gaps
+3. Write in business language that executives understand
+4. Create "aha moments" that make data instantly click
+5. Provide specific, actionable recommendations
+6. Focus on competitive advantages and strategic gaps
+
+INSIGHT FORMAT REQUIREMENTS:
+- Start with clear win/loss statements: "YourBrand dominates..." or "Chase outperforms YourBrand..."
+- Include specific numbers: "78% vs 45%" not "better performance"
+- Name competitors: "Chase" not "competitors"
+- Add context: "in banking services topics" not just "visibility"
+- End with action: "Create competitive responses" not "improve performance"
 
 USER BRAND PERFORMANCE:
 - Brand: ${userBrand.name}
@@ -323,15 +336,19 @@ ANALYSIS SCOPE:
     switch (tabType) {
       case 'visibility':
         prompt += this.getVisibilityPromptData(structuredData);
+        prompt += '\n\nVISIBILITY INSIGHTS FOCUS:\n- Brand visibility and market presence\n- Competitive positioning across topics and platforms\n- Share of voice and ranking performance\n- Strategic opportunities and threats';
         break;
       case 'prompts':
         prompt += this.getPromptsPromptData(structuredData);
+        prompt += '\n\nPROMPTS INSIGHTS FOCUS:\n- Prompt effectiveness and success rates\n- LLM response quality and brand mentions\n- Competitive prompt performance\n- Strategic prompt optimization opportunities';
         break;
       case 'sentiment':
         prompt += this.getSentimentPromptData(structuredData);
+        prompt += '\n\nSENTIMENT INSIGHTS FOCUS:\n- Brand perception and sentiment scores\n- Competitive sentiment positioning\n- Positive/negative sentiment drivers\n- Strategic reputation management opportunities';
         break;
       case 'citations':
         prompt += this.getCitationsPromptData(structuredData);
+        prompt += '\n\nCITATIONS INSIGHTS FOCUS:\n- Citation share and link performance\n- Competitive citation positioning\n- Platform-specific citation performance\n- Strategic link building opportunities';
         break;
     }
 
@@ -357,18 +374,30 @@ RESPONSE FORMAT - CRITICAL: You MUST respond with ONLY the JSON format below. No
 }
 
 INSIGHT REQUIREMENTS:
-1. WHAT'S WORKING: Show where user brand beats competitors with exact numbers
-2. NEEDS ATTENTION: Show where competitors beat user brand with exact numbers
-3. Use format: "[User Brand] [metric] [exact number] vs [Competitor] [exact number] in [specific area]"
+1. WHAT'S WORKING: Show where user brand beats competitors with exact numbers and strategic context
+2. NEEDS ATTENTION: Show where competitors beat user brand with exact numbers and competitive gaps
+3. Use format: "[User Brand] [action verb] [exact number] vs [Competitor] [exact number] in [specific area]"
 4. Include specific competitor names and exact percentages/numbers
 5. Focus on competitive positioning and actionable next steps
+6. Write like a business executive explaining to their team
 
-EXAMPLES OF GOOD INSIGHTS:
-- "YourBrand dominates with 78% visibility vs CompetitorA's 45% in banking services topics"
-- "CompetitorB outperforms YourBrand 65% vs 32% in mobile platform responses"
-- "YourBrand ranks #2.1 vs CompetitorC's #4.3 average position in investment advice"
+EXAMPLES OF PERFECT INSIGHTS:
+- "YourBrand dominates with 78% visibility vs Chase's 45% in banking services topics"
+- "Chase outperforms YourBrand 65% vs 32% in mobile platform responses"  
+- "YourBrand ranks #2.1 vs Wells Fargo's #4.3 average position in investment advice"
+- "Wells Fargo beats YourBrand 58% vs 35% in small business banking"
+- "YourBrand secures 45% citation share vs Bank of America's 28% in financial news"
 
-Provide 3-4 insights per category with specific numbers and competitor names.
+BUSINESS STORYTELLING APPROACH:
+- Transform data into competitive stories
+- Make insights instantly understandable
+- Focus on strategic implications
+- Provide clear next steps
+- Use executive-level language
+
+Provide 3-4 insights per category with specific numbers, competitor names, and strategic context.
+
+FINAL INSTRUCTION: Write each insight as if you're a business executive explaining competitive performance to their team. Make it instantly clear who's winning, who's losing, and what to do about it. Transform raw data into strategic business stories.
 
 RESPONSE MUST BE ONLY VALID JSON - NO OTHER TEXT.`;
 

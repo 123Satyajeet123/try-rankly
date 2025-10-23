@@ -330,6 +330,20 @@ class ApiService {
     })
   }
 
+  // Generate insights for a specific tab
+  async generateInsightsForTab(tabType: string, urlAnalysisId?: string) {
+    return this.request('/insights/generate', {
+      method: 'POST',
+      body: JSON.stringify({ tabType, urlAnalysisId }),
+    })
+  }
+
+  // Get existing insights for a specific tab
+  async getInsightsForTab(tabType: string, urlAnalysisId?: string) {
+    const params = urlAnalysisId ? `?urlAnalysisId=${urlAnalysisId}` : ''
+    return this.request(`/insights/${tabType}${params}`)
+  }
+
   async getLatestInsights(urlAnalysisId?: string) {
     const params = urlAnalysisId ? `?urlAnalysisId=${urlAnalysisId}` : ''
     return this.request(`/insights/latest${params}`)

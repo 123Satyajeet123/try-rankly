@@ -28,7 +28,7 @@ const promptSchema = new mongoose.Schema({
   },
   queryType: {
     type: String,
-    enum: ['Navigational', 'Commercial Investigation', 'Transactional', 'Comparative', 'Reputational'],
+    enum: ['Informational', 'Navigational', 'Commercial', 'Transactional'],
     required: true
   },
   status: {
