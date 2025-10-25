@@ -188,15 +188,15 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [selectedCitation, setSelectedCitation] = useState<any>(null)
 
-  // Platform favicon mapping
+  // Platform favicon mapping - using Google's favicon service
   const getPlatformFavicon = (platform: string) => {
     const faviconMap: { [key: string]: string } = {
-      'OpenAI': 'https://openai.com/favicon.ico',
-      'Claude': 'https://claude.ai/favicon.ico',
-      'Perplexity': 'https://www.perplexity.ai/favicon.ico',
-      'Gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_aurora_33f86dc0c0257da337c63.svg'
+      'OpenAI': 'https://www.google.com/s2/favicons?domain=openai.com&sz=32',
+      'Claude': 'https://www.google.com/s2/favicons?domain=claude.ai&sz=32',
+      'Perplexity': 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=32',
+      'Gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg'
     };
-    return faviconMap[platform] || 'https://www.google.com/favicon.ico';
+    return faviconMap[platform] || 'https://www.google.com/s2/favicons?domain=google.com&sz=32';
   };
 
   // Skeleton loading

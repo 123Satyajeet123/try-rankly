@@ -265,7 +265,7 @@ router.post('/generate', devAuth, async (req, res) => {
     // Generate prompts using AI service
     // Use centralized configuration
     const { config } = require('../config/hyperparameters');
-    const totalPrompts = config.prompts.totalPrompts;
+    const totalPrompts = config.prompts.maxToTest;
     
     console.log(`📊 Generating ${totalPrompts} prompts per combination`);
     

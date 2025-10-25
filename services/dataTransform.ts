@@ -247,7 +247,7 @@ function getMetricValue(brand: BackendBrandMetric, metricType: string, totalResp
   switch (metricType) {
     case 'visibility':
       // ✅ Use visibilityScore directly from backend (already calculated with correct formula)
-      // Backend calculates: VisibilityScore(b) = (totalAppearances / totalPrompts) × 100
+      // Backend calculates: VisibilityScore(b) = (totalAppearances / totalResponses) × 100
       if (brand.visibilityScore !== undefined && brand.visibilityScore !== null) {
         console.log(`✅ [MetricValue] ${brand.brandName} using backend visibilityScore:`, brand.visibilityScore)
         return brand.visibilityScore

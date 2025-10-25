@@ -53,6 +53,16 @@ export default function ResultsPage() {
         
         if (response.success) {
           console.log('✅ Metrics fetched successfully:', response.data)
+          console.log('🔍 Overall data:', response.data.overall)
+          console.log('🔍 Platforms data:', response.data.platforms)
+          console.log('🔍 Topics data:', response.data.topics)
+          console.log('🔍 Personas data:', response.data.personas)
+          console.log('🔍 Metrics data:', response.data.metrics)
+          console.log('🔍 Visibility Score:', response.data.metrics?.visibilityScore)
+          console.log('🔍 Depth of Mention:', response.data.metrics?.depthOfMention)
+          console.log('🔍 Average Position:', response.data.metrics?.averagePosition)
+          console.log('🔍 Topic Rankings:', response.data.topicRankings?.length)
+          console.log('🔍 Persona Rankings:', response.data.personaRankings?.length)
           setMetricsData(response.data)
         } else {
           console.error('❌ Failed to fetch metrics:', response.message)
@@ -66,16 +76,8 @@ export default function ResultsPage() {
       }
     }
 
-    // Only fetch if we have generated prompts
-    if (data.generatedPrompts && data.generatedPrompts.length > 0) {
-      fetchMetrics()
-    } else {
-      // Simulate loading for demo purposes
-      const timer = setTimeout(() => {
-        setDataLoading(false)
-      }, 1500)
-      return () => clearTimeout(timer)
-    }
+    // Always fetch real metrics data from API
+    fetchMetrics()
   }, [data.generatedPrompts])
 
   const handleOpenDashboard = async () => {
@@ -131,9 +133,9 @@ export default function ResultsPage() {
                   <h1 className="text-xl font-semibold tracking-tight text-foreground mb-1">
                     View Dashboard for detailed insights
                   </h1>
-                  <p className="text-sm text-muted-foreground">
+                  {/* <p className="text-sm text-muted-foreground">
                     {data.totalPrompts ? `${data.totalPrompts} prompts generated` : 'Analysis complete'}
-                  </p>
+                  </p> */}
                 </div>
                 
                 <Button
@@ -196,13 +198,14 @@ export default function ResultsPage() {
                 </div>
               ) : (
               <div className="space-y-4">
+                  
                   {/* Visibility Score Card */}
                   <div className="bg-background/50 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-xs font-medium tracking-wide text-foreground">Visibility Score</h3>
                       <span className="text-base font-semibold text-foreground">
-                        {metricsData?.overall?.brandMetrics?.[0]?.visibilityScore 
-                          ? `${Math.round(metricsData.overall.brandMetrics[0].visibilityScore)}%`
+                        {metricsData?.metrics?.visibilityScore?.value 
+                          ? `${Math.round(metricsData.metrics.visibilityScore.value)}%`
                           : '0%'}
                       </span>
                     </div>
@@ -216,8 +219,8 @@ export default function ResultsPage() {
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-xs font-medium tracking-wide text-foreground">Citation Share</h3>
                       <span className="text-base font-semibold text-foreground">
-                        {metricsData?.overall?.brandMetrics?.[0]?.citationShare 
-                          ? `${Math.round(metricsData.overall.brandMetrics[0].citationShare)}%`
+                        {metricsData?.metrics?.depthOfMention?.value 
+                          ? `${Math.round(metricsData.metrics.depthOfMention.value)}%`
                           : '0%'}
                       </span>
                     </div>
@@ -226,79 +229,49 @@ export default function ResultsPage() {
                         </p>
                   </div>
 
-                  {/* Opportunities & Insights Card */}
+                  {/* Average Position Card */}
                   <div className="bg-background/50 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-xs font-medium tracking-wide text-foreground">Opportunities & Insights</h3>
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-medium tracking-wide text-foreground">Average Position</h3>
+                      <span className="text-base font-semibold text-foreground">
+                        {metricsData?.metrics?.averagePosition?.value 
+                          ? `#${Math.round(metricsData.metrics.averagePosition.value)}`
+                          : '#0'}
+                      </span>
                     </div>
-                        <p className="text-xs font-normal leading-[1.4] text-muted-foreground mb-3">
-                          Discover hidden strengths and new spaces where your brand can stand out
-                        </p>
-                        <div className="text-xs text-muted-foreground/70 mb-3 p-2 bg-background/30 rounded">
-                          <strong>Methodology:</strong> Visibility Score = (Prompts where brand appears / Total prompts) × 100. 
-                          Citation Share = (Brand citations / Total citations across all brands) × 100. 
-                          <em>LLMs are explicitly requested to provide citations and hyperlinks.</em>
-                          Each prompt is tested across 4 LLMs for comprehensive analysis.
-                        </div>
-                    <div className="space-y-2">
-                      {metricsData?.overall?.brandMetrics?.[0]?.visibilityRank ? (
-                        <>
-                          <div className="flex items-center space-x-2">
-                            <svg className="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-xs font-normal text-foreground">
-                              Rank #{metricsData.overall.brandMetrics[0].visibilityRank} in visibility
-                            </span>
-                          </div>
-                              <div className="flex items-center space-x-2">
-                                <svg className="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-xs font-normal text-foreground">
-                                  {data.totalPrompts || metricsData.overall.totalPrompts} prompts tested across 4 LLMs ({metricsData.overall.totalPrompts || 0} total tests)
-                                </span>
-                              </div>
-                          {metricsData.overall.brandMetrics[0].avgPosition && (
-                            <div className="flex items-center space-x-2">
-                              <svg className="w-3 h-3 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                              </svg>
-                              <span className="text-xs font-normal text-foreground">
-                                Average position: #{metricsData.overall.brandMetrics[0].avgPosition}
-                              </span>
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <div className="flex items-center space-x-2">
-                            <svg className="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-xs font-normal text-foreground">Strong presence in tech discussions</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <svg className="w-3 h-3 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-xs font-normal text-foreground">High engagement in AI-related queries</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <svg className="w-3 h-3 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-xs font-normal text-foreground">Limited visibility in healthcare topics</span>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <svg className="w-3 h-3 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-xs font-normal text-foreground">Missing from financial services conversations</span>
-                          </div>
-                        </>
-                      )}
+                    <p className="text-xs font-normal leading-[1.4] text-muted-foreground">
+                      Average position of your brand in responses
+                    </p>
+                  </div>
+
+                  {/* Topic Rankings Card */}
+                  <div className="bg-background/50 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-medium tracking-wide text-foreground">Topic Rankings</h3>
+                      <span className="text-base font-semibold text-foreground">
+                        {metricsData?.topicRankings?.length > 0 
+                          ? `${metricsData.topicRankings.length} topics`
+                          : '0 topics'}
+                      </span>
                     </div>
+                    <p className="text-xs font-normal leading-[1.4] text-muted-foreground">
+                      Number of topics analyzed
+                    </p>
+                  </div>
+
+                  {/* Persona Rankings Card */}
+                  <div className="bg-background/50 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-xs font-medium tracking-wide text-foreground">Persona Rankings</h3>
+                      <span className="text-base font-semibold text-foreground">
+                        {metricsData?.personaRankings?.length > 0 
+                          ? `${metricsData.personaRankings.length} personas`
+                          : '0 personas'}
+                      </span>
+                    </div>
+                    <p className="text-xs font-normal leading-[1.4] text-muted-foreground">
+                      Number of personas analyzed
+                    </p>
                   </div>
                 </div>
               )}

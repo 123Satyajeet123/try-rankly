@@ -63,6 +63,16 @@ class MetricsAggregationService {
       }
 
       console.log(`✅ Found ${tests.length} tests to aggregate`);
+      
+      // Debug: Show sample test data
+      if (tests.length > 0) {
+        console.log('🔍 Sample test data:');
+        console.log(`   First test llmProvider: ${tests[0].llmProvider}`);
+        console.log(`   First test brandMetrics count: ${tests[0].brandMetrics?.length || 0}`);
+        if (tests[0].brandMetrics?.length > 0) {
+          console.log(`   First test first brand: ${tests[0].brandMetrics[0].brandName}`);
+        }
+      }
 
       // Calculate metrics at each scope level
       const results = {
@@ -139,6 +149,13 @@ class MetricsAggregationService {
 
     const platforms = ['openai', 'gemini', 'claude', 'perplexity'];
     const saved = [];
+
+    // Debug: Show platform distribution
+    console.log('🔍 Platform distribution:');
+    platforms.forEach(platform => {
+      const count = tests.filter(t => t.llmProvider === platform).length;
+      console.log(`   ${platform}: ${count} tests`);
+    });
 
     for (const platform of platforms) {
       const platformTests = tests.filter(t => t.llmProvider === platform);
@@ -280,6 +297,13 @@ class MetricsAggregationService {
       ...(urlAnalysisId && { _id: urlAnalysisId })
     }).sort({ createdAt: -1 }).lean();
     
+    console.log(`     🔍 UrlAnalysis query result:`, {
+      found: !!urlAnalysis,
+      urlAnalysisId: urlAnalysisId,
+      userId: userId,
+      brandContext: urlAnalysis?.brandContext
+    });
+    
     const userBrandName = urlAnalysis?.brandContext?.companyName || 'Unknown Brand';
     console.log(`     🏢 User's brand: ${userBrandName}`);
     
@@ -291,6 +315,7 @@ class MetricsAggregationService {
     
     const selectedCompetitors = await Competitor.find(query).lean();
     console.log(`     🎯 Selected competitors from database: ${selectedCompetitors.length}`);
+    console.log(`     🔍 Competitor query:`, query);
     selectedCompetitors.forEach(comp => {
       console.log(`        → ${comp.name}`);
     });
@@ -432,30 +457,30 @@ class MetricsAggregationService {
       }
     });
 
-    // ✅ CORRECT: Calculate totalAppearances based on explicit brand mentions in prompt text
-    // Count unique prompts where the brand name is explicitly mentioned in the prompt text
-    const uniquePromptsWithExplicitMention = new Set();
+    // ✅ UPDATED: Calculate totalAppearances based on brand mentions in LLM responses
+    // Count unique prompt responses where the brand name appears in the LLM response text
+    const uniqueResponsesWithBrandMention = new Set();
     tests.forEach(test => {
-      if (test.promptText && test.promptText.toLowerCase().includes(brandName.toLowerCase())) {
-        uniquePromptsWithExplicitMention.add(test.promptId.toString());
+      if (test.rawResponse && test.rawResponse.toLowerCase().includes(brandName.toLowerCase())) {
+        uniqueResponsesWithBrandMention.add(test._id.toString()); // Use test ID to count unique responses
       }
     });
     
-    brandData.totalAppearances = uniquePromptsWithExplicitMention.size;
+    brandData.totalAppearances = uniqueResponsesWithBrandMention.size;
     
-    console.log(`     ✅ Total unique prompts where ${brandName} is explicitly mentioned in prompt text: ${brandData.totalAppearances}`);
+    console.log(`     ✅ Total unique prompt responses where ${brandName} appears in LLM response: ${brandData.totalAppearances}`);
     console.log(`     📊 Total mentions across all LLM responses: ${brandData.totalMentions}`);
 
-    // Calculate total unique prompts in the dataset (for visibility score denominator)
-    const totalPrompts = new Set(tests.map(t => t.promptId?.toString()).filter(Boolean)).size;
+    // Calculate total unique prompt responses in the dataset (for visibility score denominator)
+    const totalResponses = tests.length; // Total number of LLM responses
 
-    // 1. Visibility Score = (# of prompts where brand appears / total prompts) × 100
-    // Formula: VisibilityScore(b) = (# of prompts where Brand b appears / Total prompts) × 100
-    const visibilityScore = totalPrompts > 0
-      ? parseFloat(((brandData.totalAppearances / totalPrompts) * 100).toFixed(2))
+    // 1. Visibility Score = (# of prompt responses where brand appears / total prompt responses) × 100
+    // Formula: VisibilityScore(b) = (# of prompt responses where Brand b appears / Total prompt responses) × 100
+    const visibilityScore = totalResponses > 0
+      ? parseFloat(((brandData.totalAppearances / totalResponses) * 100).toFixed(2))
       : 0;
     
-    console.log(`     📈 Visibility Score: ${visibilityScore}% (${brandData.totalAppearances} / ${totalPrompts} unique prompts)`);
+    console.log(`     📈 Visibility Score: ${visibilityScore}% (${brandData.totalAppearances} / ${totalResponses} unique responses)`);
 
     // 2. Average Position = Sum of positions / Count of appearances
     // Formula: AvgPos(b) = (Σ positions of Brand b) / (# of tests where Brand b appears)

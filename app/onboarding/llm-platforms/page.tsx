@@ -15,12 +15,12 @@ import apiService from '@/services/api'
 const llmPlatforms = [
   {
     name: 'ChatGPT',
-    favicon: 'https://chatgpt.com/favicon.ico',
+    favicon: 'https://chat.openai.com/favicon.ico',
     description: 'OpenAI\'s conversational AI'
   },
   {
     name: 'Perplexity',
-    favicon: 'https://www.perplexity.ai/favicon.ico',
+    favicon: 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=32',
     description: 'AI-powered search engine'
   },
   {
@@ -30,7 +30,7 @@ const llmPlatforms = [
   },
   {
     name: 'Claude',
-    favicon: 'https://claude.ai/favicon.ico',
+    favicon: 'https://www.google.com/s2/favicons?domain=claude.ai&sz=32',
     description: 'Anthropic\'s AI assistant'
   },
 ]
@@ -100,11 +100,14 @@ export default function LLMPlatformsPage() {
 
       console.log('✅ Selections saved:', selectionResponse)
 
-      // Now generate prompts
+      // Generate prompts - backend automatically handles testing and metrics calculation
+      console.log('🎯 Starting prompt generation with automatic testing and metrics calculation...')
+      setButtonText('Generating Prompts & Testing...')
+      
       const response = await apiService.generatePrompts()
 
       if (response.success) {
-        console.log('✅ Prompts generated successfully:', response.data)
+        console.log('✅ Complete processing finished successfully:', response.data)
         console.log(`📊 Total prompts: ${response.data.totalPrompts}`)
         console.log('📝 Generated prompts:', response.data.prompts)
 
@@ -121,52 +124,26 @@ export default function LLMPlatformsPage() {
           totalPrompts: response.data.totalPrompts
         })
 
-        // Now test prompts with multi-LLM and calculate metrics
-        console.log('🧪 Starting multi-LLM testing...')
-        setButtonText('Testing with LLMs...')
+        // Backend automatically completed:
+        // ✅ Prompt generation (50 TOFU-focused prompts)
+        // ✅ Multi-LLM testing across 4 platforms
+        // ✅ Metrics calculation and aggregation
+        // ✅ AI insights generation
         
-        try {
-          // STEP 1: Test prompts with all LLMs
-          console.log('🧪 [Step 1/2] Starting multi-LLM testing...')
-          setButtonText('Testing with LLMs...')
-          const testResponse = await apiService.testPrompts(data.urlAnalysisId)
-          console.log('✅ [Step 1/2] Multi-LLM testing completed:', testResponse.data)
-          
-          // STEP 2: Calculate and aggregate metrics from test results (includes AI insights generation)
-          console.log('📊 [Step 2/2] Calculating and aggregating metrics...')
-          setButtonText('Calculating metrics...')
-          const metricsResponse = await apiService.calculateMetrics(data.urlAnalysisId)
-          
-          if (!metricsResponse.success) {
-            throw new Error('Metrics calculation failed: ' + (metricsResponse.message || 'Unknown error'))
-          }
-          
-          console.log('✅ [Step 2/3] Metrics calculated and aggregated:', metricsResponse.data)
-          console.log(`   📈 Total metric sets: ${metricsResponse.data.totalCalculations || 'N/A'}`)
-          console.log(`   🧠 AI Insights generated: ${metricsResponse.data.insightsGenerated ? 'Yes' : 'No'}`)
-          
-          // Insights are automatically generated during metrics aggregation
-          // No separate step needed
-          
-          // All steps completed successfully!
-          console.log('🎉 All processing complete! Ready for dashboard.')
-          
-          // Show "See Results" button only after API calls complete
-          setIsGenerating(false)
-          setButtonText('See Results')
-          setShowResults(true)
-          
-        } catch (processingError) {
-          console.error('❌ Processing failed:', processingError)
-          setIsGenerating(false)
-          setButtonText('Generate Prompts')
-          // Show error to user
-          alert(`Processing failed: ${processingError instanceof Error ? processingError.message : 'Unknown error'}. Please try again.`)
-        }
+        console.log('🎉 All processing complete! Backend handled everything automatically.')
+        console.log('📊 Ready to view results in dashboard.')
+        
+        // Show "See Results" button only after complete processing
+        setIsGenerating(false)
+        setButtonText('See Results Plan')
+        setShowResults(true)
+        
       } else {
-        console.error('❌ Prompt generation failed:', response.message)
+        console.error('❌ Processing failed:', response.message)
         setIsGenerating(false)
         setButtonText('Generate Prompts')
+        // Show error to user
+        alert(`Processing failed: ${response.message || 'Unknown error'}. Please try again.`)
       }
     } catch (error: any) {
       console.error('❌ Prompt generation error:', error)

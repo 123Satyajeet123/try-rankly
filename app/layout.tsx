@@ -5,6 +5,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { OnboardingProvider } from "@/contexts/OnboardingContext";
 import { AnalyticsProvider } from "@/contexts/AnalyticsContext";
 import { FilterProvider } from "@/contexts/FilterContext";
+import { QueryProvider } from "@/components/providers/QueryProvider";
+import { Toaster } from "sonner";
 
 export const metadata: Metadata = {
   title: "Rankly - Get more traffic from LLMs",
@@ -19,22 +21,25 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <AuthProvider>
-            <OnboardingProvider>
-              <AnalyticsProvider>
-                <FilterProvider>
-                  {children}
-                </FilterProvider>
-              </AnalyticsProvider>
-            </OnboardingProvider>
-          </AuthProvider>
-        </ThemeProvider>
+        <QueryProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="system"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <AuthProvider>
+              <OnboardingProvider>
+                <AnalyticsProvider>
+                  <FilterProvider>
+                    {children}
+                    <Toaster richColors position="top-right" />
+                  </FilterProvider>
+                </AnalyticsProvider>
+              </OnboardingProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </QueryProvider>
       </body>
     </html>
   );

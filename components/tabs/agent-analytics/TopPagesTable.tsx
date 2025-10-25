@@ -5,7 +5,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Search, ChevronUp, ChevronDown } from 'lucide-react'
+import { Search, ChevronUp, ChevronDown, FileText } from 'lucide-react'
 import { useState } from 'react'
 
 interface PageData {

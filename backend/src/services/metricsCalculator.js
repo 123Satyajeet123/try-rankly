@@ -165,7 +165,7 @@ class MetricsCalculator {
     const brandMetrics = brandNames.map(brandName => {
       const data = brandData[brandName];
       
-      // 1. Visibility Score: (prompts with brand / total prompts) × 100
+      // 1. Visibility Score: (responses with brand / total responses) × 100
       const visibilityScore = data.totalPrompts > 0
         ? (data.promptsWithBrand / data.totalPrompts) * 100
         : 0;

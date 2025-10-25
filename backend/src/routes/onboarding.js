@@ -759,7 +759,7 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
     // Prepare data for prompt generation
     // Use centralized configuration
     const { config } = require('../config/hyperparameters');
-    const totalPrompts = config.prompts.totalPrompts;
+    const totalPrompts = config.prompts.maxToTest;
     
     const promptData = {
       topics: selectedTopics.map(topic => ({
@@ -867,7 +867,7 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
     try {
       console.log('🧪 Starting automatic prompt testing...');
       const promptTestingService = require('../services/promptTestingService');
-      const testingService = new promptTestingService();
+      const testingService = promptTestingService;
       
       // Test all prompts automatically
       const testResults = await testingService.testAllPrompts(userId, {
@@ -880,8 +880,12 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
       
       // Now calculate metrics after testing
       console.log('🔄 Starting matrix calculation...');
+      
+      // Add a small delay to ensure all tests are committed to database
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
       const MetricsAggregationService = require('../services/metricsAggregationService');
-      const metricsService = new MetricsAggregationService();
+      const metricsService = MetricsAggregationService;
       
       // Calculate metrics for the current analysis
       const metricsResult = await metricsService.calculateMetrics(userId, {
@@ -890,10 +894,10 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
       
       if (metricsResult.success) {
         console.log('✅ Matrix calculation completed successfully');
-        console.log('   Overall metrics:', metricsResult.overall ? 'calculated' : 'skipped');
-        console.log('   Platform metrics:', metricsResult.platform?.length || 0, 'calculated');
-        console.log('   Topic metrics:', metricsResult.topic?.length || 0, 'calculated');
-        console.log('   Persona metrics:', metricsResult.persona?.length || 0, 'calculated');
+        console.log('   Overall metrics:', metricsResult.results?.overall ? 'calculated' : 'skipped');
+        console.log('   Platform metrics:', metricsResult.results?.platform?.length || 0, 'calculated');
+        console.log('   Topic metrics:', metricsResult.results?.topic?.length || 0, 'calculated');
+        console.log('   Persona metrics:', metricsResult.results?.persona?.length || 0, 'calculated');
       } else {
         console.log('⚠️  Matrix calculation completed with warnings:', metricsResult.message);
       }
@@ -911,9 +915,9 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
         totalPrompts: savedPrompts.length,
         generationDate: new Date().toISOString(),
         metadata: {
-          topicsUsed: promptData.topics.length,
-          personasUsed: promptData.personas.length,
-          competitorsUsed: promptData.competitors.length,
+          topicsUsed: promptData.topics?.length || 0,
+          personasUsed: promptData.personas?.length || 0,
+          competitorsUsed: promptData.competitors?.length || 0,
           region: promptData.region,
           language: promptData.language
         }

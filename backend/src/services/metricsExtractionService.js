@@ -118,9 +118,9 @@ class MetricsExtractionService {
   calculateAggregatedMetrics(brandData, totalPrompts, allBrandMetrics, responseText = '') {
     const brandName = brandData.brandName;
 
-    // Visibility Score: % of prompts where brand appears
+    // Visibility Score: % of prompt responses where brand appears
     const appearanceCount = brandData.totalAppearances || 0;
-    const visibilityScore = (appearanceCount / totalPrompts) * 100;
+    const visibilityScore = (appearanceCount / totalPrompts) * 100; // totalPrompts here represents total responses
 
     // Citation Share: % of hyperlinks that mention the brand
     const brandHyperlinks = this.extractBrandHyperlinks(brandData, responseText);

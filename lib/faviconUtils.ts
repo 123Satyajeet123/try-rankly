@@ -40,13 +40,13 @@ export const generateDomainVariations = (cleanName: string): string[] => {
  * @returns Favicon URL
  */
 export const getDynamicFaviconUrl = (companyName: string, size: number = 16, isDarkMode?: boolean): string => {
-  // First check for known platform mappings
+  // First check for known platform mappings - using Google's favicon service
   const faviconMap: Record<string, string> = {
-    'ChatGPT': 'https://chat.openai.com/favicon.ico',
-    'OpenAI': 'https://chat.openai.com/favicon.ico',
-    'Claude': 'https://claude.ai/favicon.ico',
+    'ChatGPT': 'https://www.google.com/s2/favicons?domain=chat.openai.com&sz=32',
+    'OpenAI': 'https://www.google.com/s2/favicons?domain=openai.com&sz=32',
+    'Claude': 'https://www.google.com/s2/favicons?domain=claude.ai&sz=32',
     'Gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
-    'Perplexity': 'https://www.perplexity.ai/favicon.ico',
+    'Perplexity': 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=32',
     // Credit card companies
     'HDFC Bank': 'https://www.google.com/s2/favicons?domain=hdfcbank.com&sz=32',
     'HDFC Bank Freedom Credit Card': 'https://www.google.com/s2/favicons?domain=hdfcbank.com&sz=32',

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { Filter, Globe, ChevronDown, Users } from 'lucide-react'
+import { Filter, Globe, ChevronDown, Users, RefreshCw, Settings, Calendar } from 'lucide-react'
 import { useFilters } from '@/contexts/FilterContext'
 import { useTheme } from 'next-themes'
 import { useRouter } from 'next/navigation'
@@ -16,9 +16,27 @@ interface TopNavProps {
   activeTab: string
   onTabChange: (tab: string) => void
   dashboardData?: any
+  isAgentAnalytics?: boolean
+  onSyncNow?: () => void
+  onSettings?: () => void
+  isSyncing?: boolean
+  lastSyncTime?: string
+  selectedDateRange?: string
+  onDateRangeChange?: (range: string) => void
 }
 
-export function TopNav({ activeTab, onTabChange, dashboardData }: TopNavProps) {
+export function TopNav({ 
+  activeTab, 
+  onTabChange, 
+  dashboardData,
+  isAgentAnalytics = false,
+  onSyncNow,
+  onSettings,
+  isSyncing = false,
+  lastSyncTime,
+  selectedDateRange = '7 days',
+  onDateRangeChange
+}: TopNavProps) {
   const { 
     selectedPlatforms, 
     selectedTopics, 
@@ -85,7 +103,12 @@ export function TopNav({ activeTab, onTabChange, dashboardData }: TopNavProps) {
   }, [selectedAnalysisId]) // Re-run when selectedAnalysisId changes
 
   
-  const tabs = [
+  const tabs = isAgentAnalytics ? [
+    { id: 'platform', label: 'Platform' },
+    { id: 'pages', label: 'Page' },
+    { id: 'journey', label: 'Journey' },
+    { id: 'geo-device', label: 'Geo & Device' },
+  ] : [
     { id: 'visibility', label: 'Visibility' },
     { id: 'prompts', label: 'Prompts' },
     { id: 'sentiment', label: 'Sentiment' },
@@ -234,11 +257,62 @@ export function TopNav({ activeTab, onTabChange, dashboardData }: TopNavProps) {
         </TabsList>
         </Tabs>
 
-        {/* Filter controls - Top right */}
-        <div className="flex space-x-3 pr-4">
-          
-          {activeTab !== 'prompts' && (
-            <div className="flex space-x-3">
+        {/* Action controls - Top right */}
+        {isAgentAnalytics ? (
+          <div className="flex items-center space-x-3 pr-4">
+            {/* Last sync info */}
+            {lastSyncTime && (
+              <div className="text-xs text-muted-foreground">
+                <span className="font-medium">Last sync:</span> {lastSyncTime}
+              </div>
+            )}
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="body-text"
+              onClick={onSyncNow}
+              disabled={isSyncing}
+            >
+              <RefreshCw className={`mr-2 h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? 'Syncing...' : 'Sync Now'}
+            </Button>
+
+            {/* Date Range Selector */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="body-text">
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {selectedDateRange}
+                  <ChevronDown className="ml-2 h-3 w-3" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-full" onCloseAutoFocus={(e) => e.preventDefault()}>
+                <DropdownMenuItem onClick={() => onDateRangeChange?.('7 days')}>
+                  7 days
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onDateRangeChange?.('14 days')}>
+                  14 days
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => onDateRangeChange?.('30 days')}>
+                  30 days
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="body-text"
+              onClick={onSettings}
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </Button>
+          </div>
+        ) : (
+          activeTab !== 'prompts' && (
+            <div className="flex space-x-3 pr-4">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="body-text">
@@ -319,8 +393,8 @@ export function TopNav({ activeTab, onTabChange, dashboardData }: TopNavProps) {
             </DropdownMenuContent>
           </DropdownMenu>
             </div>
-          )}
-        </div>
+          )
+        )}
       </div>
 
       {/* Section Divider - Moved up */}

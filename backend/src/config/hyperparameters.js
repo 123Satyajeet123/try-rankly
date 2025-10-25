@@ -20,37 +20,28 @@
 const config = {
   // ===== PROMPT GENERATION CONFIGURATION =====
   prompts: {
-    // Total prompts to generate (default: 50)
-    totalPrompts: parseInt(process.env.TOTAL_PROMPTS) || 50,
-    
-    // Maximum prompts to test against LLMs (default: 20)
+    // Maximum prompts to test against LLMs (default: 5)
     // Controls API costs and testing time
-    maxToTest: parseInt(process.env.MAX_PROMPTS_TO_TEST) || 20,
+    maxToTest: parseInt(process.env.MAX_PROMPTS_TO_TEST) || 5,
     
-    // 4 Standard Query Types (removed Comparative & Reputational)
-    queryTypes: [
-      'Informational',   // Learning/understanding
-      'Navigational',    // Finding/locating
-      'Commercial',      // Research/evaluation (generic only)
-      'Transactional'   // Action/conversion
-    ],
-    
-    // Distribution weights for each query type (TOFU-focused)
-    queryTypeWeights: {
-      'Informational': 0.30,    // 30% - highest for TOFU
-      'Commercial': 0.30,       // 30% - second highest
-      'Transactional': 0.20,    // 20%
-      'Navigational': 0.20      // 20%
+    // Query type distribution percentages
+    queryTypeDistribution: {
+      'Informational': 0.30,  // 30%
+      'Commercial': 0.30,     // 30%
+      'Transactional': 0.20,  // 20%
+      'Navigational': 0.20    // 20%
     },
     
-    // Branded vs non-branded ratio
-    brandedPercentage: 0.01,  // 1% branded, 99% non-branded
+    // Number of query types (fixed - always 4)
+    queryTypes: [
+      'Informational',
+      'Navigational',
+      'Commercial',
+      'Transactional'
+    ],
     
-    // NEW: Don't include competitors in prompt generation
-    includeCompetitors: false,
-    
-    // NEW: TOFU-focused prompts only
-    tofuFocused: true,
+    // Percentage of prompts that should be branded (default: 1%)
+    brandedPercentage: 0.01,
     
     // Enable aggressive parallelization for testing (default: true)
     aggressiveParallelization: process.env.AGGRESSIVE_PARALLELIZATION !== 'false'
@@ -200,9 +191,7 @@ function validateConfig() {
   const errors = [];
   
   // Validate prompt configuration
-  if (config.prompts.perQueryType < 1 || config.prompts.perQueryType > 20) {
-    errors.push('PROMPTS_PER_QUERY_TYPE must be between 1 and 20');
-  }
+  // Removed perQueryType validation - now using percentage-based distribution
   
   if (config.prompts.maxToTest < 1 || config.prompts.maxToTest > 1000) {
     errors.push('MAX_PROMPTS_TO_TEST must be between 1 and 1000');
@@ -240,7 +229,7 @@ validateConfig();
 
 // ===== HELPER FUNCTIONS =====
 function getTotalPromptsPerCombination() {
-  return config.prompts.queryTypes.length * config.prompts.perQueryType;
+  return config.prompts.maxToTest;
 }
 
 function getEstimatedCostForPrompts(totalPrompts) {

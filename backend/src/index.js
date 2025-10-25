@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const session = require('express-session');
+const cookieParser = require('cookie-parser');
 const mongoose = require('mongoose');
 require('dotenv').config();
 
@@ -48,6 +49,9 @@ if (process.env.NODE_ENV === 'production') {
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Cookie parser middleware
+app.use(cookieParser());
 
 // Session configuration for OAuth
 app.use(session({
@@ -102,6 +106,8 @@ app.get('/api', (req, res) => {
       health: '/health',
       api: '/api',
       auth: '/api/auth/*',
+      ga4Auth: '/api/auth/ga4/*',
+      ga4: '/api/ga4/*',
       user: '/api/user/*',
       onboarding: '/api/onboarding/*',
       competitors: '/api/competitors/*',
@@ -121,6 +127,8 @@ app.get('/api', (req, res) => {
 
 // Import routes
 const authRoutes = require('./routes/auth');
+const ga4AuthRoutes = require('./routes/ga4Auth');
+const ga4Routes = require('./routes/ga4');
 const onboardingRoutes = require('./routes/onboarding');
 const competitorRoutes = require('./routes/competitors');
 const topicRoutes = require('./routes/topics');
@@ -139,6 +147,8 @@ const sentimentBreakdownRoutes = require('./routes/sentimentBreakdown');
 
 // Use routes
 app.use('/api/auth', authRoutes);
+app.use('/api/auth/ga4', ga4AuthRoutes);
+app.use('/api/ga4', ga4Routes);
 app.use('/api/onboarding', onboardingRoutes);
 app.use('/api/competitors', competitorRoutes);
 app.use('/api/topics', topicRoutes);

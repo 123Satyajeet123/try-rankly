@@ -814,21 +814,27 @@ function Onboarding() {
 
         console.log('✅ Selections saved:', selectionResponse)
 
-        // Now generate prompts
+        // Generate prompts - backend automatically handles testing and metrics calculation
+        console.log('🎯 Starting prompt generation with automatic testing and metrics calculation...')
         const response = await apiService.generatePrompts()
 
         if (response.success) {
-          console.log('✅ Prompts generated successfully:', response.data)
+          console.log('✅ Complete processing finished successfully:', response.data)
           console.log(`📊 Total prompts: ${response.data.totalPrompts}`)
           console.log('📝 Generated prompts:', response.data.prompts)
 
-          // Backend automatically handles testing and metrics calculation
-          console.log('🎯 Backend is automatically testing prompts and calculating metrics...')
+          // Backend automatically completed:
+          // ✅ Prompt generation (50 TOFU-focused prompts)
+          // ✅ Multi-LLM testing across 4 platforms  
+          // ✅ Metrics calculation and aggregation
+          // ✅ AI insights generation
+          
+          console.log('🎉 All processing complete! Backend handled everything automatically.')
           console.log('📊 Redirecting to dashboard to view results...')
           router.push('/dashboard')
         } else {
-          console.error('❌ Prompt generation failed:', response.message)
-          alert(response.message || 'Failed to generate prompts')
+          console.error('❌ Processing failed:', response.message)
+          alert(`Processing failed: ${response.message || 'Unknown error'}. Please try again.`)
           setIsGeneratingPrompts(false)
         }
 

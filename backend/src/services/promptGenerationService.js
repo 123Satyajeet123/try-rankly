@@ -11,7 +11,61 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // Use centralized configuration
-const PROMPTS_PER_QUERY_TYPE = config.prompts.perQueryType;
+// Removed perQueryType - now using percentage-based distribution
+
+// Helper functions for query types
+function getQueryTypePurpose(type) {
+  const purposes = {
+    'Informational': 'Learning, understanding, education',
+    'Navigational': 'Finding information or resources',
+    'Commercial': 'Research and evaluation (but TOFU-level, not deep comparison)',
+    'Transactional': 'Action-oriented (but still TOFU - getting started)'
+  };
+  return purposes[type] || 'General inquiry';
+}
+
+function getQueryTypeExamples(type) {
+  const examples = {
+    'Informational': [
+      '- "What is [category] and how does it work?"',
+      '- "Benefits of using [category]"',
+      '- "Guide to [category]"',
+      '- "How to [solve problem with category]"',
+      '- "Everything you need to know about [category]"'
+    ],
+    'Navigational': [
+      '- "Where to find [category] information"',
+      '- "Best [category] resources"',
+      '- "[Category] providers near me"',
+      '- "Top [category] companies"',
+      '- "Leading [category] platforms"'
+    ],
+    'Commercial': [
+      '- "Best [category] for [use case]"',
+      '- "Top [category] options in 2025"',
+      '- "[Category] reviews"',
+      '- "Compare different [category] types"',
+      '- "Which [category] is best for beginners"'
+    ],
+    'Transactional': [
+      '- "How to get started with [category]"',
+      '- "Sign up for [category]"',
+      '- "Apply for [category]"',
+      '- "Get [category]"',
+      '- "Try [category]"'
+    ]
+  };
+  return examples[type] || ['- "General [category] inquiry"'];
+}
+
+function getBrandedExamples(type) {
+  return [
+    '- "What is [Brand]?"',
+    '- "How does [Brand] work?"',
+    '- "Sign up for [Brand]"',
+    '- "Try [Brand]"'
+  ];
+}
 
 /**
  * Generate prompts for all topic-persona combinations
@@ -34,7 +88,7 @@ async function generatePrompts({
   websiteUrl = '',
   brandContext = '',
   competitors = [],
-  totalPrompts = 50 // Generate 50 total prompts per combination
+  totalPrompts = config.prompts.maxToTest // Use maxToTest as the total number of prompts to generate
 }) {
   try {
     console.log('🎯 Starting prompt generation...');
@@ -57,16 +111,16 @@ async function generatePrompts({
     console.log('🔍 Topic object:', { _id: topic._id, name: topic.name });
     console.log('🔍 Persona object:', { _id: persona._id, type: persona.type });
         
-      const prompts = await generatePromptsForCombination({
-        topic,
-        persona,
-        region,
-        language,
-        websiteUrl,
-        brandContext,
-        competitors,
+        const prompts = await generatePromptsForCombination({
+          topic,
+          persona,
+          region,
+          language,
+          websiteUrl,
+          brandContext,
+          competitors,
         totalPrompts
-      });
+        });
 
         allPrompts.push(...prompts);
       }
@@ -100,7 +154,7 @@ async function generatePromptsForCombination({
   websiteUrl,
   brandContext,
   competitors,
-  totalPrompts = 50
+  totalPrompts = config.prompts.maxToTest
 }, retryCount = 0) {
   const maxRetries = 3;
   const baseDelay = 2000; // 2 seconds base delay
@@ -200,16 +254,41 @@ async function generatePromptsForCombination({
 /**
  * Build system prompt for AI
  */
-function buildSystemPrompt(totalPrompts = 50) {
+function buildSystemPrompt(totalPrompts = config.prompts.maxToTest) {
   const brandedCount = Math.max(1, Math.round(totalPrompts * 0.01)); // 1%
   const nonBrandedCount = totalPrompts - brandedCount; // 99%
   
-  // Calculate prompts per type based on weights (30% Informational, 30% Commercial, 20% Transactional, 20% Navigational)
-  const informationalCount = Math.round(totalPrompts * 0.30);
-  const commercialCount = Math.round(totalPrompts * 0.30);
-  const transactionalCount = Math.round(totalPrompts * 0.20);
-  const navigationalCount = totalPrompts - informationalCount - commercialCount - transactionalCount;
+  // Calculate prompts per type based on percentage distribution
+  const promptsPerType = {};
+  const distribution = config.prompts.queryTypeDistribution;
   
+  // Calculate exact prompts for each type based on percentages
+  for (const [type, percentage] of Object.entries(distribution)) {
+    promptsPerType[type] = Math.round(totalPrompts * percentage);
+  }
+  
+  // Adjust for rounding differences to ensure total matches
+  const totalCalculated = Object.values(promptsPerType).reduce((sum, count) => sum + count, 0);
+  const difference = totalPrompts - totalCalculated;
+  
+  // Add the difference to the largest type (Informational)
+  if (difference !== 0) {
+    promptsPerType['Informational'] += difference;
+  }
+  
+  // Build dynamic query type sections
+  const queryTypeSections = config.prompts.queryTypes.map((type, index) => {
+    const promptsForThisType = promptsPerType[type];
+    return `${index + 1}. **${type.toUpperCase()} QUERIES** (${promptsForThisType} prompts)
+   Purpose: ${getQueryTypePurpose(type)}
+   
+   NON-BRANDED examples:
+   ${getQueryTypeExamples(type).join('\n   ')}
+   
+   BRANDED (only ${brandedCount} total across all types):
+   ${getBrandedExamples(type).join('\n   ')}`;
+  }).join('\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n');
+
   return `You are an expert at creating natural, human-like TOFU (Top of Funnel) search queries for Answer Engine Optimization (AEO) analysis.
 
 Your task is to generate ${totalPrompts} diverse, realistic TOFU-focused prompts that test brand visibility in LLM responses (ChatGPT, Claude, Gemini, Perplexity).
@@ -230,82 +309,11 @@ CRITICAL REQUIREMENTS:
    - Focus on education, information, and problem-solving
    - Avoid deep product details, pricing, or purchase-ready queries
 
-Generate EXACTLY ${totalPrompts} prompts using these 4 standard query types:
+Generate EXACTLY ${totalPrompts} prompts using these ${config.prompts.queryTypes.length} query types:
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-1. **INFORMATIONAL QUERIES** (${informationalCount} prompts - 30%)
-   Purpose: Learning, understanding, education
-   
-   NON-BRANDED examples:
-   - "What is [category] and how does it work?"
-   - "Benefits of using [category]"
-   - "Guide to [category]"
-   - "How to [solve problem with category]"
-   - "Everything you need to know about [category]"
-   - "Why choose [category]?"
-   - "Types of [category]"
-   
-   BRANDED (only ${brandedCount} total across all types):
-   - "What is [Brand]?"
-   - "How does [Brand] work?"
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-2. **NAVIGATIONAL QUERIES** (${navigationalCount} prompts - 20%)
-   Purpose: Finding information or resources
-   
-   NON-BRANDED examples:
-   - "Where to find [category] information"
-   - "Best [category] resources"
-   - "[Category] providers near me"
-   - "Top [category] companies"
-   - "Leading [category] platforms"
-   - "Most popular [category] solutions"
-   
-   BRANDED (if quota allows):
-   - "Where to find [Brand]"
-   - "[Brand] official site"
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-3. **COMMERCIAL QUERIES** (${commercialCount} prompts - 30%)
-   Purpose: Research and evaluation (but TOFU-level, not deep comparison)
-   
-   NON-BRANDED examples:
-   - "Best [category] for [use case]"
-   - "Top [category] options in 2025"
-   - "[Category] reviews"
-   - "Compare different [category] types"
-   - "Which [category] is best for beginners"
-   - "Pros and cons of [category]"
-   - "[Category] alternatives"
-   
-   BRANDED (if quota allows):
-   - "Best [category] including [Brand]"
-   - "[Brand] reviews"
-   
-   ⚠️ CRITICAL: NO COMPETITOR NAMES
-   ❌ WRONG: "Compare Brand A vs Brand B"
-   ✅ RIGHT: "Compare different personal loan options"
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-4. **TRANSACTIONAL QUERIES** (${transactionalCount} prompts - 20%)
-   Purpose: Action-oriented (but still TOFU - getting started)
-   
-   NON-BRANDED examples:
-   - "How to get started with [category]"
-   - "Sign up for [category]"
-   - "Apply for [category]"
-   - "Get [category]"
-   - "Try [category]"
-   - "Start using [category]"
-   
-   BRANDED (place your ${brandedCount} branded prompt here if not used earlier):
-   - "Sign up for [Brand]"
-   - "Try [Brand]"
-   - "Get started with [Brand]"
+${queryTypeSections}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -314,15 +322,21 @@ DISTRIBUTION RULES:
 - Make prompts conversational and natural (like real human queries)
 - Each prompt should be 1-2 sentences long and UNIQUE
 - Vary phrasing, angle, and specificity within each query type
-- Place your ${brandedCount} branded prompt(s) in Transactional category
+- Place your ${brandedCount} branded prompt(s) in any category
 - Use provided brand name, topic, and persona context
 - DO NOT mention any competitor brand names
 
 OUTPUT FORMAT:
 Return ONLY a JSON array of ${totalPrompts} prompt strings in this exact order:
-[${informationalCount} informational, ${navigationalCount} navigational, ${commercialCount} commercial, ${transactionalCount} transactional]
+${config.prompts.queryTypes.map((type, index) => {
+  const promptsForThisType = promptsPerType + (index < remainingPrompts ? 1 : 0);
+  return `${promptsForThisType} ${type.toLowerCase()}`;
+}).join(', ')}
 
-Example structure: ["info1", "info2", ..., "nav1", "nav2", ..., "comm1", "comm2", ..., "trans1", "trans2", ...]`;
+Example structure: ${config.prompts.queryTypes.map((type, index) => {
+  const promptsForThisType = promptsPerType + (index < remainingPrompts ? 1 : 0);
+  return `"${type.toLowerCase()}1", "${type.toLowerCase()}2"${promptsForThisType > 2 ? ', ...' : ''}`;
+}).join(', ')}`;
 }
 
 /**
@@ -336,7 +350,7 @@ function buildUserPrompt({
   websiteUrl,
   brandContext,
   competitors, // Will ignore this
-  totalPrompts = 50
+  totalPrompts = config.prompts.maxToTest
 }) {
   // Calculate distribution (30% Informational, 30% Commercial, 20% Transactional, 20% Navigational)
   const brandedCount = Math.max(1, Math.round(totalPrompts * 0.01));
@@ -444,7 +458,7 @@ Return ONLY the JSON array of ${totalPrompts} prompts in order: [informational..
 /**
  * Parse prompts from AI response
  */
-function parsePromptsFromResponse(content, topic, persona, totalPrompts = 50) {
+function parsePromptsFromResponse(content, topic, persona, totalPrompts = config.prompts.maxToTest) {
   try {
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
@@ -453,22 +467,45 @@ function parsePromptsFromResponse(content, topic, persona, totalPrompts = 50) {
 
     const promptTexts = JSON.parse(jsonMatch[0]);
 
-    if (!Array.isArray(promptTexts) || promptTexts.length !== totalPrompts) {
-      throw new Error(`Expected array of ${totalPrompts} prompts, got ${promptTexts.length}`);
+    if (!Array.isArray(promptTexts)) {
+      throw new Error(`Expected array of prompts, got ${typeof promptTexts}`);
     }
 
-    // Calculate distribution (30% Informational, 30% Commercial, 20% Transactional, 20% Navigational)
-    const informationalCount = Math.round(totalPrompts * 0.30);
-    const commercialCount = Math.round(totalPrompts * 0.30);
-    const transactionalCount = Math.round(totalPrompts * 0.20);
-    const navigationalCount = totalPrompts - informationalCount - commercialCount - transactionalCount;
+    // Allow for some flexibility in prompt count (within 10% tolerance)
+    const minExpected = Math.floor(totalPrompts * 0.9);
+    const maxExpected = Math.ceil(totalPrompts * 1.1);
+    
+    if (promptTexts.length < minExpected || promptTexts.length > maxExpected) {
+      console.warn(`⚠️  Expected ${totalPrompts} prompts, got ${promptTexts.length}. Using available prompts.`);
+    }
 
-    // Create query types array based on distribution
+    // Calculate distribution based on actual prompt count using percentage-based distribution
+    const actualPromptCount = promptTexts.length;
+    const queryTypeDistribution = config.prompts.queryTypeDistribution;
+    
+    // Calculate exact prompts for each type based on percentages
+    const promptsPerType = {};
+    for (const [type, percentage] of Object.entries(queryTypeDistribution)) {
+      promptsPerType[type] = Math.round(actualPromptCount * percentage);
+    }
+    
+    // Adjust for rounding differences to ensure total matches
+    const totalCalculated = Object.values(promptsPerType).reduce((sum, count) => sum + count, 0);
+    const difference = actualPromptCount - totalCalculated;
+    
+    // Add the difference to the largest type (Informational)
+    if (difference !== 0) {
+      promptsPerType['Informational'] += difference;
+    }
+
+    // Create query types array based on percentage distribution
     const queryTypes = [];
-    for (let i = 0; i < informationalCount; i++) queryTypes.push('Informational');
-    for (let i = 0; i < navigationalCount; i++) queryTypes.push('Navigational');
-    for (let i = 0; i < commercialCount; i++) queryTypes.push('Commercial');
-    for (let i = 0; i < transactionalCount; i++) queryTypes.push('Transactional');
+    config.prompts.queryTypes.forEach((type) => {
+      const promptsForThisType = promptsPerType[type];
+      for (let i = 0; i < promptsForThisType; i++) {
+        queryTypes.push(type);
+      }
+    });
 
     // Create prompt objects
     const prompts = promptTexts.map((text, index) => ({
@@ -481,18 +518,21 @@ function parsePromptsFromResponse(content, topic, persona, totalPrompts = 50) {
       queryType: queryTypes[index]
     }));
 
+    // Calculate distribution counts for logging
+    const distribution = {};
+    config.prompts.queryTypes.forEach((type, index) => {
+      const promptsForThisType = promptsPerType + (index < remainingPrompts ? 1 : 0);
+      distribution[type.toLowerCase().replace(/\s+/g, '_')] = promptsForThisType;
+    });
+
     console.log('🔍 Generated prompts for topic-persona combination:', {
       topicId: topic._id,
       topicName: topic.name,
       personaId: persona._id,
       personaType: persona.type,
       promptCount: prompts.length,
-      distribution: {
-        informational: informationalCount,
-        navigational: navigationalCount,
-        commercial: commercialCount,
-        transactional: transactionalCount
-      }
+      expectedCount: totalPrompts,
+      distribution
     });
 
     return prompts;

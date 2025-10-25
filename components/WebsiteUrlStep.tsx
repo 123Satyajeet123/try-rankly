@@ -66,7 +66,7 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6 md:p-10">
+    <main className="min-h-screen bg-background flex items-center justify-center p-4">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
