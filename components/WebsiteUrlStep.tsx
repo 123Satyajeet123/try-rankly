@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { NavigationArrows } from '@/components/NavigationArrows'
+import { BackgroundBeams } from '@/components/ui/background-beams'
 
 const loaderSteps = [
   "Scraping your website and understanding brand context",
@@ -66,36 +67,39 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
   }
 
   return (
-    <main className="min-h-screen bg-background flex items-center justify-center p-4">
+    <main className="relative flex h-screen w-full items-center justify-center bg-background text-foreground overflow-hidden">
+      {/* Background Beams */}
+      <BackgroundBeams className="absolute inset-0 z-0" />
+      
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="w-full max-w-4xl"
+        className="w-full max-w-4xl relative z-10 px-4 py-4"
       >
-        <Card className="w-full overflow-hidden rounded-lg h-[600px]">
+        <Card className="w-full overflow-hidden rounded-lg shadow-lg">
           <NavigationArrows previousPath={previousPath} nextPath={allDone && analysisSuccess ? nextPath : undefined} showNext={allDone && analysisSuccess} />
 
-          <CardContent className="grid p-0 md:grid-cols-2 h-full">
+          <CardContent className="grid p-0 grid-cols-1 md:grid-cols-2">
             {/* Left: Form */}
-            <div className="bg-background p-8 flex flex-col justify-start items-start relative">
-              <div className="text-left space-y-6 max-w-md mt-32">
+            <div className="bg-background p-6 sm:p-8 flex flex-col justify-start items-start relative min-h-[400px] md:min-h-[500px]">
+              <div className="text-left space-y-6 max-w-md mt-8 md:mt-32 w-full">
                 <div>
                   <h1 className="text-xl font-semibold mb-2 text-foreground">Enter any page or website URL</h1>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm text-muted-foreground leading-relaxed">
                     Rankly runs a page-level scan to extract brand context, topics, personas and direct competitors.
                   </p>
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="url" className="text-xs text-muted-foreground">URL</Label>
+                  <Label htmlFor="url" className="text-xs text-muted-foreground font-medium">URL</Label>
                   <Input
                     id="url"
                     type="url"
                     placeholder="https://example.com"
                     value={url}
                     onChange={(e) => setUrl(e.target.value)}
-                    className="h-10 bg-background border border-border"
+                    className="h-10 bg-background border border-border text-sm"
                   />
                 </div>
                 
@@ -104,7 +108,7 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
                     <Button
                       type="submit"
                       disabled={!isValidUrl(url) || showAnalyzing}
-                      className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90"
+                      className="w-full h-10 font-semibold"
                     >
                       {showAnalyzing ? (
                         <span className="flex items-center gap-1">
@@ -125,7 +129,7 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
             </div>
 
             {/* Right: Primary loader and Sequential loaders */}
-            <div className="bg-muted flex flex-col justify-start items-center text-center p-8 h-full relative">
+            <div className="bg-muted flex flex-col justify-start items-center text-center p-6 sm:p-8 relative min-h-[400px] md:min-h-[500px]">
               {/* Primary loader - always visible */}
               {!start && (
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -147,7 +151,7 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
                 </div>
               )}
               
-              <div className="flex flex-col items-center justify-start gap-5 w-full max-w-md mt-32">
+              <div className="flex flex-col items-center justify-start gap-5 w-full max-w-md mt-8 md:mt-32 px-4">
                 
                 {/* Sequential loaders - when analysis starts */}
                 {start && (
@@ -197,7 +201,7 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
                   <div className="w-full max-w-xs">
                     <Button
                       onClick={handleNext}
-                      className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold flex items-center justify-center gap-2"
+                      className="w-full h-10 font-semibold flex items-center justify-center gap-2"
                     >
                       <span>Identify your competitors</span>
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

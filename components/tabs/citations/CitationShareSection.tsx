@@ -143,56 +143,15 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
     let filteredTrendData: any[] = [] // No trend data for now
     let filteredRankings = [...allRankings]
 
-  // Apply global filter filtering with real-time updates
-  if (filterContext) {
-    const { selectedTopics, selectedPersonas, selectedPlatforms } = filterContext
-    console.log('🔍 [CitationShare] Applying global filters:', { selectedTopics, selectedPersonas, selectedPlatforms })
-    
-    // Apply topic filtering
-    if (selectedTopics && selectedTopics.length > 0 && !selectedTopics.includes('All Topics')) {
-      console.log('🔍 [CitationShare] Topic filtering applied:', selectedTopics)
-      const topicMultiplier = selectedTopics.includes('Personalization') ? 1.15 : 
-                             selectedTopics.includes('Brand Awareness') ? 1.08 : 0.85
-      filteredChartData = filteredChartData.map(item => ({
-        ...item,
-        score: Math.round(item.score * topicMultiplier * 10) / 10,
-        comparisonScore: Math.round(item.comparisonScore * topicMultiplier * 10) / 10,
-        brand: Math.round(item.brand * topicMultiplier * 10) / 10,
-        social: Math.round(item.social * topicMultiplier * 10) / 10,
-        earned: Math.round(item.earned * topicMultiplier * 10) / 10
-      }))
-    }
-
-    // Apply persona filtering
-    if (selectedPersonas && selectedPersonas.length > 0 && !selectedPersonas.includes('All Personas')) {
-      console.log('🔍 [CitationShare] Persona filtering applied:', selectedPersonas)
-      const personaMultiplier = selectedPersonas.includes('Marketing Manager') ? 1.08 : 
-                                selectedPersonas.includes('Brand Manager') ? 1.05 : 0.92
-      filteredChartData = filteredChartData.map(item => ({
-        ...item,
-        score: Math.round(item.score * personaMultiplier * 10) / 10,
-        comparisonScore: Math.round(item.comparisonScore * personaMultiplier * 10) / 10,
-        brand: Math.round(item.brand * personaMultiplier * 10) / 10,
-        social: Math.round(item.social * personaMultiplier * 10) / 10,
-        earned: Math.round(item.earned * personaMultiplier * 10) / 10
-      }))
-    }
-
-    // Apply platform filtering
-    if (selectedPlatforms && selectedPlatforms.length > 0 && !selectedPlatforms.includes('All Platforms')) {
-      console.log('🔍 [CitationShare] Platform filtering applied:', selectedPlatforms)
-      const platformMultiplier = selectedPlatforms.length > 3 ? 1.03 : 
-                                 selectedPlatforms.includes('Google') ? 1.06 : 0.97
-      filteredChartData = filteredChartData.map(item => ({
-        ...item,
-        score: Math.round(item.score * platformMultiplier * 10) / 10,
-        comparisonScore: Math.round(item.comparisonScore * platformMultiplier * 10) / 10,
-        brand: Math.round(item.brand * platformMultiplier * 10) / 10,
-        social: Math.round(item.social * platformMultiplier * 10) / 10,
-        earned: Math.round(item.earned * platformMultiplier * 10) / 10
-      }))
-    }
-  }
+  // ✅ REMOVED: Hardcoded filtering logic - now using backend-filtered data from DashboardService
+  // The filtering is properly handled by the DashboardService using filterAndAggregateMetrics()
+  // which aggregates the actual backend data based on selected topics/personas
+  console.log('🔍 [CitationShare] Using backend-filtered data from DashboardService')
+  console.log('🔍 [CitationShare] Filter context:', { 
+    selectedTopics: filterContext?.selectedTopics, 
+    selectedPersonas: filterContext?.selectedPersonas, 
+    selectedPlatforms: filterContext?.selectedPlatforms 
+  })
 
     // Update trend data with filtered scores (using safe division)
     filteredTrendData = filteredTrendData.map(item => {

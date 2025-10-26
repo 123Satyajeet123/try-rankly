@@ -22,8 +22,19 @@ const devAuth = require('../middleware/devAuth');
  */
 router.get('/all', devAuth, async (req, res) => {
   try {
-    const { dateFrom, dateTo, urlAnalysisId } = req.query;
+    const { dateFrom, dateTo, urlAnalysisId, topics: topicsQuery, personas: personasQuery, platforms: platformsQuery } = req.query;
     const userId = req.userId;
+    
+    // Parse filter arrays from query parameters
+    const selectedTopicFilters = topicsQuery ? (Array.isArray(topicsQuery) ? topicsQuery : [topicsQuery]) : [];
+    const selectedPersonaFilters = personasQuery ? (Array.isArray(personasQuery) ? personasQuery : [personasQuery]) : [];
+    const selectedPlatformFilters = platformsQuery ? (Array.isArray(platformsQuery) ? platformsQuery : [platformsQuery]) : [];
+    
+    console.log('🔍 [DASHBOARD] Received filter parameters:', {
+      topics: selectedTopicFilters,
+      personas: selectedPersonaFilters,
+      platforms: selectedPlatformFilters
+    });
 
     // Get user's brand from URL analysis
     const UrlAnalysis = require('../models/UrlAnalysis');
@@ -124,31 +135,83 @@ router.get('/all', devAuth, async (req, res) => {
       Persona.find(selectedPersonaQuery).lean()
     ]);
 
-    // Filter aggregated metrics to only include selected topics and personas
-    const selectedTopicNames = selectedTopics.map(t => t.name);
-    const selectedPersonaTypes = selectedPersonas.map(p => p.type);
+    // ✅ NEW: Use frontend filter parameters if provided, otherwise fall back to database selections
+    let finalTopicFilters = [];
+    let finalPersonaFilters = [];
     
-    console.log(`📊 [DASHBOARD] Selected topics:`, selectedTopicNames);
-    console.log(`📊 [DASHBOARD] Selected personas:`, selectedPersonaTypes);
+    if (selectedTopicFilters.length > 0 && !selectedTopicFilters.includes('All Topics')) {
+      // Use frontend filter selections
+      finalTopicFilters = selectedTopicFilters;
+      console.log('🔍 [DASHBOARD] Using frontend topic filters:', finalTopicFilters);
+    } else {
+      // Fall back to database selections
+      const selectedTopicNames = selectedTopics.map(t => t.name);
+      finalTopicFilters = selectedTopicNames;
+      console.log('🔍 [DASHBOARD] Using database topic selections:', finalTopicFilters);
+    }
+    
+    if (selectedPersonaFilters.length > 0 && !selectedPersonaFilters.includes('All Personas')) {
+      // Use frontend filter selections
+      finalPersonaFilters = selectedPersonaFilters;
+      console.log('🔍 [DASHBOARD] Using frontend persona filters:', finalPersonaFilters);
+    } else {
+      // Fall back to database selections
+      const selectedPersonaTypes = selectedPersonas.map(p => p.type);
+      finalPersonaFilters = selectedPersonaTypes;
+      console.log('🔍 [DASHBOARD] Using database persona selections:', finalPersonaFilters);
+    }
+    
+    console.log(`📊 [DASHBOARD] Final filters:`, { topics: finalTopicFilters, personas: finalPersonaFilters });
     console.log(`📊 [DASHBOARD] Available topic metrics:`, allTopics.map(t => t.scopeValue));
     console.log(`📊 [DASHBOARD] Available persona metrics:`, allPersonas.map(p => p.scopeValue));
     
-    let topics = allTopics.filter(topic => selectedTopicNames.includes(topic.scopeValue));
-    let personas = allPersonas.filter(persona => selectedPersonaTypes.includes(persona.scopeValue));
+    // Filter aggregated metrics based on final filter selections
+    let topics = allTopics.filter(topic => finalTopicFilters.includes(topic.scopeValue));
+    let personas = allPersonas.filter(persona => finalPersonaFilters.includes(persona.scopeValue));
     
-    // ✅ Fallback: If no selected topics/personas or no matches, show all available
+    // ✅ Fallback: If no matches found, show all available
     if (topics.length === 0 && allTopics.length > 0) {
-      console.log('⚠️ [DASHBOARD] No selected topics match available metrics, showing all topics');
+      console.log('⚠️ [DASHBOARD] No topics match filters, showing all topics');
       topics = allTopics;
     }
     if (personas.length === 0 && allPersonas.length > 0) {
-      console.log('⚠️ [DASHBOARD] No selected personas match available metrics, showing all personas');
+      console.log('⚠️ [DASHBOARD] No personas match filters, showing all personas');
       personas = allPersonas;
     }
     
     console.log(`📊 [DASHBOARD] Filtered topics:`, topics.length);
     console.log(`📊 [DASHBOARD] Filtered personas:`, personas.length);
 
+    // ✅ NEW: Recalculate overall metrics if filters are applied
+    let filteredOverall = overall;
+    
+    if ((finalTopicFilters.length > 0 && finalTopicFilters.length < allTopics.length) || 
+        (finalPersonaFilters.length > 0 && finalPersonaFilters.length < allPersonas.length)) {
+      
+      console.log('🔄 [DASHBOARD] Recalculating overall metrics based on filters...');
+      
+      // Import the metrics aggregation service
+      const metricsAggregationService = require('../services/metricsAggregationService');
+      
+      // Collect all metrics that match the filters
+      const metricsToAggregate = [];
+      
+      // Add filtered topic metrics
+      if (topics.length > 0) {
+        metricsToAggregate.push(...topics);
+      }
+      
+      // Add filtered persona metrics
+      if (personas.length > 0) {
+        metricsToAggregate.push(...personas);
+      }
+      
+      if (metricsToAggregate.length > 0) {
+        // Aggregate the filtered metrics using the same logic as frontend
+        filteredOverall = await aggregateFilteredMetrics(metricsToAggregate, overall, userBrandName);
+        console.log('✅ [DASHBOARD] Overall metrics recalculated based on filters');
+      }
+    }
 
     res.json({
       success: true,
@@ -161,33 +224,33 @@ router.get('/all', devAuth, async (req, res) => {
           analysisDate: urlAnalysis?.analysisDate
         },
         
-        // Core metrics
-        overall: overall,
+        // Core metrics (using filtered overall)
+        overall: filteredOverall,
         platforms: platforms,
         topics: topics,
         personas: personas,
         
-        // ✅ NEW: Frontend-compatible data structure
+        // ✅ NEW: Frontend-compatible data structure (using filtered overall)
         metrics: {
-          visibilityScore: formatVisibilityData(overall, userBrandName),
-          depthOfMention: formatDepthData(overall, userBrandName),
-          averagePosition: formatAveragePositionData(overall, userBrandName),
+          visibilityScore: formatVisibilityData(filteredOverall, userBrandName),
+          depthOfMention: formatDepthData(filteredOverall, userBrandName),
+          averagePosition: formatAveragePositionData(filteredOverall, userBrandName),
           topicRankings: formatTopicRankings(topics, userBrandName),
           personaRankings: formatPersonaRankings(personas, userBrandName),
-          performanceInsights: formatPerformanceInsights(overall, userBrandName),
-          competitors: formatCompetitorsData(overall, userBrandName),
+          performanceInsights: formatPerformanceInsights(filteredOverall, userBrandName),
+          competitors: formatCompetitorsData(filteredOverall, userBrandName),
           // ✅ NEW: Citation-specific data structure for Citations tab
-          competitorsByCitation: formatCompetitorsByCitationData(overall, userBrandName)
+          competitorsByCitation: formatCompetitorsByCitationData(filteredOverall, userBrandName)
         },
         
-        // ✅ Keep backward compatibility
-        visibility: formatVisibilityData(overall, userBrandName),
-        depthOfMention: formatDepthData(overall, userBrandName),
-        averagePosition: formatAveragePositionData(overall, userBrandName),
+        // ✅ Keep backward compatibility (using filtered overall)
+        visibility: formatVisibilityData(filteredOverall, userBrandName),
+        depthOfMention: formatDepthData(filteredOverall, userBrandName),
+        averagePosition: formatAveragePositionData(filteredOverall, userBrandName),
         topicRankings: formatTopicRankings(topics, userBrandName),
         personaRankings: formatPersonaRankings(personas, userBrandName),
-        performanceInsights: formatPerformanceInsights(overall, userBrandName),
-        competitors: formatCompetitorsData(overall, userBrandName),
+        performanceInsights: formatPerformanceInsights(filteredOverall, userBrandName),
+        competitors: formatCompetitorsData(filteredOverall, userBrandName),
         
         // Platform-level data (formatted)
         platforms: platforms.map(p => ({
@@ -199,7 +262,7 @@ router.get('/all', devAuth, async (req, res) => {
         // ✅ Raw platform data for citation analysis
         platformMetrics: platforms,
         
-        lastUpdated: overall?.lastCalculated || new Date()
+        lastUpdated: filteredOverall?.lastCalculated || new Date()
       }
     });
 
@@ -651,6 +714,163 @@ function getColorForBrand(brandName) {
     'InnovateTech': '#10B981'
   };
   return colorMap[brandName] || '#9CA3AF';
+}
+
+/**
+ * Aggregate multiple metric documents into one (backend version of frontend logic)
+ * Combines metrics from multiple scopes (topics/personas) by averaging
+ */
+async function aggregateFilteredMetrics(metrics, fallback, userBrandName) {
+  if (!metrics || metrics.length === 0) {
+    return fallback;
+  }
+
+  console.log(`📊 [AGGREGATE] Combining ${metrics.length} metric documents`);
+
+  // Create a map to aggregate brand metrics
+  const brandMap = new Map();
+
+  // Aggregate each metric document
+  metrics.forEach((metric, idx) => {
+    console.log(`   Processing metric ${idx + 1}: scope=${metric.scope}, value=${metric.scopeValue}`);
+    
+    if (!metric.brandMetrics || !Array.isArray(metric.brandMetrics)) {
+      console.log(`   ⚠️ No brandMetrics in document ${idx + 1}`);
+      return;
+    }
+
+    metric.brandMetrics.forEach((brand) => {
+      const key = brand.brandName;
+      
+      if (!brandMap.has(key)) {
+        // Initialize with first occurrence
+        brandMap.set(key, {
+          brandId: brand.brandId || key,
+          brandName: brand.brandName,
+          visibilityScore: 0,
+          visibilityRank: 0,
+          totalMentions: 0,
+          mentionRank: 0,
+          shareOfVoice: 0,
+          shareOfVoiceRank: 0,
+          avgPosition: 0,
+          avgPositionRank: 0,
+          depthOfMention: 0,
+          depthRank: 0,
+          citationShare: 0,
+          citationShareRank: 0,
+          brandCitationsTotal: 0,
+          earnedCitationsTotal: 0,
+          socialCitationsTotal: 0,
+          totalCitations: 0,
+          sentimentScore: 0,
+          sentimentBreakdown: {
+            positive: 0,
+            neutral: 0,
+            negative: 0,
+            mixed: 0
+          },
+          sentimentShare: 0,
+          count1st: 0,
+          count2nd: 0,
+          count3rd: 0,
+          totalAppearances: 0,
+          _count: 0 // Track how many metrics we're averaging
+        });
+      }
+
+      const existing = brandMap.get(key);
+      
+      // Sum up all metrics (we'll average later)
+      existing.visibilityScore += brand.visibilityScore || 0;
+      existing.totalMentions += brand.totalMentions || 0;
+      existing.shareOfVoice += brand.shareOfVoice || 0;
+      existing.avgPosition += brand.avgPosition || 0;
+      existing.depthOfMention += brand.depthOfMention || 0;
+      existing.citationShare += brand.citationShare || 0;
+      existing.brandCitationsTotal += brand.brandCitationsTotal || 0;
+      existing.earnedCitationsTotal += brand.earnedCitationsTotal || 0;
+      existing.socialCitationsTotal += brand.socialCitationsTotal || 0;
+      existing.totalCitations += brand.totalCitations || 0;
+      existing.sentimentScore += brand.sentimentScore || 0;
+      existing.sentimentShare += brand.sentimentShare || 0;
+      existing.count1st += brand.count1st || 0;
+      existing.count2nd += brand.count2nd || 0;
+      existing.count3rd += brand.count3rd || 0;
+      existing.totalAppearances += brand.totalAppearances || 0;
+      
+      // Aggregate sentiment breakdown
+      if (brand.sentimentBreakdown) {
+        existing.sentimentBreakdown.positive += brand.sentimentBreakdown.positive || 0;
+        existing.sentimentBreakdown.neutral += brand.sentimentBreakdown.neutral || 0;
+        existing.sentimentBreakdown.negative += brand.sentimentBreakdown.negative || 0;
+        existing.sentimentBreakdown.mixed += brand.sentimentBreakdown.mixed || 0;
+      }
+      
+      existing._count++;
+    });
+  });
+
+  // Convert map to array and calculate averages
+  const aggregatedBrandMetrics = Array.from(brandMap.values()).map((brand, index) => {
+    const count = brand._count;
+    
+    return {
+      brandId: brand.brandId,
+      brandName: brand.brandName,
+      visibilityScore: count > 0 ? parseFloat((brand.visibilityScore / count).toFixed(2)) : 0,
+      visibilityRank: index + 1, // Recalculate rank based on aggregated data
+      totalMentions: brand.totalMentions, // Sum, not average
+      mentionRank: index + 1,
+      shareOfVoice: count > 0 ? parseFloat((brand.shareOfVoice / count).toFixed(2)) : 0,
+      shareOfVoiceRank: index + 1,
+      avgPosition: count > 0 ? parseFloat((brand.avgPosition / count).toFixed(2)) : 0,
+      avgPositionRank: index + 1,
+      depthOfMention: count > 0 ? parseFloat((brand.depthOfMention / count).toFixed(4)) : 0,
+      depthRank: index + 1,
+      citationShare: count > 0 ? parseFloat((brand.citationShare / count).toFixed(2)) : 0,
+      citationShareRank: index + 1,
+      brandCitationsTotal: brand.brandCitationsTotal, // Sum, not average
+      earnedCitationsTotal: brand.earnedCitationsTotal, // Sum, not average
+      socialCitationsTotal: brand.socialCitationsTotal, // Sum, not average
+      totalCitations: brand.totalCitations, // Sum, not average
+      sentimentScore: count > 0 ? parseFloat((brand.sentimentScore / count).toFixed(2)) : 0,
+      sentimentBreakdown: {
+        positive: count > 0 ? parseFloat((brand.sentimentBreakdown.positive / count).toFixed(2)) : 0,
+        neutral: count > 0 ? parseFloat((brand.sentimentBreakdown.neutral / count).toFixed(2)) : 0,
+        negative: count > 0 ? parseFloat((brand.sentimentBreakdown.negative / count).toFixed(2)) : 0,
+        mixed: count > 0 ? parseFloat((brand.sentimentBreakdown.mixed / count).toFixed(2)) : 0
+      },
+      sentimentShare: count > 0 ? parseFloat((brand.sentimentShare / count).toFixed(2)) : 0,
+      count1st: brand.count1st, // Sum, not average
+      count2nd: brand.count2nd, // Sum, not average
+      count3rd: brand.count3rd, // Sum, not average
+      totalAppearances: brand.totalAppearances // Sum, not average
+    };
+  });
+
+  // Sort by visibility score (descending) and update ranks
+  aggregatedBrandMetrics.sort((a, b) => b.visibilityScore - a.visibilityScore);
+  aggregatedBrandMetrics.forEach((brand, index) => {
+    brand.visibilityRank = index + 1;
+  });
+
+  // Calculate total tests from all metrics
+  const totalTests = metrics.reduce((sum, m) => sum + (m.totalResponses || m.totalTests || 0), 0);
+  const totalBrands = aggregatedBrandMetrics.length;
+
+  console.log(`✅ [AGGREGATE] Result: ${totalBrands} brands, ${totalTests} total tests`);
+
+  // Return in the same format as backend metrics
+  return {
+    ...fallback,
+    brandMetrics: aggregatedBrandMetrics,
+    totalTests,
+    totalResponses: totalTests,
+    totalBrands,
+    scope: 'filtered', // Mark as filtered
+    lastCalculated: new Date()
+  };
 }
 
 // Get real citation details for a specific brand and type

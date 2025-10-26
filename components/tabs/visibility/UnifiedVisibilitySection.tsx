@@ -113,41 +113,11 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
       const { selectedTopics, selectedPersonas, selectedPlatforms } = filterContext
       console.log('🔍 [Visibility] Applying global filters:', { selectedTopics, selectedPersonas, selectedPlatforms })
       
-      // Apply topic filtering
-      if (selectedTopics && selectedTopics.length > 0 && !selectedTopics.includes('All Topics')) {
-        console.log('🔍 [Visibility] Topic filtering applied:', selectedTopics)
-        const topicMultiplier = selectedTopics.includes('Personalization') ? 1.15 : 
-                               selectedTopics.includes('Brand Awareness') ? 1.08 : 0.85
-        baseChartData = baseChartData.map(item => ({
-          ...item,
-          score: Math.round(item.score * topicMultiplier * 10) / 10,
-          comparisonScore: Math.round(item.comparisonScore * topicMultiplier * 10) / 10
-        }))
-      }
-
-      // Apply persona filtering
-      if (selectedPersonas && selectedPersonas.length > 0 && !selectedPersonas.includes('All Personas')) {
-        console.log('🔍 [Visibility] Persona filtering applied:', selectedPersonas)
-        const personaMultiplier = selectedPersonas.includes('Marketing Manager') ? 1.08 : 
-                                  selectedPersonas.includes('Brand Manager') ? 1.05 : 0.92
-        baseChartData = baseChartData.map(item => ({
-          ...item,
-          score: Math.round(item.score * personaMultiplier * 10) / 10,
-          comparisonScore: Math.round(item.comparisonScore * personaMultiplier * 10) / 10
-        }))
-      }
-
-      // Apply platform filtering
-      if (selectedPlatforms && selectedPlatforms.length > 0 && !selectedPlatforms.includes('All Platforms')) {
-        console.log('🔍 [Visibility] Platform filtering applied:', selectedPlatforms)
-        const platformMultiplier = selectedPlatforms.length > 3 ? 1.03 : 
-                                   selectedPlatforms.includes('Google') ? 1.06 : 0.97
-        baseChartData = baseChartData.map(item => ({
-          ...item,
-          score: Math.round(item.score * platformMultiplier * 10) / 10,
-          comparisonScore: Math.round(item.comparisonScore * platformMultiplier * 10) / 10
-        }))
-      }
+      // ✅ REMOVED: Hardcoded filtering logic - now using backend-filtered data from DashboardService
+      // The filtering is properly handled by the DashboardService using filterAndAggregateMetrics()
+      // which aggregates the actual backend data based on selected topics/personas
+      console.log('🔍 [Visibility] Using backend-filtered data from DashboardService')
+      console.log('🔍 [Visibility] Filter context:', { selectedTopics, selectedPersonas, selectedPlatforms })
     }
 
     // Generate trend data from chart data

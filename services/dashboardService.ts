@@ -39,12 +39,12 @@ class DashboardService {
   }
 
   /**
-   * Clear cache for specific analysis
+   * Clear cache for specific analysis (all filter variations)
    */
   clearCacheForAnalysis(analysisId: string): void {
-    const cacheKey = `dashboard-${analysisId}`
+    const pattern = `dashboard-${analysisId}`
     console.log('🧹 [DashboardService] Clearing cache for analysis:', analysisId)
-    this.cache.delete(cacheKey)
+    this.clearCacheByPattern(pattern)
   }
 
   /**
@@ -123,11 +123,17 @@ class DashboardService {
    * Get complete dashboard data with all metrics
    */
   async getDashboardData(filters: DashboardFilters = {}): Promise<DashboardServiceResponse<DashboardData>> {
-    // Create cache key based only on analysis ID, not filter selections
+    // Create cache key based on analysis ID AND filter selections for real-time filtering
     const analysisId = filters.selectedAnalysisId || filters.urlAnalysisId
-    const cacheKey = `dashboard-${analysisId || 'default'}`
+    const filterKey = JSON.stringify({
+      topics: filters.topics || [],
+      personas: filters.personas || [],
+      platforms: filters.platforms || []
+    })
+    const cacheKey = `dashboard-${analysisId || 'default'}-${Buffer.from(filterKey).toString('base64').slice(0, 8)}`
     console.log('🔑 [DashboardService] Cache key:', cacheKey)
-    console.log('🔑 [DashboardService] Analysis ID for cache key:', analysisId)
+    console.log('🔑 [DashboardService] Analysis ID:', analysisId)
+    console.log('🔑 [DashboardService] Filter selections:', { topics: filters.topics, personas: filters.personas, platforms: filters.platforms })
     
     return this.getCachedData(cacheKey, async () => {
       console.log('🔄 [DashboardService] Fetching dashboard data with filters:', filters)
@@ -150,7 +156,10 @@ class DashboardService {
       const dashboardResponse = await apiService.getDashboardAll({
         dateFrom: filters.dateFrom,
         dateTo: filters.dateTo,
-        urlAnalysisId: filters.selectedAnalysisId || filters.urlAnalysisId
+        urlAnalysisId: filters.selectedAnalysisId || filters.urlAnalysisId,
+        topics: filters.topics,
+        personas: filters.personas,
+        platforms: filters.platforms
       }).catch(e => {
         console.error('❌ [DashboardService] Failed to fetch dashboard/all:', e)
         return { success: false, data: null }
@@ -239,37 +248,14 @@ class DashboardService {
         throw new Error('Metrics data is incomplete. Please run the complete onboarding flow again.')
       }
 
-      // ✅ NEW: Apply topic/persona filters if provided
-      let filteredOverallMetrics = overallMetrics.data
+      // ✅ REMOVED: Frontend filtering logic - now handled by backend API
+      // The backend /api/dashboard/all endpoint now accepts filter parameters and
+      // returns pre-filtered data, so no frontend filtering is needed
+      console.log('✅ [DashboardService] Using backend-filtered data from API')
 
-      if (filters.topics || filters.personas) {
-        const selectedTopics = filters.topics || ['All Topics']
-        const selectedPersonas = filters.personas || ['All Personas']
-
-        console.log('🔍 [DashboardService] Applying filters:', { 
-          selectedTopics, 
-          selectedPersonas,
-          topicMetricsAvailable: topicMetrics.data?.length || 0,
-          personaMetricsAvailable: personaMetrics.data?.length || 0
-        })
-
-        filteredOverallMetrics = filterAndAggregateMetrics(
-          overallMetrics.data,
-          topicMetrics.data || [],
-          personaMetrics.data || [],
-          selectedTopics,
-          selectedPersonas
-        )
-
-        console.log('✅ [DashboardService] Metrics filtered and aggregated:', {
-          totalTests: filteredOverallMetrics.totalTests,
-          brandCount: filteredOverallMetrics.brandMetrics?.length || 0
-        })
-      }
-
-      // Transform to frontend format using filtered data
+      // Transform to frontend format using backend-filtered data
       const dashboardData = transformAggregatedMetricsToDashboardData(
-        filteredOverallMetrics,  // ✅ Use filtered data instead of raw overall
+        overallMetrics.data,  // ✅ Backend already returns filtered data
         platformMetrics.data || [],
         topicMetrics.data || [],
         personaMetrics.data || [],
@@ -341,29 +327,15 @@ class DashboardService {
       throw new Error('Metrics data is incomplete. Please run the complete onboarding flow again.')
     }
 
-    // ✅ NEW: Apply topic/persona filters if provided
-    let filteredOverallMetrics = overallMetrics.data
-
-    if (filters.topics || filters.personas) {
-      const selectedTopics = filters.topics || ['All Topics']
-      const selectedPersonas = filters.personas || ['All Personas']
-
-      console.log('🔍 [DashboardService] [Fallback] Applying filters:', { selectedTopics, selectedPersonas })
-
-      filteredOverallMetrics = filterAndAggregateMetrics(
-        overallMetrics.data,
-        topicMetrics.data || [],
-        personaMetrics.data || [],
-        selectedTopics,
-        selectedPersonas
-      )
-
-      console.log('✅ [DashboardService] [Fallback] Metrics filtered')
-    }
+    // ✅ REMOVED: Frontend filtering logic - fallback should also use backend filtering
+    // Note: Fallback mode means the /api/dashboard/all endpoint failed, so we're using
+    // individual endpoints. In this case, we'll use the raw data without filtering
+    // since the individual endpoints don't support filtering yet.
+    console.log('⚠️ [DashboardService] [Fallback] Using raw data (filtering not available in fallback mode)')
 
     // Transform to frontend format
     const dashboardData = transformAggregatedMetricsToDashboardData(
-      filteredOverallMetrics,  // ✅ Use filtered data
+      overallMetrics.data,  // ✅ Use raw data in fallback mode
       platformMetrics.data || [],
       topicMetrics.data || [],
       personaMetrics.data || [],

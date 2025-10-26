@@ -97,7 +97,7 @@ export function Dashboard({ initialTab }: DashboardProps) {
     }
 
     loadDashboardData()
-  }, [selectedAnalysisId, setGlobalLoading, previousAnalysisId]) // Only reload when analysis changes
+  }, [selectedAnalysisId, selectedTopics, selectedPersonas, selectedPlatforms, setGlobalLoading, previousAnalysisId]) // Reload when analysis OR filters change
 
   // Remove redundant global loading effect since we now handle it directly in loadDashboardData
 

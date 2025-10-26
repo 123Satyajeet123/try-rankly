@@ -85,44 +85,11 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
       const { selectedTopics, selectedPersonas, selectedPlatforms } = filterContext
       console.log('🔍 [CitationTypes] Applying global filters:', { selectedTopics, selectedPersonas, selectedPlatforms })
       
-      // Apply topic filtering
-      if (selectedTopics && selectedTopics.length > 0 && !selectedTopics.includes('All Topics')) {
-        console.log('🔍 [CitationTypes] Topic filtering applied:', selectedTopics)
-        const topicMultiplier = selectedTopics.includes('Personalization') ? 1.15 : 
-                               selectedTopics.includes('Brand Awareness') ? 1.08 : 0.85
-        filteredData = filteredData.map(item => ({
-          ...item,
-          brand: Math.round(item.brand * topicMultiplier * 10) / 10,
-          social: Math.round(item.social * topicMultiplier * 10) / 10,
-          earned: Math.round(item.earned * topicMultiplier * 10) / 10
-        }))
-      }
-
-      // Apply persona filtering
-      if (selectedPersonas && selectedPersonas.length > 0 && !selectedPersonas.includes('All Personas')) {
-        console.log('🔍 [CitationTypes] Persona filtering applied:', selectedPersonas)
-        const personaMultiplier = selectedPersonas.includes('Marketing Manager') ? 1.08 : 
-                                  selectedPersonas.includes('Brand Manager') ? 1.05 : 0.92
-        filteredData = filteredData.map(item => ({
-          ...item,
-          brand: Math.round(item.brand * personaMultiplier * 10) / 10,
-          social: Math.round(item.social * personaMultiplier * 10) / 10,
-          earned: Math.round(item.earned * personaMultiplier * 10) / 10
-        }))
-      }
-
-      // Apply platform filtering
-      if (selectedPlatforms && selectedPlatforms.length > 0 && !selectedPlatforms.includes('All Platforms')) {
-        console.log('🔍 [CitationTypes] Platform filtering applied:', selectedPlatforms)
-        const platformMultiplier = selectedPlatforms.length > 3 ? 1.03 : 
-                                   selectedPlatforms.includes('Google') ? 1.06 : 0.97
-        filteredData = filteredData.map(item => ({
-          ...item,
-          brand: Math.round(item.brand * platformMultiplier * 10) / 10,
-          social: Math.round(item.social * platformMultiplier * 10) / 10,
-          earned: Math.round(item.earned * platformMultiplier * 10) / 10
-        }))
-      }
+      // ✅ REMOVED: Hardcoded filtering logic - now using backend-filtered data from DashboardService
+      // The filtering is properly handled by the DashboardService using filterAndAggregateMetrics()
+      // which aggregates the actual backend data based on selected topics/personas
+      console.log('🔍 [CitationTypes] Using backend-filtered data from DashboardService')
+      console.log('🔍 [CitationTypes] Filter context:', { selectedTopics, selectedPersonas, selectedPlatforms })
     }
     
     return filteredData

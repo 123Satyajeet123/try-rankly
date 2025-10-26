@@ -83,7 +83,7 @@ export const frontendConfig = {
     invalidUrl: 'Please enter a valid URL',
     invalidEmail: 'Please enter a valid email address'
   },
-
+  
   // ===== PERFORMANCE CONFIGURATION =====
   performance: {
     // Debounce delay for search inputs (milliseconds)

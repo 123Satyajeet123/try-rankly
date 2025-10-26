@@ -376,16 +376,30 @@ class ApiService {
     return this.request(`/metrics/aggregated${params.toString() ? `?${params.toString()}` : ''}`)
   }
 
-  // ✅ NEW: Get all dashboard data in one call (includes AI insights)
+  // ✅ NEW: Get all dashboard data in one call (includes AI insights and filtering)
   async getDashboardAll(options: {
     dateFrom?: string
     dateTo?: string
     urlAnalysisId?: string
+    topics?: string[]
+    personas?: string[]
+    platforms?: string[]
   } = {}) {
     const params = new URLSearchParams()
     if (options.dateFrom) params.append('dateFrom', options.dateFrom)
     if (options.dateTo) params.append('dateTo', options.dateTo)
     if (options.urlAnalysisId) params.append('urlAnalysisId', options.urlAnalysisId)
+    
+    // ✅ NEW: Add filter parameters
+    if (options.topics && options.topics.length > 0) {
+      options.topics.forEach(topic => params.append('topics', topic))
+    }
+    if (options.personas && options.personas.length > 0) {
+      options.personas.forEach(persona => params.append('personas', persona))
+    }
+    if (options.platforms && options.platforms.length > 0) {
+      options.platforms.forEach(platform => params.append('platforms', platform))
+    }
     
     return this.request(`/dashboard/all${params.toString() ? `?${params.toString()}` : ''}`)
   }

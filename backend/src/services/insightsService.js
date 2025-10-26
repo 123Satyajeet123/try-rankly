@@ -295,111 +295,93 @@ class InsightsService {
   generatePrompt(structuredData, tabType) {
     const { userBrand, competitors, totalPrompts, totalResponses } = structuredData;
     
-    let prompt = `You are an expert competitive intelligence analyst and business storyteller. Your job is to transform raw performance data into clear, actionable business insights that executives can instantly understand and act upon.
+    let prompt = `You are a data-driven competitive intelligence analyst. Your ONLY job is to identify meaningful performance differences and recommend specific actions.
 
-CRITICAL MISSION: Convert complex data into simple, strategic stories that answer:
-- "Am I winning or losing?"
-- "Against whom and by how much?"
-- "What should I do about it?"
+CRITICAL RULES:
+1. Use ONLY the metrics provided - do not make assumptions
+2. Only create insights if there's a meaningful difference (≥15 percentage points or ≥2 ranking positions)
+3. Start each insight with a clear win/loss statement
+4. Include exact numbers, specific competitor names, and context
+5. Provide one specific, actionable recommendation per insight
 
-REQUIREMENTS FOR INSIGHTS:
-1. Use EXACT numbers and percentages from the data
-2. Name specific competitors and their exact performance
-3. Write in business language that executives understand
-4. Create "aha moments" that make data instantly click
-5. Provide specific, actionable recommendations
-6. Focus on competitive advantages and strategic gaps
+MANDATORY INSIGHT STRUCTURE:
+"Winner [beats/loses] loser with [exact number] vs [exact number] in [specific context]. Recommendation: [specific action]"
 
-INSIGHT FORMAT REQUIREMENTS:
-- Start with clear win/loss statements: "YourBrand dominates..." or "Chase outperforms YourBrand..."
-- Include specific numbers: "78% vs 45%" not "better performance"
-- Name competitors: "Chase" not "competitors"
-- Add context: "in banking services topics" not just "visibility"
-- End with action: "Create competitive responses" not "improve performance"
-
-USER BRAND PERFORMANCE:
-- Brand: ${userBrand.name}
+USER BRAND: ${userBrand.name}
 - Visibility: ${userBrand.visibilityScore}%
 - Share of Voice: ${userBrand.shareOfVoice}%
-- Average Position: #${userBrand.averagePosition}
-- Depth of Mention: ${userBrand.depthOfMention}%
+- Avg Position: #${userBrand.averagePosition}
+- Depth of Mention: ${userBrand.depthOfMention.toFixed(2)}
+- Sentiment: ${userBrand.sentimentScore.toFixed(2)}
+- Citation Share: ${userBrand.citationShare}%
 
-COMPETITOR PERFORMANCE:
-${competitors.map(c => `- ${c.name}: ${c.visibilityScore}% visibility, #${c.rank} position, ${c.shareOfVoice}% SOV`).join('\n')}
+COMPETITORS:
+${competitors.map((c, idx) => `${idx + 1}. ${c.name}: ${c.visibilityScore}% visibility, rank #${c.rank}, ${c.shareOfVoice}% SOV, #${c.averagePosition} avg position`).join('\n')}
 
-ANALYSIS SCOPE:
-- Total Prompts: ${totalPrompts}
-- Total Responses: ${totalResponses}
+ANALYSIS BASIS:
+- ${totalPrompts} prompts tested across ${totalResponses} LLM responses
+- Data represents actual brand mention frequency in AI responses
 `;
 
     // Add tab-specific data to prompt
     switch (tabType) {
       case 'visibility':
         prompt += this.getVisibilityPromptData(structuredData);
-        prompt += '\n\nVISIBILITY INSIGHTS FOCUS:\n- Brand visibility and market presence\n- Competitive positioning across topics and platforms\n- Share of voice and ranking performance\n- Strategic opportunities and threats';
+        prompt += '\n\nVISIBILITY ANALYSIS TASK:\nIdentify performance gaps in:\n1. Overall visibility vs competitors\n2. Topic-specific visibility differences\n3. Platform-specific visibility gaps\n4. Ranking position vs share of voice disparities\n\nOnly report differences where gap ≥15 percentage points or ≥2 ranking positions.';
         break;
       case 'prompts':
         prompt += this.getPromptsPromptData(structuredData);
-        prompt += '\n\nPROMPTS INSIGHTS FOCUS:\n- Prompt effectiveness and success rates\n- LLM response quality and brand mentions\n- Competitive prompt performance\n- Strategic prompt optimization opportunities';
+        prompt += '\n\nPROMPTS ANALYSIS TASK:\nIdentify performance differences in:\n1. Topic-specific brand mention rates\n2. Persona-specific prompt effectiveness\n3. Overall prompt success rates\n\nOnly report differences where gap ≥15 percentage points.';
         break;
       case 'sentiment':
         prompt += this.getSentimentPromptData(structuredData);
-        prompt += '\n\nSENTIMENT INSIGHTS FOCUS:\n- Brand perception and sentiment scores\n- Competitive sentiment positioning\n- Positive/negative sentiment drivers\n- Strategic reputation management opportunities';
+        prompt += '\n\nSENTIMENT ANALYSIS TASK:\nIdentify sentiment positioning in:\n1. Overall sentiment vs competitors\n2. Topic-specific sentiment differences\n3. Persona-specific sentiment positioning\n\nOnly report differences where sentiment gap ≥0.2 points (on scale -1 to 1).';
         break;
       case 'citations':
         prompt += this.getCitationsPromptData(structuredData);
-        prompt += '\n\nCITATIONS INSIGHTS FOCUS:\n- Citation share and link performance\n- Competitive citation positioning\n- Platform-specific citation performance\n- Strategic link building opportunities';
+        prompt += '\n\nCITATIONS ANALYSIS TASK:\nIdentify citation share gaps in:\n1. Overall citation share vs competitors\n2. Platform-specific citation performance\n3. Topic-specific citation distribution\n\nOnly report differences where citation gap ≥20 percentage points.';
         break;
     }
 
     prompt += `
 
-RESPONSE FORMAT - CRITICAL: You MUST respond with ONLY the JSON format below. No other text.
+CRITICAL: Respond with ONLY valid JSON. No markdown, no explanations.
 
 {
   "whatsWorking": [
     {
-      "description": "[EXACT performance comparison with specific numbers]",
-      "impact": "High|Medium|Low",
-      "recommendation": "[Specific action to take based on competitive advantage]"
+      "description": "Winner beats loser with X% vs Y% in [context]",
+      "impact": "High",
+      "recommendation": "One specific, actionable next step"
     }
   ],
   "needsAttention": [
     {
-      "description": "[EXACT performance gap with specific numbers]",
-      "impact": "High|Medium|Low", 
-      "recommendation": "[Specific action to close the gap]"
+      "description": "Loser loses to winner with X% vs Y% in [context]",
+      "impact": "High",
+      "recommendation": "One specific, actionable next step"
     }
   ]
 }
 
-INSIGHT REQUIREMENTS:
-1. WHAT'S WORKING: Show where user brand beats competitors with exact numbers and strategic context
-2. NEEDS ATTENTION: Show where competitors beat user brand with exact numbers and competitive gaps
-3. Use format: "[User Brand] [action verb] [exact number] vs [Competitor] [exact number] in [specific area]"
-4. Include specific competitor names and exact percentages/numbers
-5. Focus on competitive positioning and actionable next steps
-6. Write like a business executive explaining to their team
+EXACT REQUIRED FORMAT:
+- description: "BrandName beats/loses CompetitorName with [number]% vs [number]% in [specific area]"
+- impact: "High" (only use High for meaningful differences meeting thresholds)
+- recommendation: "One specific action to take"
 
-EXAMPLES OF PERFECT INSIGHTS:
-- "YourBrand dominates with 78% visibility vs Chase's 45% in banking services topics"
-- "Chase outperforms YourBrand 65% vs 32% in mobile platform responses"  
-- "YourBrand ranks #2.1 vs Wells Fargo's #4.3 average position in investment advice"
-- "Wells Fargo beats YourBrand 58% vs 35% in small business banking"
-- "YourBrand secures 45% citation share vs Bank of America's 28% in financial news"
+EXAMPLES:
+✓ "AcmeBank beats Chase with 82% vs 61% visibility in business banking topics. Recommendation: Double down on content in business banking areas."
+✓ "WellsFargo beats AcmeBank with 67% vs 41% visibility on mobile platforms. Recommendation: Optimize mobile content and keyword targeting for AI responses."
+✓ "AcmeBank ranks #2.3 vs Bank of America's #4.1 in investment advice. Recommendation: Enhance investment-related content to maintain ranking advantage."
 
-BUSINESS STORYTELLING APPROACH:
-- Transform data into competitive stories
-- Make insights instantly understandable
-- Focus on strategic implications
-- Provide clear next steps
-- Use executive-level language
+RULES:
+- Only create insights where differences meet thresholds (≥15% or ≥2 positions or ≥0.2 sentiment)
+- Use exact numbers from data provided
+- Name specific competitors
+- One concrete recommendation per insight
+- 2-3 insights per category maximum
 
-Provide 3-4 insights per category with specific numbers, competitor names, and strategic context.
-
-FINAL INSTRUCTION: Write each insight as if you're a business executive explaining competitive performance to their team. Make it instantly clear who's winning, who's losing, and what to do about it. Transform raw data into strategic business stories.
-
-RESPONSE MUST BE ONLY VALID JSON - NO OTHER TEXT.`;
+RESPOND WITH JSON ONLY.`;
 
     return prompt;
   }
@@ -545,8 +527,8 @@ RESPONSE MUST BE ONLY VALID JSON - NO OTHER TEXT.`;
             content: prompt
           }
         ],
-        temperature: 0.1,
-        max_tokens: 1500
+        temperature: 0.3,
+        max_tokens: 1200
       }, {
         headers: {
           'Authorization': `Bearer ${this.openRouterApiKey}`,
@@ -583,26 +565,25 @@ RESPONSE MUST BE ONLY VALID JSON - NO OTHER TEXT.`;
         throw new Error('Invalid insights structure from LLM');
       }
 
-      // Transform old format to new format if needed
+      // Transform insights to ensure all required fields exist
       const transformInsight = (insight) => {
-        // If it has the old format fields, transform them
-        if (insight.title && insight.metric && insight.value) {
-          return {
-            description: `${insight.title}: ${insight.description}`,
-            impact: insight.impact,
-            recommendation: insight.recommendation
-          };
-        }
-        // If it already has the new format, return as is
-        return {
-          description: insight.description,
-          impact: insight.impact,
-          recommendation: insight.recommendation
+        // Ensure all required fields exist with defaults
+        const transformed = {
+          description: insight.description || 'No description available',
+          impact: insight.impact || 'Medium',
+          recommendation: insight.recommendation || 'No recommendation available'
         };
+        
+        // Validate impact value
+        if (!['High', 'Medium', 'Low'].includes(transformed.impact)) {
+          transformed.impact = 'Medium';
+        }
+        
+        return transformed;
       };
 
-      const transformedWhatsWorking = insights.whatsWorking.map(transformInsight);
-      const transformedNeedsAttention = insights.needsAttention.map(transformInsight);
+      const transformedWhatsWorking = (insights.whatsWorking || []).map(transformInsight);
+      const transformedNeedsAttention = (insights.needsAttention || []).map(transformInsight);
 
       console.log(`✅ [InsightsService] Parsed ${transformedWhatsWorking.length} working insights and ${transformedNeedsAttention.length} attention insights`);
       

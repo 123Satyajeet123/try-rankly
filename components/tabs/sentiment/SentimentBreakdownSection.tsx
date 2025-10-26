@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { ChevronDown, ChevronRight, ArrowUpDown } from 'lucide-react'
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion'
+import { Badge } from '@/components/ui/badge'
 import { useSkeletonLoading } from '@/components/ui/with-skeleton-loading'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
@@ -65,6 +65,7 @@ export function SentimentBreakdownSection({ filterContext, dashboardData }: Sent
   const [sentimentData, setSentimentData] = useState<SentimentData | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [expandedTopics, setExpandedTopics] = useState<Set<string>>(new Set())
 
   // Skeleton loading
   const { showSkeleton, isVisible } = useSkeletonLoading(filterContext)
@@ -159,6 +160,16 @@ export function SentimentBreakdownSection({ filterContext, dashboardData }: Sent
 
   const handleColumnSort = () => {
     setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+  }
+
+  const handleTopicToggle = (topicId: string) => {
+    const newExpanded = new Set(expandedTopics)
+    if (newExpanded.has(topicId)) {
+      newExpanded.delete(topicId)
+    } else {
+      newExpanded.add(topicId)
+    }
+    setExpandedTopics(newExpanded)
   }
 
   const SentimentBar = ({ sentimentSplit, totalResponses }: { 
@@ -304,63 +315,101 @@ export function SentimentBreakdownSection({ filterContext, dashboardData }: Sent
           </div>
 
           {sentimentData && sentimentData.items && sentimentData.items.length > 0 ? (
-            <Accordion type="multiple" className="w-full">
-              {sortData(sentimentData.items).map((item) => (
-                <AccordionItem key={item.id} value={item.id} className="border-border/60">
-                  <AccordionTrigger className="hover:bg-muted/30 transition-colors px-4 py-3">
-                    <div className="flex items-center justify-between w-full pr-4">
-                      <div className="flex items-center gap-3">
-                        <span className="font-medium text-foreground">{item.name}</span>
-                        <span className="text-sm text-muted-foreground">
-                          {item.prompts.length} prompt{item.prompts.length !== 1 ? 's' : ''}
-                        </span>
+            <div className="border rounded-lg">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12"></TableHead>
+                    <TableHead>
+                      <div className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded">
+                        {sortBy === 'topics' ? 'Topic' : 'User Persona'}
                       </div>
-                      <div className="flex items-center gap-4">
-                        <div className="w-32">
-                          <SentimentBar sentimentSplit={item.sentimentSplit} totalResponses={item.totalSentiment} />
-                        </div>
-                        <div className="flex items-center space-x-3 text-xs text-muted-foreground">
-                          <div className="flex items-center space-x-1">
-                            <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                            <span>Positive</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                            <span>Neutral</span>
-                          </div>
-                          <div className="flex items-center space-x-1">
-                            <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                            <span>Negative</span>
-                          </div>
-                        </div>
+                    </TableHead>
+                    <TableHead>
+                      <div className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded">
+                        Sentiment Breakdown
                       </div>
-                    </div>
-                  </AccordionTrigger>
-                  <AccordionContent className="px-4 pb-4">
-                    <div className="space-y-3">
-                      {item.prompts.length > 0 ? (
-                        item.prompts.map((prompt) => (
-                          <div key={prompt.id} className="flex items-center justify-between p-3 bg-muted/20 rounded-lg border border-border/60">
-                            <div className="flex-1">
-                              <span className="text-sm text-foreground">{prompt.text}</span>
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortData(sentimentData.items).map((item, index) => {
+                    const isExpanded = expandedTopics.has(item.id)
+                    
+                    return (
+                      <React.Fragment key={`group-${index}`}>
+                        {/* Group Header Row */}
+                        <TableRow className="hover:bg-muted/50">
+                          <TableCell>
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="h-8 w-8 p-0"
+                              onClick={() => handleTopicToggle(item.id)}
+                            >
+                              {isExpanded ? (
+                                <ChevronDown className="w-4 h-4" />
+                              ) : (
+                                <ChevronRight className="w-4 h-4" />
+                              )}
+                            </Button>
+                          </TableCell>
+                          <TableCell className="font-medium">
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-center gap-2">
+                                <span>{item.name}</span>
+                                <Badge variant="outline" className="text-xs px-2 py-0.5 bg-muted text-muted-foreground border-border">
+                                  # {sortBy === 'topics' ? 'Topic' : 'Persona'}
+                                </Badge>
+                              </div>
+                              <span className="text-sm text-muted-foreground">
+                                {item.prompts.length} prompt{item.prompts.length !== 1 ? 's' : ''}
+                              </span>
                             </div>
-                            <div className="ml-4 w-32">
-                              <SentimentBar sentimentSplit={prompt.sentimentSplit} totalResponses={prompt.totalTests} />
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-4">
+                              <div className="w-48">
+                                <SentimentBar sentimentSplit={item.sentimentSplit} totalResponses={item.totalSentiment} />
+                              </div>
+                              <div className="flex items-center space-x-3 text-xs text-muted-foreground">
+                                <div className="flex items-center space-x-1">
+                                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                                  <span>Positive</span>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                                  <span>Neutral</span>
+                                </div>
+                                <div className="flex items-center space-x-1">
+                                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                  <span>Negative</span>
+                                </div>
+                              </div>
                             </div>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="p-3 bg-muted/20 rounded-lg border border-border/60 text-center">
-                          <span className="text-sm text-muted-foreground">
-                            No prompts available for this {sortBy === 'topics' ? 'topic' : 'persona'}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  </AccordionContent>
-                </AccordionItem>
-              ))}
-            </Accordion>
+                          </TableCell>
+                        </TableRow>
+
+                        {/* Expanded Prompts */}
+                        {isExpanded && item.prompts.map((prompt) => (
+                          <TableRow key={prompt.id} className="bg-muted/20 hover:bg-muted/40">
+                            <TableCell></TableCell>
+                            <TableCell className="text-muted-foreground">
+                              <span className="text-sm">{prompt.text}</span>
+                            </TableCell>
+                            <TableCell>
+                              <div className="w-48">
+                                <SentimentBar sentimentSplit={prompt.sentimentSplit} totalResponses={prompt.totalTests} />
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </React.Fragment>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           ) : (
             <div className="py-8 text-center text-muted-foreground">
               {isLoading ? 'Loading sentiment data...' : `No sentiment data available for ${sortBy === 'topics' ? 'topics' : 'personas'}`}

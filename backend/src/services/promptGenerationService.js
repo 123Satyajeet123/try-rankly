@@ -328,15 +328,9 @@ DISTRIBUTION RULES:
 
 OUTPUT FORMAT:
 Return ONLY a JSON array of ${totalPrompts} prompt strings in this exact order:
-${config.prompts.queryTypes.map((type, index) => {
-  const promptsForThisType = promptsPerType + (index < remainingPrompts ? 1 : 0);
-  return `${promptsForThisType} ${type.toLowerCase()}`;
-}).join(', ')}
+${Object.entries(promptsPerType).map(([type, count]) => `${count} ${type.toLowerCase()}`).join(', ')}
 
-Example structure: ${config.prompts.queryTypes.map((type, index) => {
-  const promptsForThisType = promptsPerType + (index < remainingPrompts ? 1 : 0);
-  return `"${type.toLowerCase()}1", "${type.toLowerCase()}2"${promptsForThisType > 2 ? ', ...' : ''}`;
-}).join(', ')}`;
+Example structure: ${Object.entries(promptsPerType).map(([type, count]) => `"${type.toLowerCase()}1", "${type.toLowerCase()}2"${count > 2 ? ', ...' : ''}`).join(', ')}`;
 }
 
 /**
@@ -520,9 +514,8 @@ function parsePromptsFromResponse(content, topic, persona, totalPrompts = config
 
     // Calculate distribution counts for logging
     const distribution = {};
-    config.prompts.queryTypes.forEach((type, index) => {
-      const promptsForThisType = promptsPerType + (index < remainingPrompts ? 1 : 0);
-      distribution[type.toLowerCase().replace(/\s+/g, '_')] = promptsForThisType;
+    config.prompts.queryTypes.forEach((type) => {
+      distribution[type.toLowerCase().replace(/\s+/g, '_')] = promptsPerType[type];
     });
 
     console.log('🔍 Generated prompts for topic-persona combination:', {

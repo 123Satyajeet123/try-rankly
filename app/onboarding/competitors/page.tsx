@@ -221,7 +221,7 @@ export default function CompetitorsPage() {
         transition={{ duration: 0.3 }}
         className="w-full max-w-[400px] relative z-10"
       >
-        <Card className="w-full rounded-lg p-6 sm:p-8 relative">
+        <Card className="w-full rounded-lg p-6 sm:p-8 relative shadow-lg">
           {/* Navigation Arrows */}
           <NavigationArrows 
             previousPath="/onboarding/website"

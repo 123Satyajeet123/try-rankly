@@ -54,15 +54,14 @@ export default function ResultsPage() {
         if (response.success) {
           console.log('✅ Metrics fetched successfully:', response.data)
           console.log('🔍 Overall data:', response.data.overall)
-          console.log('🔍 Platforms data:', response.data.platforms)
-          console.log('🔍 Topics data:', response.data.topics)
-          console.log('🔍 Personas data:', response.data.personas)
+          console.log('🔍 Overall brandMetrics:', response.data.overall?.brandMetrics)
+          console.log('🔍 Competitors data:', response.data.competitors)
           console.log('🔍 Metrics data:', response.data.metrics)
           console.log('🔍 Visibility Score:', response.data.metrics?.visibilityScore)
           console.log('🔍 Depth of Mention:', response.data.metrics?.depthOfMention)
           console.log('🔍 Average Position:', response.data.metrics?.averagePosition)
-          console.log('🔍 Topic Rankings:', response.data.topicRankings?.length)
-          console.log('🔍 Persona Rankings:', response.data.personaRankings?.length)
+          console.log('🔍 Citation Share from brandMetrics:', response.data.overall?.brandMetrics?.[0]?.citationShare)
+          console.log('🔍 Share of Voice from brandMetrics:', response.data.overall?.brandMetrics?.[0]?.shareOfVoice)
           setMetricsData(response.data)
         } else {
           console.error('❌ Failed to fetch metrics:', response.message)
@@ -219,9 +218,14 @@ export default function ResultsPage() {
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-xs font-medium tracking-wide text-foreground">Citation Share</h3>
                       <span className="text-base font-semibold text-foreground">
-                        {metricsData?.metrics?.depthOfMention?.value 
-                          ? `${Math.round(metricsData.metrics.depthOfMention.value)}%`
-                          : '0%'}
+                        {(() => {
+                          // Try multiple paths to find citation share
+                          const citationShare = 
+                            metricsData?.overall?.brandMetrics?.[0]?.citationShare ||
+                            metricsData?.competitors?.find((c: any) => c.isOwner)?.citationShare ||
+                            metricsData?.overall?.summary?.userBrand?.citationShare;
+                          return citationShare !== undefined ? `${Math.round(citationShare)}%` : '0%';
+                        })()}
                       </span>
                     </div>
                         <p className="text-xs font-normal leading-[1.4] text-muted-foreground">
@@ -247,30 +251,35 @@ export default function ResultsPage() {
                   {/* Topic Rankings Card */}
                   <div className="bg-background/50 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-xs font-medium tracking-wide text-foreground">Topic Rankings</h3>
+                      <h3 className="text-xs font-medium tracking-wide text-foreground">Depth of Mention</h3>
                       <span className="text-base font-semibold text-foreground">
-                        {metricsData?.topicRankings?.length > 0 
-                          ? `${metricsData.topicRankings.length} topics`
-                          : '0 topics'}
+                        {metricsData?.metrics?.depthOfMention?.value 
+                          ? `${metricsData.metrics.depthOfMention.value.toFixed(2)}`
+                          : '0.00'}
                       </span>
                     </div>
                     <p className="text-xs font-normal leading-[1.4] text-muted-foreground">
-                      Number of topics analyzed
+                      Average word count when brand is mentioned
                     </p>
                   </div>
 
-                  {/* Persona Rankings Card */}
+                  {/* Share of Voice Card */}
                   <div className="bg-background/50 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-xs font-medium tracking-wide text-foreground">Persona Rankings</h3>
+                      <h3 className="text-xs font-medium tracking-wide text-foreground">Share of Voice</h3>
                       <span className="text-base font-semibold text-foreground">
-                        {metricsData?.personaRankings?.length > 0 
-                          ? `${metricsData.personaRankings.length} personas`
-                          : '0 personas'}
+                        {(() => {
+                          // Try multiple paths to find share of voice
+                          const shareOfVoice = 
+                            metricsData?.overall?.brandMetrics?.[0]?.shareOfVoice ||
+                            metricsData?.competitors?.find((c: any) => c.isOwner)?.shareOfVoice ||
+                            metricsData?.overall?.summary?.userBrand?.shareOfVoice;
+                          return shareOfVoice !== undefined ? `${Math.round(shareOfVoice)}%` : '0%';
+                        })()}
                       </span>
                     </div>
                     <p className="text-xs font-normal leading-[1.4] text-muted-foreground">
-                      Number of personas analyzed
+                      Your brand's share of all brand mentions in responses
                     </p>
                   </div>
                 </div>
