@@ -124,13 +124,14 @@ class DashboardService {
    */
   async getDashboardData(filters: DashboardFilters = {}): Promise<DashboardServiceResponse<DashboardData>> {
     // Create cache key based on analysis ID AND filter selections for real-time filtering
+    // Use a more specific cache key to ensure different filter combinations are cached separately
     const analysisId = filters.selectedAnalysisId || filters.urlAnalysisId
     const filterKey = JSON.stringify({
-      topics: filters.topics || [],
-      personas: filters.personas || [],
-      platforms: filters.platforms || []
+      topics: (filters.topics || []).sort(),
+      personas: (filters.personas || []).sort(),
+      platforms: (filters.platforms || []).sort()
     })
-    const cacheKey = `dashboard-${analysisId || 'default'}-${Buffer.from(filterKey).toString('base64').slice(0, 8)}`
+    const cacheKey = `dashboard-${analysisId || 'default'}-${Buffer.from(filterKey).toString('base64').slice(0, 16)}`
     console.log('🔑 [DashboardService] Cache key:', cacheKey)
     console.log('🔑 [DashboardService] Analysis ID:', analysisId)
     console.log('🔑 [DashboardService] Filter selections:', { topics: filters.topics, personas: filters.personas, platforms: filters.platforms })

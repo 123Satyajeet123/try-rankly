@@ -18,7 +18,7 @@ export const frontendConfig = {
     maxPersonas: 2,
     
     // Maximum citations to display per brand
-    maxCitationsPerBrand: 50,
+    maxCitationsPerBrand: 200,
     
     // Maximum word count for analysis display
     maxWordCount: 10000

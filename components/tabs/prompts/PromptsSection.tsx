@@ -1036,13 +1036,20 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                     <div key={`${sidebarMode}-${item}-${index}`}>
                       <Button
                         variant={isSelected ? "secondary" : "ghost"}
-                        className="w-full justify-start h-10 px-3 body-text"
+                        className="w-full justify-between h-10 px-3 body-text"
                         onClick={() => handleTopicFilterSelect(item)}
                       >
-                        {item}
-                        <span className="ml-auto text-sm text-muted-foreground">
-                          {promptCount}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span>{item}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground">
+                            {promptCount} prompt{promptCount !== 1 ? 's' : ''}
+                          </span>
+                          <Badge variant="outline" className="text-xs">
+                            {sidebarMode === 'topics' ? '# Topic' : '# Perso'}
+                          </Badge>
+                        </div>
                       </Button>
                     </div>
                   )
@@ -1514,7 +1521,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12"></TableHead>
-                    <TableHead>
+                    <TableHead className="text-left">
                       <div 
                         className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('topic')}
@@ -1523,7 +1530,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                         {getSortIcon('topic')}
                       </div>
                     </TableHead>
-                    <TableHead>
+                    <TableHead className="text-right">
                       <div 
                         className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('visibilityScore')}
@@ -1532,7 +1539,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                         {getSortIcon('visibilityScore')}
                       </div>
                     </TableHead>
-                    <TableHead>
+                    <TableHead className="text-right">
                       <div 
                         className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('visibilityRank')}
@@ -1541,7 +1548,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                         {getSortIcon('visibilityRank')}
                       </div>
                     </TableHead>
-                    <TableHead>
+                    <TableHead className="text-right">
                       <div 
                         className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('depthOfMention')}
@@ -1550,7 +1557,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                         {getSortIcon('depthOfMention')}
                       </div>
                     </TableHead>
-                    <TableHead>
+                    <TableHead className="text-right">
                       <div 
                         className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('depthOfMentionRank')}
@@ -1559,7 +1566,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                         {getSortIcon('depthOfMentionRank')}
                       </div>
                     </TableHead>
-                    <TableHead>
+                    <TableHead className="text-right">
                       <div 
                         className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('averagePositionRank')}
@@ -1568,7 +1575,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                         {getSortIcon('averagePositionRank')}
                       </div>
                     </TableHead>
-                    <TableHead>
+                    <TableHead className="text-right">
                       <div 
                         className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('citationShare')}
@@ -1577,7 +1584,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                         {getSortIcon('citationShare')}
                       </div>
                     </TableHead>
-                    <TableHead>
+                    <TableHead className="text-right">
                       <div 
                         className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('citationRank')}
@@ -1586,7 +1593,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                         {getSortIcon('citationRank')}
                       </div>
                     </TableHead>
-                    <TableHead>
+                    <TableHead className="text-center">
                       <div 
                         className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('subjectiveImpression')}
@@ -1632,17 +1639,17 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                               </span>
                             </div>
                       </TableCell>
-                          <TableCell className="text-center">{group.visibilityScore}</TableCell>
-                          <TableCell className="font-mono text-center">{group.visibilityRank} -</TableCell>
-                          <TableCell className="text-center">
+                          <TableCell className="text-right">{group.visibilityScore}</TableCell>
+                          <TableCell className="font-mono text-right">{group.visibilityRank} -</TableCell>
+                          <TableCell className="text-right">
                             <Badge variant="default" className="text-xs">
                               {group.depthOfMention}
                             </Badge>
                           </TableCell>
-                          <TableCell className="font-mono text-center">{group.depthOfMentionRank || '#3'} -</TableCell>
-                          <TableCell className="font-mono text-center">{group.averagePositionRank || '#2'} -</TableCell>
-                          <TableCell className="text-center">{group.citationShare} -</TableCell>
-                          <TableCell className="font-mono text-center">{group.citationRank} -</TableCell>
+                          <TableCell className="font-mono text-right">{group.depthOfMentionRank || '#3'} -</TableCell>
+                          <TableCell className="font-mono text-right">{group.averagePositionRank || '#2'} -</TableCell>
+                          <TableCell className="text-right">{group.citationShare} -</TableCell>
+                          <TableCell className="font-mono text-right">{group.citationRank} -</TableCell>
                           <TableCell className="text-center">
                             <Button 
                               variant="ghost" 
@@ -1674,33 +1681,33 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                             <TableCell className="text-muted-foreground">
                               <span className="text-sm">{prompt.text || prompt.prompt}</span>
                             </TableCell>
-                            <TableCell className="text-sm text-center">
+                            <TableCell className="text-sm text-right">
                               {prompt.promptMetrics && prompt.promptMetrics.visibilityScore > 0 
                                 ? `${prompt.promptMetrics.visibilityScore}%` 
                                 : `${Math.round(Math.random() * 30 + 70)}%`}
                             </TableCell>
-                            <TableCell className="font-mono text-sm text-center">
+                            <TableCell className="font-mono text-sm text-right">
                               #{prompt.promptMetrics?.visibilityRank || 'N/A'} -
                             </TableCell>
-                            <TableCell className="text-sm text-center">
+                            <TableCell className="text-sm text-right">
                               <Badge variant="default" className="text-xs">
                                 {prompt.promptMetrics && prompt.promptMetrics.depthOfMention > 0 
                                   ? `${prompt.promptMetrics.depthOfMention.toFixed(1)}%` 
                                   : `${(Math.random() * 20 + 15).toFixed(1)}%`}
                             </Badge>
                       </TableCell>
-                            <TableCell className="font-mono text-sm text-center">
+                            <TableCell className="font-mono text-sm text-right">
                               #{prompt.promptMetrics?.depthRank || 'N/A'} -
                             </TableCell>
-                            <TableCell className="font-mono text-sm text-center">
+                            <TableCell className="font-mono text-sm text-right">
                               #{prompt.promptMetrics?.avgPositionRank || 'N/A'} -
                             </TableCell>
-                            <TableCell className="text-sm text-center">
+                            <TableCell className="text-sm text-right">
                               {prompt.promptMetrics && prompt.promptMetrics.citationShare > 0 
                                 ? `${prompt.promptMetrics.citationShare}%` 
                                 : `${Math.round(Math.random() * 30 + 70)}%`}
                             </TableCell>
-                            <TableCell className="font-mono text-sm text-center">
+                            <TableCell className="font-mono text-sm text-right">
                               #{prompt.promptMetrics?.citationShareRank || 'N/A'} -
                             </TableCell>
                             <TableCell className="text-sm text-center">

@@ -52,7 +52,7 @@ export function Dashboard({ initialTab }: DashboardProps) {
   // Track previous analysis ID to detect changes
   const [previousAnalysisId, setPreviousAnalysisId] = useState<string | null>(null)
 
-  // Load dashboard data only when analysis changes
+  // Load dashboard data when analysis OR filters change
   useEffect(() => {
     const loadDashboardData = async () => {
       try {
@@ -61,6 +61,12 @@ export function Dashboard({ initialTab }: DashboardProps) {
         setError(null)
         
         console.log('🔄 [Dashboard] Loading dashboard data...')
+        console.log('🔄 [Dashboard] Current filters:', {
+          analysisId: selectedAnalysisId,
+          topics: selectedTopics,
+          personas: selectedPersonas,
+          platforms: selectedPlatforms
+        })
         
         // Clear cache only when analysis actually changes
         if (selectedAnalysisId !== previousAnalysisId) {
@@ -68,6 +74,10 @@ export function Dashboard({ initialTab }: DashboardProps) {
           dashboardService.clearCacheForAnalysis(selectedAnalysisId || 'default')
           dashboardService.clearPromptsCacheForAnalysis(selectedAnalysisId || 'default')
           setPreviousAnalysisId(selectedAnalysisId)
+        } else {
+          // Clear cache for current analysis to force fresh fetch with filters
+          console.log('🔄 [Dashboard] Filters changed, clearing cache for fresh data with filters')
+          dashboardService.clearCacheForAnalysis(selectedAnalysisId || 'default')
         }
         
         const filters = {
@@ -84,7 +94,7 @@ export function Dashboard({ initialTab }: DashboardProps) {
           console.error('❌ [Dashboard] Error loading data:', response.error)
         } else if (response.data) {
           setDashboardData(response.data)
-          console.log('✅ [Dashboard] Data loaded successfully:', response.data)
+          console.log('✅ [Dashboard] Data loaded successfully with filters:', response.data)
         }
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load dashboard data'

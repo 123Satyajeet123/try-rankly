@@ -182,13 +182,48 @@ router.get('/all', devAuth, async (req, res) => {
     console.log(`📊 [DASHBOARD] Filtered topics:`, topics.length);
     console.log(`📊 [DASHBOARD] Filtered personas:`, personas.length);
 
+    // ✅ NEW: Apply platform filtering
+    let filteredPlatforms = platforms;
+    let finalPlatformFilters = [];
+    
+    // Map frontend platform names to backend database values
+    const platformNameMap = {
+      'ChatGPT': 'openai',
+      'OpenAI': 'openai',
+      'Claude': 'claude',
+      'Gemini': 'gemini',
+      'Perplexity': 'perplexity'
+    };
+    
+    if (selectedPlatformFilters.length > 0 && !selectedPlatformFilters.includes('All Platforms')) {
+      // Map frontend platform names to backend database values
+      finalPlatformFilters = selectedPlatformFilters.map(p => platformNameMap[p] || p);
+      filteredPlatforms = platforms.filter(platform => finalPlatformFilters.includes(platform.scopeValue));
+      console.log('🔍 [DASHBOARD] Frontend platform filters:', selectedPlatformFilters);
+      console.log('🔍 [DASHBOARD] Mapped to backend values:', finalPlatformFilters);
+      console.log(`📊 [DASHBOARD] Filtered platforms:`, filteredPlatforms.length, 'out of', platforms.length);
+    } else {
+      // Show all platforms
+      finalPlatformFilters = platforms.map(p => p.scopeValue);
+      filteredPlatforms = platforms;
+      console.log('🔍 [DASHBOARD] Using all platforms:', finalPlatformFilters);
+    }
+
     // ✅ NEW: Recalculate overall metrics if filters are applied
     let filteredOverall = overall;
     
-    if ((finalTopicFilters.length > 0 && finalTopicFilters.length < allTopics.length) || 
-        (finalPersonaFilters.length > 0 && finalPersonaFilters.length < allPersonas.length)) {
+    // Check if any filters are active (topics, personas, or platforms)
+    const hasTopicFilter = finalTopicFilters.length > 0 && finalTopicFilters.length < allTopics.length;
+    const hasPersonaFilter = finalPersonaFilters.length > 0 && finalPersonaFilters.length < allPersonas.length;
+    const hasPlatformFilter = filteredPlatforms.length < platforms.length;
+    
+    if (hasTopicFilter || hasPersonaFilter || hasPlatformFilter) {
       
-      console.log('🔄 [DASHBOARD] Recalculating overall metrics based on filters...');
+      console.log('🔄 [DASHBOARD] Recalculating overall metrics based on filters...', {
+        hasTopicFilter,
+        hasPersonaFilter,
+        hasPlatformFilter
+      });
       
       // Import the metrics aggregation service
       const metricsAggregationService = require('../services/metricsAggregationService');
@@ -197,13 +232,19 @@ router.get('/all', devAuth, async (req, res) => {
       const metricsToAggregate = [];
       
       // Add filtered topic metrics
-      if (topics.length > 0) {
+      if (hasTopicFilter && topics.length > 0) {
         metricsToAggregate.push(...topics);
       }
       
       // Add filtered persona metrics
-      if (personas.length > 0) {
+      if (hasPersonaFilter && personas.length > 0) {
         metricsToAggregate.push(...personas);
+      }
+      
+      // ✅ NEW: Add filtered platform metrics (important for platform filtering)
+      if (hasPlatformFilter && filteredPlatforms.length > 0) {
+        metricsToAggregate.push(...filteredPlatforms);
+        console.log('🔍 [DASHBOARD] Adding platform metrics to aggregation:', filteredPlatforms.map(p => p.scopeValue));
       }
       
       if (metricsToAggregate.length > 0) {
@@ -226,7 +267,7 @@ router.get('/all', devAuth, async (req, res) => {
         
         // Core metrics (using filtered overall)
         overall: filteredOverall,
-        platforms: platforms,
+        platforms: filteredPlatforms, // ✅ Use filtered platforms instead of all platforms
         topics: topics,
         personas: personas,
         
@@ -252,15 +293,25 @@ router.get('/all', devAuth, async (req, res) => {
         performanceInsights: formatPerformanceInsights(filteredOverall, userBrandName),
         competitors: formatCompetitorsData(filteredOverall, userBrandName),
         
-        // Platform-level data (formatted)
-        platforms: platforms.map(p => ({
-          platform: p.scopeValue,
-          visibility: formatVisibilityData(p, userBrandName),
-          depth: formatDepthData(p, userBrandName)
-        })),
+        // Platform-level data (formatted) - using filtered platforms
+        platforms: filteredPlatforms.map(p => {
+          // Map backend DB values to frontend display names
+          const platformNameMap = {
+            'openai': 'ChatGPT',
+            'claude': 'Claude',
+            'gemini': 'Gemini',
+            'perplexity': 'Perplexity'
+          };
+          
+          return {
+            platform: platformNameMap[p.scopeValue] || p.scopeValue,
+            visibility: formatVisibilityData(p, userBrandName),
+            depth: formatDepthData(p, userBrandName)
+          };
+        }),
         
-        // ✅ Raw platform data for citation analysis
-        platformMetrics: platforms,
+        // ✅ Raw platform data for citation analysis - using filtered platforms
+        platformMetrics: filteredPlatforms,
         
         lastUpdated: filteredOverall?.lastCalculated || new Date()
       }

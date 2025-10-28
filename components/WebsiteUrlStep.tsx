@@ -77,13 +77,14 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
         transition={{ duration: 0.3 }}
         className="w-full max-w-4xl relative z-10 px-4 py-4"
       >
-        <Card className="w-full overflow-hidden rounded-lg shadow-lg">
-          <NavigationArrows previousPath={previousPath} nextPath={allDone && analysisSuccess ? nextPath : undefined} showNext={allDone && analysisSuccess} />
-
-          <CardContent className="grid p-0 grid-cols-1 md:grid-cols-2">
+        <Card className="w-full overflow-hidden rounded-lg shadow-lg h-[600px]">
+          <CardContent className="grid  rounded-lg grid-cols-1 md:grid-cols-2 h-full relative">
             {/* Left: Form */}
-            <div className="bg-background p-6 sm:p-8 flex flex-col justify-start items-start relative min-h-[400px] md:min-h-[500px]">
-              <div className="text-left space-y-6 max-w-md mt-8 md:mt-32 w-full">
+            <div className="bg-background p-6 sm:p-8 flex flex-col justify-center items-start relative h-full">
+              {/* Back Arrow positioned over the left card */}
+              <NavigationArrows previousPath={previousPath} nextPath={allDone && analysisSuccess ? nextPath : undefined} showNext={allDone && analysisSuccess} />
+              
+              <div className="text-left space-y-6 w-full ">
                 <div>
                   <h1 className="text-xl font-semibold mb-2 text-foreground">Enter any page or website URL</h1>
                   <p className="text-sm text-muted-foreground leading-relaxed">
@@ -129,7 +130,7 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
             </div>
 
             {/* Right: Primary loader and Sequential loaders */}
-            <div className="bg-muted flex flex-col justify-start items-center text-center p-6 sm:p-8 relative min-h-[400px] md:min-h-[500px]">
+            <div className="bg-muted flex flex-col justify-center items-center text-center p-6 sm:p-8 relative h-full">
               {/* Primary loader - always visible */}
               {!start && (
                 <div className="absolute inset-0 flex items-center justify-center">
@@ -151,11 +152,11 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
                 </div>
               )}
               
-              <div className="flex flex-col items-center justify-start gap-5 w-full max-w-md mt-8 md:mt-32 px-4">
+              <div className="flex flex-col items-center justify-center gap-5 w-full px-4">
                 
                 {/* Sequential loaders - when analysis starts */}
                 {start && (
-                  <div className="flex flex-col items-center justify-start gap-5 w-full max-w-xs">
+                  <div className="flex flex-col items-center justify-start gap-5 w-full">
                     {loaderSteps.map((step, index) => {
                       // Only show completed and current loaders (currentStep: 0,1,2,3,4)
                       if (index > currentStep) return null
@@ -198,7 +199,7 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
 
                 {/* Button - only when all loaders complete AND API call was successful */}
                 {allDone && analysisSuccess && (
-                  <div className="w-full max-w-xs">
+                  <div className="w-full">
                     <Button
                       onClick={handleNext}
                       className="w-full h-10 font-semibold flex items-center justify-center gap-2"
@@ -213,7 +214,7 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
 
                 {/* Error message - when analysis fails */}
                 {!isLoading && analysisError && (
-                  <div className="w-full max-w-xs">
+                  <div className="w-full">
                     <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                       <div className="flex items-center gap-2">
                         <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

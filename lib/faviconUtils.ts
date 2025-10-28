@@ -40,12 +40,16 @@ export const generateDomainVariations = (cleanName: string): string[] => {
  * @returns Favicon URL
  */
 export const getDynamicFaviconUrl = (companyName: string, size: number = 16, isDarkMode?: boolean): string => {
-  // First check for known platform mappings - using Google's favicon service
+  // First check for known platform mappings - matching top navbar implementation
   const faviconMap: Record<string, string> = {
-    'ChatGPT': 'https://www.google.com/s2/favicons?domain=chat.openai.com&sz=32',
-    'OpenAI': 'https://www.google.com/s2/favicons?domain=openai.com&sz=32',
-    'Claude': 'https://www.google.com/s2/favicons?domain=claude.ai&sz=32',
+    'ChatGPT': 'https://chat.openai.com/favicon.ico',
+    'OpenAI': 'https://chat.openai.com/favicon.ico',
+    'openai': 'https://chat.openai.com/favicon.ico',
+    'Claude': 'https://claude.ai/favicon.ico',
+    'claude': 'https://claude.ai/favicon.ico',
     'Gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
+    'gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
+    'perplexity': 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=32',
     'Perplexity': 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=32',
     // Credit card companies
     'HDFC Bank': 'https://www.google.com/s2/favicons?domain=hdfcbank.com&sz=32',

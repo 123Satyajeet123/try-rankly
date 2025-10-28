@@ -320,12 +320,12 @@ export function SentimentBreakdownSection({ filterContext, dashboardData }: Sent
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-12"></TableHead>
-                    <TableHead>
+                    <TableHead className="text-left">
                       <div className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded">
                         {sortBy === 'topics' ? 'Topic' : 'User Persona'}
                       </div>
                     </TableHead>
-                    <TableHead>
+                    <TableHead className="text-left">
                       <div className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded">
                         Sentiment Breakdown
                       </div>
@@ -354,9 +354,9 @@ export function SentimentBreakdownSection({ filterContext, dashboardData }: Sent
                               )}
                             </Button>
                           </TableCell>
-                          <TableCell className="font-medium">
+                          <TableCell className="font-medium text-left">
                             <div className="flex flex-col gap-1">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center justify-between">
                                 <span>{item.name}</span>
                                 <Badge variant="outline" className="text-xs px-2 py-0.5 bg-muted text-muted-foreground border-border">
                                   # {sortBy === 'topics' ? 'Topic' : 'Persona'}
@@ -367,8 +367,8 @@ export function SentimentBreakdownSection({ filterContext, dashboardData }: Sent
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <div className="flex items-center gap-4">
+                          <TableCell className="text-left">
+                            <div className="flex items-center justify-between">
                               <div className="w-48">
                                 <SentimentBar sentimentSplit={item.sentimentSplit} totalResponses={item.totalSentiment} />
                               </div>
@@ -394,10 +394,10 @@ export function SentimentBreakdownSection({ filterContext, dashboardData }: Sent
                         {isExpanded && item.prompts.map((prompt) => (
                           <TableRow key={prompt.id} className="bg-muted/20 hover:bg-muted/40">
                             <TableCell></TableCell>
-                            <TableCell className="text-muted-foreground">
+                            <TableCell className="text-muted-foreground text-left">
                               <span className="text-sm">{prompt.text}</span>
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="text-left">
                               <div className="w-48">
                                 <SentimentBar sentimentSplit={prompt.sentimentSplit} totalResponses={prompt.totalTests} />
                               </div>

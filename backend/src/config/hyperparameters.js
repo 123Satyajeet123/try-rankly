@@ -58,8 +58,8 @@ const config = {
     // Maximum number of personas to identify (default: 6)
     maxPersonas: parseInt(process.env.MAX_PERSONAS) || 6,
     
-    // Maximum citations to track per brand (default: 50)
-    maxCitationsPerBrand: parseInt(process.env.MAX_CITATIONS_PER_BRAND) || 50,
+    // Maximum citations to track per brand (default: 200)
+    maxCitationsPerBrand: parseInt(process.env.MAX_CITATIONS_PER_BRAND) || 200,
     
     // Maximum word count for analysis (default: 10000)
     maxWordCount: parseInt(process.env.MAX_WORD_COUNT) || 10000

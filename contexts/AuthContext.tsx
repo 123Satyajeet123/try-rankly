@@ -64,26 +64,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await refreshUser()
           console.log('✅ Google OAuth login successful')
           
-          // Check if there's a step parameter to determine where to redirect
+          // Always check for existing analysis data first
+          try {
+            const response = await apiService.getAggregatedMetrics({ scope: 'overall' })
+            if (response.success && response.data) {
+              console.log('✅ [AuthContext] Found existing analysis data, redirecting to dashboard')
+              window.location.href = '/dashboard'
+              return
+            }
+          } catch (error) {
+            console.log('ℹ️ [AuthContext] No existing analysis data found')
+          }
+          
+          // No existing data, check if there's a step parameter or redirect to onboarding
           const step = urlParams.get('step')
           if (step === '4') {
             // Redirect to website analysis page after successful OAuth
+            console.log('ℹ️ [AuthContext] Redirecting to onboarding step 4 (website)')
             window.location.href = '/onboarding/website'
           } else {
-            // Check if user has existing analysis data
-            try {
-              const response = await apiService.getAggregatedMetrics({ scope: 'overall' })
-              if (response.success && response.data) {
-                console.log('✅ [AuthContext] Found existing analysis data, redirecting to dashboard')
-                window.location.href = '/dashboard'
-              } else {
-                console.log('ℹ️ [AuthContext] No existing analysis data, redirecting to onboarding')
-                window.location.href = '/onboarding/website'
-              }
-            } catch (error) {
-              console.log('ℹ️ [AuthContext] No existing analysis data (or error checking), redirecting to onboarding')
-              window.location.href = '/onboarding/website'
-            }
+            // Redirect to onboarding start
+            console.log('ℹ️ [AuthContext] Redirecting to onboarding')
+            window.location.href = '/onboarding/website'
           }
           return
         } catch (err) {

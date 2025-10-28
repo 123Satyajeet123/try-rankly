@@ -104,7 +104,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
   const [activePlatform, setActivePlatform] = useState(filteredCitationData[0]?.name || '')
   const [showExpandedRankings, setShowExpandedRankings] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
-  const [selectedCitationType, setSelectedCitationType] = useState('earned')
+  const [selectedCitationType, setSelectedCitationType] = useState('brand')
 
   // Skeleton loading - only show when data is actually loading
   const { showSkeleton, isVisible } = useSkeletonLoadingWithData(filteredCitationData, filterContext)

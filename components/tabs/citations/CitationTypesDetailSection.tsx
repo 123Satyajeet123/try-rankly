@@ -188,15 +188,32 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [selectedCitation, setSelectedCitation] = useState<any>(null)
 
-  // Platform favicon mapping - using Google's favicon service
+  // Platform favicon mapping - matching onboarding llm-platforms page exactly
   const getPlatformFavicon = (platform: string) => {
     const faviconMap: { [key: string]: string } = {
-      'OpenAI': 'https://www.google.com/s2/favicons?domain=openai.com&sz=32',
+      'openai': 'https://chat.openai.com/favicon.ico',
+      'claude': 'https://www.google.com/s2/favicons?domain=claude.ai&sz=32',
+      'perplexity': 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=32',
+      'gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
+      // Also support capitalized versions for consistency
+      'OpenAI': 'https://chat.openai.com/favicon.ico',
       'Claude': 'https://www.google.com/s2/favicons?domain=claude.ai&sz=32',
       'Perplexity': 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=32',
-      'Gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg'
+      'Gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
+      'ChatGPT': 'https://chat.openai.com/favicon.ico'
     };
-    return faviconMap[platform] || 'https://www.google.com/s2/favicons?domain=google.com&sz=32';
+    return faviconMap[platform] || `https://www.google.com/s2/favicons?domain=${platform.toLowerCase()}.com&sz=16`;
+  };
+
+  // Platform name mapping - convert database values to display names
+  const getPlatformDisplayName = (platform: string) => {
+    const nameMap: { [key: string]: string } = {
+      'openai': 'ChatGPT',
+      'claude': 'Claude',
+      'perplexity': 'Perplexity',
+      'gemini': 'Gemini'
+    };
+    return nameMap[platform] || platform;
   };
 
   // Skeleton loading
@@ -275,7 +292,7 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
 
   const renderCitationRow = (item: any, index: number) => (
     <TableRow key={`${item.name}-${index}`} className="border-border/60 hover:bg-muted/30 transition-colors">
-      <TableCell className="py-3 px-3">
+      <TableCell className="py-3 px-3 text-left">
         <div className="flex items-center gap-3">
           <img 
             src={item.favicon} 
@@ -292,17 +309,17 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
         </div>
       </TableCell>
       
-      <TableCell className="py-3 px-3">
+      <TableCell className="py-3 px-3 text-left">
         <div className="flex items-center gap-3">
           {item.platforms.map((platform: string, idx: number) => (
             <div key={idx} className="flex items-center gap-1">
               <img 
-                src={getDynamicFaviconUrl(platform, 16)} 
-                alt={platform}
+                src={getPlatformFavicon(platform)} 
+                alt={getPlatformDisplayName(platform)}
                 className="w-4 h-4"
                 onError={handleFaviconError}
               />
-              <span className="text-xs capitalize">{platform}</span>
+              <span className="text-xs">{getPlatformDisplayName(platform)}</span>
             </div>
           ))}
           {item.platforms.length === 0 && (
@@ -311,13 +328,13 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
         </div>
       </TableCell>
       
-      <TableCell className="py-3 px-3">
-        <div className="flex items-center gap-3">
+      <TableCell className="py-3 px-3 text-right">
+        <div className="flex items-center justify-end gap-3">
           {item.citationShares.map((share: any, idx: number) => (
             <div key={idx} className="flex items-center gap-1">
               <img 
-                src={getDynamicFaviconUrl(share.platform, 16)} 
-                alt={share.platform}
+                src={getPlatformFavicon(share.platform)} 
+                alt={getPlatformDisplayName(share.platform)}
                 className="w-4 h-4"
                 onError={handleFaviconError}
               />
@@ -330,13 +347,13 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
         </div>
       </TableCell>
       
-      <TableCell className="py-3 px-3">
-        <div className="flex items-center gap-3">
+      <TableCell className="py-3 px-3 text-right">
+        <div className="flex items-center justify-end gap-3">
           {item.citationRanks.map((rank: any, idx: number) => (
             <div key={idx} className="flex items-center gap-1">
               <img 
-                src={getDynamicFaviconUrl(rank.platform, 16)} 
-                alt={rank.platform}
+                src={getPlatformFavicon(rank.platform)} 
+                alt={getPlatformDisplayName(rank.platform)}
                 className="w-4 h-4"
                 onError={handleFaviconError}
               />
@@ -349,7 +366,7 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
         </div>
       </TableCell>
       
-      <TableCell className="py-3 px-3">
+      <TableCell className="py-3 px-3 text-center">
         <Button 
           variant="ghost" 
           size="sm" 
@@ -410,10 +427,10 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
           <Table>
             <TableHeader>
               <TableRow className="bg-muted/30">
-                <TableHead className="py-3 px-3 font-semibold">Citation Type</TableHead>
-                <TableHead className="py-3 px-3 font-semibold text-center">Platform(s)</TableHead>
-                <TableHead className="py-3 px-3 font-semibold text-center">Citation Share</TableHead>
-                <TableHead className="py-3 px-3 font-semibold text-center">Citation Rank</TableHead>
+                <TableHead className="py-3 px-3 font-semibold text-left">Citation Type</TableHead>
+                <TableHead className="py-3 px-3 font-semibold text-left">Platform(s)</TableHead>
+                <TableHead className="py-3 px-3 font-semibold text-right">Citation Share</TableHead>
+                <TableHead className="py-3 px-3 font-semibold text-right">Citation Rank</TableHead>
                 <TableHead className="py-3 px-3 font-semibold text-center">Subjective Impression</TableHead>
               </TableRow>
             </TableHeader>
@@ -559,11 +576,11 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
                           <div key={idx} className="flex items-center gap-1">
                             <img 
                               src={getPlatformFavicon(platform)} 
-                              alt={platform}
+                              alt={getPlatformDisplayName(platform)}
                               className="w-3 h-3"
                               onError={handleFaviconError}
                             />
-                            <span className="text-xs capitalize">{platform}</span>
+                            <span className="text-xs">{getPlatformDisplayName(platform)}</span>
                           </div>
                         )) : (
                           <span className="text-xs text-muted-foreground">Unknown</span>

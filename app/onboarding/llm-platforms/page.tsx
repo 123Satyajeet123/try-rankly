@@ -177,15 +177,15 @@ export default function LLMPlatformsPage() {
         className="w-full max-w-4xl relative z-10"
       >
         <Card className="w-full overflow-hidden rounded-lg h-[600px] relative">
-          {/* Navigation Arrows */}
-          <NavigationArrows 
-            previousPath="/onboarding/personas"
-            nextPath="/onboarding/results"
-          />
-          <CardContent className="grid p-0 md:grid-cols-2 h-full">
+          <CardContent className="grid rounded-lg md:grid-cols-2 h-full">
             {/* Left Section - Region & Language Selection (Light Background) */}
-            <div className="bg-background p-6 sm:p-8 flex flex-col justify-center">
-              <div className="space-y-6">
+            <div className="bg-background  p-6 sm:p-8 flex flex-col justify-center relative">
+              {/* Navigation Arrows positioned over the left card */}
+              <NavigationArrows 
+                previousPath="/onboarding/personas"
+                nextPath="/onboarding/results"
+              />
+              <div className="space-y-6 w-full">
                 <div className="text-left">
                   <h1 className="text-xl font-semibold tracking-tight text-foreground mb-1">
                     Region & Language
@@ -248,7 +248,7 @@ export default function LLMPlatformsPage() {
 
             {/* Right Section - LLM Platform Display (Dark Background) */}
             <div className="bg-muted p-6 sm:p-8 flex flex-col justify-center">
-              <div className="space-y-8">
+              <div className="space-y-8 w-full">
                 <div className="text-center">
                   <h2 className="text-xl font-semibold tracking-tight text-foreground mb-1">
                     Generating prompts based on
@@ -258,7 +258,7 @@ export default function LLMPlatformsPage() {
                   </p>
                 </div>
 
-                <div className="flex flex-col items-center space-y-6">
+                <div className="flex flex-col items-center space-y-6 w-full">
                   {/* First row - 3 icons */}
                   <div className="flex items-center justify-center gap-8">
                     {llmPlatforms.slice(0, 3).map((platform) => (

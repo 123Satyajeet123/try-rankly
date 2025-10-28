@@ -119,15 +119,15 @@ export default function ResultsPage() {
         className="w-full max-w-4xl relative z-10"
       >
         <Card className="w-full overflow-hidden rounded-lg h-[600px] relative">
-          {/* Navigation Arrows */}
-          <NavigationArrows 
-            previousPath="/onboarding/llm-platforms"
-            showNext={false}
-          />
-          <CardContent className="grid p-0 md:grid-cols-2 h-full">
+          <CardContent className="grid rounded-lg md:grid-cols-2 h-full">
             {/* Left Section - View Dashboard (Light Background) */}
-            <div className="bg-background p-6 sm:p-8 flex flex-col justify-center">
-              <div className="space-y-6 text-center">
+            <div className="bg-background p-6 sm:p-8 flex flex-col justify-center relative">
+              {/* Navigation Arrows positioned over the left card */}
+              <NavigationArrows 
+                previousPath="/onboarding/llm-platforms"
+                showNext={false}
+              />
+              <div className="space-y-6 text-center w-full">
                 <div>
                   <h1 className="text-xl font-semibold tracking-tight text-foreground mb-1">
                     View Dashboard for detailed insights
@@ -157,7 +157,7 @@ export default function ResultsPage() {
             {/* Right Section - Results Summary (Dark Background) */}
             <div className="bg-muted p-6 sm:p-8 flex flex-col justify-center">
               {dataLoading ? (
-                <div className="space-y-4">
+                <div className="space-y-4 w-full">
                   {/* Skeleton for Visibility Score */}
                   <div className="bg-background/50 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
@@ -189,14 +189,14 @@ export default function ResultsPage() {
                   </div>
                 </div>
               ) : metricsError ? (
-                <div className="bg-background/50 rounded-lg p-4">
+                <div className="bg-background/50 rounded-lg p-4 w-full">
                   <div className="text-center text-muted-foreground">
                     <p className="text-sm">Unable to load metrics</p>
                     <p className="text-xs mt-1">{metricsError}</p>
                   </div>
                 </div>
               ) : (
-              <div className="space-y-4">
+              <div className="space-y-4 w-full">
                   
                   {/* Visibility Score Card */}
                   <div className="bg-background/50 rounded-lg p-4">

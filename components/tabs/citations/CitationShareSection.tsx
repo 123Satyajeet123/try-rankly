@@ -200,7 +200,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
   const [activePlatform, setActivePlatform] = useState(chartData[0]?.name || '')
   const [showExpandedRankings, setShowExpandedRankings] = useState(false)
   const [activeIndex, setActiveIndex] = useState(0)
-  const [selectedCitationType, setSelectedCitationType] = useState('earned')
+  const [selectedCitationType, setSelectedCitationType] = useState('brand')
 
   // Skeleton loading - only show when data is actually loading
   const { showSkeleton, isVisible } = useSkeletonLoadingWithData(chartData, filterContext)
