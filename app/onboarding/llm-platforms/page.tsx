@@ -7,6 +7,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { BackgroundBeams } from '@/components/ui/background-beams'
 import { NavigationArrows } from '@/components/NavigationArrows'
+import { ThemeToggleButton } from '@/components/ThemeToggleButton'
+import Link from 'next/link'
 import { useOnboarding } from '@/contexts/OnboardingContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEffect } from 'react'
@@ -169,6 +171,20 @@ export default function LLMPlatformsPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-background p-6 md:p-10 relative">
       <BackgroundBeams className="absolute inset-0 z-0" />
+      
+      {/* Theme Toggle - Top Right */}
+      <div className="absolute top-6 right-6 z-10">
+        <ThemeToggleButton />
+      </div>
+      
+      {/* Rankly Logo - Top Left */}
+      <div className="absolute top-6 left-6 z-10">
+        <Link href="/" className="flex items-center">
+          <span className="text-2xl font-logo text-foreground">
+            Rankly
+          </span>
+        </Link>
+      </div>
       
       <motion.div
         initial={{ opacity: 0, y: 20 }}
