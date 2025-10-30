@@ -2,6 +2,7 @@ const axios = require('axios');
 const cheerio = require('cheerio');
 const puppeteer = require('puppeteer');
 const { SYSTEM_PROMPTS, ANALYSIS_TEMPLATES } = require('../config/aiPrompts');
+// Removed hyperparameters config dependency
 const UrlAnalysisHelper = require('../utils/urlAnalysisHelper');
 const ProductDataExtractor = require('../utils/productDataExtractor');
 
@@ -158,8 +159,7 @@ class WebsiteAnalysisService {
           })),
           
           // Contact info
-          contactInfo: {
-            emails: Array.from(document.querySelectorAll('a[href^="mailto:"]'))
+          contactInfo: { emails: Array.from(document.querySelectorAll('a[href^="mailto:"]'))
               .map(a => a.href.replace('mailto:', '')),
             phones: Array.from(document.querySelectorAll('a[href^="tel:"]'))
               .map(a => a.href.replace('tel:', '')),
@@ -320,7 +320,7 @@ Provide a structured analysis in JSON format:
 }
 `;
 
-    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'brandContext');
+    return await this.callOpenRouter(prompt, 'perplexity/sonar', 'brandContext');
   }
 
   // Task 2: Find competitors
@@ -387,7 +387,7 @@ Use web search to find actual competitors and return structured data:
 Search for actual competitors with similar business metrics and provide real URLs.
 `;
 
-    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'competitors');
+    return await this.callOpenRouter(prompt, 'perplexity/sonar', 'competitors');
   }
 
   // Task 3: Extract topics
@@ -415,7 +415,7 @@ Extract 6-8 main topics that this business should focus on for content marketing
 }
 `;
 
-    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'topics');
+    return await this.callOpenRouter(prompt, 'perplexity/sonar', 'topics');
   }
 
   // Task 4: Identify user personas
@@ -445,7 +445,7 @@ Identify 3-4 primary user personas:
 }
 `;
 
-    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'personas');
+    return await this.callOpenRouter(prompt, 'perplexity/sonar', 'personas');
   }
 
   // ===== PRODUCT-LEVEL ANALYSIS METHODS =====
@@ -455,22 +455,14 @@ Identify 3-4 primary user personas:
     const prompt = `
 Analyze this SPECIFIC PRODUCT PAGE and provide comprehensive product context insights.
 
-IMPORTANT: Focus ONLY on this specific product, NOT the company as a whole.
+CRITICAL: Extract and output BOTH the official company/brand name (e.g., 'HDFC Bank') AS companyName, and the specific product name (e.g., 'Platinum Debit Card') AS productName. Do NOT duplicate or substitute—these fields MUST be separate.
 
-Product Information:
-- Product Name: ${productData?.productName || 'Unknown'}
-- Product Type: ${productData?.productType || 'General'}
-- URL: ${url}
-- Page Title: ${websiteData.title}
-- Description: ${websiteData.description}
-- Main Headings: ${websiteData.headings.h1.join(', ')}
-- Key Features: ${productData?.features.slice(0, 5).join('; ') || 'Not specified'}
-- Pricing Info: ${productData?.pricing.found ? 'Available' : 'Not found'}
-- Use Cases: ${productData?.useCases.slice(0, 3).join('; ') || 'Not specified'}
+Important: If the company/brand name is not visible on the page, infer it from the domain (e.g., 'hdfcbank.com' → 'HDFC Bank').
 
-Provide a structured product analysis in JSON format:
+Return ONLY valid JSON in this structure:
 {
-  "productName": "string",
+  "companyName": "string (official brand/company name)",
+  "productName": "string (official product name only, do not include company/brand here)",
   "productCategory": "string",
   "productType": "string",
   "targetAudience": "string",
@@ -479,9 +471,43 @@ Provide a structured product analysis in JSON format:
   "useCases": ["string"],
   "marketPosition": "string"
 }
+
+Product Information:
+- Product Name: ${productData?.productName || 'Unknown'}
+- Product Type: ${productData?.productType || 'General'}
+- URL: ${url}
+- Page Title: ${websiteData.title}
+- Description: ${websiteData.description}
+- Main Headings: ${(websiteData.headings?.h1 || []).join(', ')}
+- Key Features: ${(productData?.features ? productData.features.slice(0, 5).join('; ') : 'Not specified')}
+- Pricing Info: ${(productData?.pricing && productData.pricing.found) ? 'Available' : 'Not found'}
+- Use Cases: ${(productData?.useCases ? productData.useCases.slice(0, 3).join('; ') : 'Not specified')}
 `;
 
-    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'productContext');
+    const result = await this.callOpenRouter(prompt, 'perplexity/sonar', 'productContext');
+    // --- Postprocess result: enforce companyName !== productName ---
+    if (result) {
+      let company = result.companyName?.trim();
+      let product = result.productName?.trim();
+      if (!company || !product || company.toLowerCase() === product.toLowerCase()) {
+        try {
+          const hostname = new URL(url).hostname.replace(/^www\./, '');
+          const domainMap = {
+            'hdfcbank.com': 'HDFC Bank',
+            'icicibank.com': 'ICICI Bank',
+            'axisbank.com': 'Axis Bank',
+            'yesbank.in': 'YES Bank',
+            'sbi.co.in': 'SBI',
+            'kotak.com': 'Kotak Bank',
+            'bankofbaroda.in': 'Bank of Baroda',
+          };
+          company = domainMap[hostname] || hostname.split('.')[0].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
+        } catch { company = 'Unknown Brand'; }
+      }
+      result.companyName = company;
+      result.productName = product;
+    }
+    return result;
   }
 
   // Product Task 2: Find product competitors
@@ -553,7 +579,7 @@ Return structured data:
 Focus on PRODUCT-LEVEL competition with similar business metrics and features.
 `;
 
-    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'productCompetitors');
+    return await this.callOpenRouter(prompt, 'perplexity/sonar', 'productCompetitors');
   }
 
   // Product Task 3: Extract product topics
@@ -591,7 +617,7 @@ Focus on:
 - Product problem-solution topics
 `;
 
-    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'productTopics');
+    return await this.callOpenRouter(prompt, 'perplexity/sonar', 'productTopics');
   }
 
   // Product Task 4: Identify product personas
@@ -628,7 +654,7 @@ Focus on:
 - What features matter most to them
 `;
 
-    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'productPersonas');
+    return await this.callOpenRouter(prompt, 'perplexity/sonar', 'productPersonas');
   }
 
   // ===== CATEGORY-LEVEL ANALYSIS METHODS =====
@@ -655,7 +681,7 @@ Provide a structured category analysis:
 }
 `;
 
-    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'categoryContext');
+    return await this.callOpenRouter(prompt, 'perplexity/sonar', 'categoryContext');
   }
 
   // Category Task 2: Find category competitors
@@ -720,7 +746,7 @@ Use web search to find competitors offering similar product categories with comp
 Search for actual competitors with similar business metrics in this category.
 `;
 
-    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'categoryCompetitors');
+    return await this.callOpenRouter(prompt, 'perplexity/sonar', 'categoryCompetitors');
   }
 
   // Category Task 3: Extract category topics
@@ -744,7 +770,7 @@ Extract 6-8 category-level topics:
 }
 `;
 
-    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'categoryTopics');
+    return await this.callOpenRouter(prompt, 'perplexity/sonar', 'categoryTopics');
   }
 
   // Category Task 4: Identify category personas
@@ -768,7 +794,7 @@ Identify 3-4 category-level personas:
 }
 `;
 
-    return await this.callOpenRouter(prompt, 'perplexity/sonar-pro', 'categoryPersonas');
+    return await this.callOpenRouter(prompt, 'perplexity/sonar', 'categoryPersonas');
   }
 
   // ===== UTILITY METHODS =====
@@ -779,7 +805,7 @@ Identify 3-4 category-level personas:
   }
 
   // Call OpenRouter API with error handling and retry logic
-  async callOpenRouter(prompt, model = 'perplexity/sonar-pro', analysisType = 'general', retryCount = 0) {
+  async callOpenRouter(prompt, model = 'perplexity/sonar', analysisType = 'general', retryCount = 0) {
     const maxRetries = 3;
     const baseDelay = 2000; // 2 seconds base delay
     try {
@@ -1008,19 +1034,36 @@ Identify 3-4 category-level personas:
 
   // Normalize product context response
   normalizeProductContext(data) {
+    let companyName = data.companyName || data.company_name || 'Unknown Brand';
+    let productName = data.productName || data.product_name || 'Unknown Product';
+    // Ensure productName starts with brand if not already included
+    if (
+      companyName &&
+      productName &&
+      !productName.toLowerCase().startsWith(companyName.toLowerCase())
+    ) {
+      productName = `${companyName} ${productName}`;
+    }
     return {
-      productName: data.productName || data.product_name || 'Unknown Product',
+      companyName,
+      productName,
       productCategory: data.productCategory || data.product_category || 'General',
       productType: data.productType || data.product_type || 'General',
       targetAudience: data.targetAudience || data.target_audience || 'General',
       valueProposition: data.valueProposition || data.value_proposition || 'Not specified',
-      keyFeatures: Array.isArray(data.keyFeatures) ? data.keyFeatures :
-                   Array.isArray(data.key_features) ? data.key_features :
-                   Array.isArray(data.features) ? data.features : ['Feature'],
-      useCases: Array.isArray(data.useCases) ? data.useCases :
-               Array.isArray(data.use_cases) ? data.use_cases :
-               ['Use case'],
-      marketPosition: data.marketPosition || data.market_position || 'Mid-market'
+      keyFeatures: Array.isArray(data.keyFeatures)
+        ? data.keyFeatures
+        : Array.isArray(data.key_features)
+        ? data.key_features
+        : Array.isArray(data.features)
+        ? data.features
+        : ['Feature'],
+      useCases: Array.isArray(data.useCases)
+        ? data.useCases
+        : Array.isArray(data.use_cases)
+        ? data.use_cases
+        : ['Use case'],
+      marketPosition: data.marketPosition || data.market_position || 'Mid-market',
     };
   }
 
@@ -1095,6 +1138,7 @@ Identify 3-4 category-level personas:
       // Product-level defaults
       case 'productContext':
         return {
+          companyName: 'Unknown Brand',
           productName: 'Unknown Product',
           productCategory: 'General',
           productType: 'General',

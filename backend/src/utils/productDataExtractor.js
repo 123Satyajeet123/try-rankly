@@ -11,33 +11,68 @@ class ProductDataExtractor {
    * @returns {string} - Extracted product name
    */
   static extractProductName(websiteData, urlContext) {
+    // Extract brand name via multiple strategies
+    let brand = '';
+    // Try direct extraction from businessInfo
+    if (websiteData.businessInfo?.companyName) {
+      brand = websiteData.businessInfo.companyName.trim();
+    } else if (urlContext?.brandName || urlContext?.companyName) {
+      brand = (urlContext.brandName || urlContext.companyName).trim();
+    }
+    // If brand still missing, extract from domain (preferably from the original input URL)
+    if (!brand) {
+      let urlForDomain = urlContext?.url || urlContext?.originalUrl || urlContext?.baseUrl;
+      if (!urlForDomain && typeof window !== 'undefined') urlForDomain = window.location.href;
+      let hostname = '';
+      try {
+        if (urlForDomain) {
+          hostname = new URL(urlForDomain).hostname.replace(/^www\./, '');
+        }
+      } catch { }
+      const domainMap = {
+        'hdfcbank.com': 'HDFC Bank',
+        'icicibank.com': 'ICICI Bank',
+        'axisbank.com': 'Axis Bank',
+        'yesbank.in': 'YES Bank',
+        'sbi.co.in': 'SBI',
+        'kotak.com': 'Kotak Bank',
+        'bankofbaroda.in': 'Bank of Baroda',
+      }
+      if (domainMap[hostname]) {
+        brand = domainMap[hostname];
+      } else if (hostname) {
+        brand = hostname.split('.')[0].replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).trim();
+      } else {
+        console.log('[PRODUCT EXTRACT] WARNING: Could not determine hostname for brand fallback!');
+      }
+    }
+    let product = '';
     // Priority 1: H1 heading (most likely product name)
     if (websiteData.headings?.h1?.length > 0) {
       const h1 = websiteData.headings.h1[0];
-      if (h1 && h1.length < 100) { // Reasonable length for a product name
-        return h1.trim();
+      if (h1 && h1.length < 100) {
+        product = h1.trim();
       }
     }
-
     // Priority 2: Page title
-    if (websiteData.title && websiteData.title.length < 150) {
-      // Clean up common suffixes
-      return websiteData.title
-        .replace(/\s*[-|–]\s*.+$/, '') // Remove site name after dash/pipe
-        .trim();
+    if (!product && websiteData.title && websiteData.title.length < 150) {
+      product = websiteData.title.replace(/\s*[-|–]\s*.+$/, '').trim();
     }
-
     // Priority 3: URL-based name
-    if (urlContext?.productContext?.productName) {
-      return urlContext.productContext.productName;
+    if (!product && urlContext?.productContext?.productName) {
+      product = urlContext.productContext.productName;
     }
-
-    // Priority 4: Business info company name
-    if (websiteData.businessInfo?.companyName) {
-      return websiteData.businessInfo.companyName;
+    if (!product) product = 'Unknown Product';
+    // Remove accidental double-up: if product starts with brand, don't prepend
+    if (brand && !product.toLowerCase().startsWith(brand.toLowerCase())) {
+      const fullName = `${brand} ${product}`;
+      console.log(`[PRODUCT EXTRACT] Brand (after all fallback): "${brand}" | Product extracted: "${product}"`);
+      console.log(`[PRODUCT EXTRACT] Final full product name: "${fullName}"`);
+      return fullName;
     }
-
-    return 'Unknown Product';
+    console.log(`[PRODUCT EXTRACT] Brand (after all fallback): "${brand}" | Product extracted: "${product}"`);
+    console.log(`[PRODUCT EXTRACT] Final product name (brand already present or missing): "${product}"`);
+    return product;
   }
 
   /**

@@ -144,7 +144,7 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">Avg Session Quality:</span>
                 <span className="font-semibold text-foreground">
-                  {(performanceData.reduce((sum: number, item: any) => sum + item.sessionQualityScore, 0) / performanceData.length).toFixed(1)}
+                  {(performanceData.reduce((sum: number, item: any) => sum + item.sessionQualityScore, 0) / performanceData.length).toFixed(2)}
                 </span>
               </div>
             </div>
@@ -339,7 +339,7 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
                             <span className={`text-xs font-medium ${
                               trend === 'up' ? 'text-green-500' : 'text-red-500'
                             }`}>
-                              {change.toFixed(1)}%
+                              {change.toFixed(2)}%
                             </span>
                           </div>
                         </div>
@@ -348,7 +348,7 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
                       {/* Share */}
                       <TableCell className="text-center py-2 px-3">
                         <span className="font-normal text-foreground text-xs">
-                          {item.share.toFixed(1)}%
+                          {item.share.toFixed(2)}%
                         </span>
                       </TableCell>
 
@@ -356,7 +356,7 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
                       <TableCell className="text-center py-2 px-3">
                         <div className="flex items-center justify-center gap-2">
                           <span className="font-normal text-foreground text-xs">
-                            {item.sessionQualityScore.toFixed(1)}
+                            {item.sessionQualityScore.toFixed(2)}
                           </span>
                           <div className={`w-2 h-2 rounded-full ${
                             item.sessionQualityScore >= 70 ? 'bg-green-500' :
@@ -368,7 +368,7 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
                       {/* Engagement Score */}
                       <TableCell className="text-center py-2 px-3">
                         <span className="font-normal text-foreground text-xs">
-                          {item.engagementScore.toFixed(1)}%
+                          {item.engagementScore.toFixed(2)}%
                         </span>
                       </TableCell>
 
@@ -382,7 +382,7 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
                       {/* Bounce Rate */}
                       <TableCell className="text-center py-2 px-3">
                         <span className="font-normal text-foreground text-xs">
-                          {item.bounceRate.toFixed(1)}%
+                          {item.bounceRate.toFixed(2)}%
                         </span>
                       </TableCell>
 
@@ -396,7 +396,7 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
                       {/* Pages per Session */}
                       <TableCell className="text-center py-2 px-3">
                         <span className="font-normal text-foreground text-xs">
-                          {item.pagesPerSession.toFixed(1)}
+                          {item.pagesPerSession.toFixed(2)}
                         </span>
                       </TableCell>
 

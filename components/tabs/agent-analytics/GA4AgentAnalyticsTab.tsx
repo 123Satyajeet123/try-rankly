@@ -7,7 +7,7 @@ import { PagesTab } from '@/components/agent-analytics/pages/PagesTab'
 import { GeoTab } from '@/components/agent-analytics/geo-device/GeoTab'
 import { DeviceTab } from '@/components/agent-analytics/geo-device/DeviceTab'
 import { JourneyTab } from '@/components/agent-analytics/journey/JourneyTab'
-import { checkGA4Connection, disconnectGA4, getLLMPlatforms, getPlatformSplit, getPages, getGeo, getDevices, getDateRange } from '@/services/ga4Api'
+import { checkGA4Connection, disconnectGA4, getLLMPlatforms, getPlatformSplit, getPages, getGeo, getDevices, getDateRange, getConversionEvents } from '@/services/ga4Api'
 import { toast } from 'sonner'
 
 interface GA4AgentAnalyticsTabProps {
@@ -15,13 +15,15 @@ interface GA4AgentAnalyticsTabProps {
   selectedDateRange?: string
   onTabChange?: (tab: string) => void
   onDateRangeChange?: (range: string) => void
+  refreshTrigger?: number
 }
 
 export function GA4AgentAnalyticsTab({ 
   activeTab: externalActiveTab = 'platform',
   selectedDateRange: externalDateRange = '7 days',
   onTabChange,
-  onDateRangeChange
+  onDateRangeChange,
+  refreshTrigger = 0
 }: GA4AgentAnalyticsTabProps) {
   const [isConnected, setIsConnected] = useState(false)
   const [activeTab, setActiveTab] = useState(externalActiveTab)
@@ -54,6 +56,14 @@ export function GA4AgentAnalyticsTab({
       fetchGA4Data()
     }
   }, [isConnected, activeTab, selectedDateRange])
+
+  // Fetch fresh data when refresh trigger changes (sync now button)
+  useEffect(() => {
+    if (isConnected && refreshTrigger > 0) {
+      console.log('🔄 Refresh triggered, fetching fresh data...')
+      fetchGA4Data()
+    }
+  }, [refreshTrigger])
 
   const checkConnectionStatus = async () => {
     try {
@@ -143,7 +153,7 @@ export function GA4AgentAnalyticsTab({
       }
 
       if (activeTab === 'pages') {
-        const pagesResponse = await getPages(startDate, endDate)
+        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange)
         console.log('📄 Pages data received:', pagesResponse)
         if (pagesResponse.success) {
           setRealPagesData(pagesResponse)
@@ -166,7 +176,7 @@ export function GA4AgentAnalyticsTab({
       }
 
       if (activeTab === 'journey') {
-        const pagesResponse = await getPages(startDate, endDate)
+        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange)
         if (pagesResponse.success) {
           setRealPagesData(pagesResponse)
         }

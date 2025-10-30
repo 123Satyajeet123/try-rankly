@@ -6,6 +6,14 @@ const InsightSchema = new mongoose.Schema({
   recommendation: { type: String, required: true }
 }, { _id: false });
 
+const PerformanceInsightSchema = new mongoose.Schema({
+  metric: { type: String, required: true },
+  description: { type: String, required: true },
+  value: { type: Number },
+  gap: { type: Number },
+  rank: { type: Number }
+}, { _id: false });
+
 const InsightsSchema = new mongoose.Schema({
   userId: { type: String, required: true, index: true },
   urlAnalysisId: {
@@ -21,6 +29,7 @@ const InsightsSchema = new mongoose.Schema({
   },
   whatsWorking: [InsightSchema],
   needsAttention: [InsightSchema],
+  performanceInsights: [PerformanceInsightSchema],
   generatedAt: { type: Date, default: Date.now },
   expiresAt: { type: Date, default: () => new Date(Date.now() + 24 * 60 * 60 * 1000) } // 24 hours
 });

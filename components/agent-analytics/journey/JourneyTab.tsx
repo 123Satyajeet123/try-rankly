@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { UnifiedCard, UnifiedCardContent } from '@/components/ui/unified-card'
-import { generateUniqueEndpointsSankeyData } from '@/lib/utils/sankey-generator'
 import { JourneySkeleton } from '@/components/ui/journey-skeleton'
 
 interface JourneyTabProps {
@@ -16,6 +15,7 @@ interface PageData {
   pagePath?: string
   pageTitle?: string
   title?: string
+  url?: string
   platform: string
   sessions: number
   provider?: string
@@ -117,21 +117,16 @@ declare global {
   }
 }
 
-export function JourneyTab({ range, realJourneyData, dateRange = '7 days', isLoading = false }: JourneyTabProps) {
+export function JourneyTab({ realJourneyData, dateRange = '7 days', isLoading = false }: JourneyTabProps) {
   const chartRef = useRef<HTMLDivElement>(null)
-  const chartRef2 = useRef<HTMLDivElement>(null)
-  const rootRef = useRef<any>(null)
-  const rootRef2 = useRef<any>(null)
   const [pagesData, setPagesData] = useState<PageData[]>([])
   const [sankeyData, setSankeyData] = useState<any[]>([])
-  const [platformBreakdown, setPlatformBreakdown] = useState<Map<string, Array<{page: string, sessions: number}>>>(new Map())
   
   // Fetch pages data for LLM to Page journey
   useEffect(() => {
     // Clear any cached data to force fresh classification
     setSankeyData([])
     setPagesData([])
-    setPlatformBreakdown(new Map())
     
     const processPagesData = async () => {
       console.log('🔍 [JourneyTab] Processing pages data...', {
@@ -143,7 +138,7 @@ export function JourneyTab({ range, realJourneyData, dateRange = '7 days', isLoa
         pagesLength: realJourneyData?.data?.pages?.length
       })
       
-      // Use realJourneyData if available, otherwise fetch from API
+      // Use realJourneyData if available, otherwise show empty state
       if (realJourneyData && realJourneyData.success && realJourneyData.data?.pages) {
         console.log('📄 [JourneyTab] Using real journey data:', realJourneyData)
         const result = realJourneyData
@@ -164,19 +159,24 @@ export function JourneyTab({ range, realJourneyData, dateRange = '7 days', isLoa
         const classificationResults = result.data.pages.map((page: PageData, index: number) => {
           const platform = page.provider || page.platform || 'LLM Traffic'
           
+          // Extract page path from URL for classification
+          const pagePath = page.url ? new URL(page.url).pathname : page.pagePath || ''
+          
           console.log(`🤖 [JourneyTab] Classifying page ${index + 1}/${result.data.pages.length}:`, {
-            pagePath: page.pagePath,
+            url: page.url,
+            pagePath: pagePath,
             pageTitle: page.pageTitle,
             title: page.title,
             platform
           })
           
           // Use the new deterministic classifier
-          const pageCategory = classifyPage(page.pagePath, page.pageTitle || page.title)
+          const pageCategory = classifyPage(pagePath, page.pageTitle || page.title)
           
           // Debug page classification for ALL pages
           console.log(`🔍 [JourneyTab] Page ${index + 1} Classification:`, {
-            pagePath: page.pagePath,
+            url: page.url,
+            pagePath: pagePath,
             pageTitle: page.pageTitle,
             title: page.title,
             classifiedAs: pageCategory,
@@ -231,7 +231,8 @@ export function JourneyTab({ range, realJourneyData, dateRange = '7 days', isLoa
           const breakdown = new Map<string, Array<{page: string, sessions: number}>>()
           const breakdownResults = result.data.pages.map((page: PageData) => {
               const platform = page.provider || page.platform || 'LLM Traffic'
-              const pageCategory = classifyPage(page.pagePath, page.pageTitle || page.title)
+              const pagePath = page.url ? new URL(page.url).pathname : page.pagePath || ''
+              const pageCategory = classifyPage(pagePath, page.pageTitle || page.title)
               
               return { platform, pageCategory, page }
             })
@@ -245,19 +246,7 @@ export function JourneyTab({ range, realJourneyData, dateRange = '7 days', isLoa
               sessions: page.sessions
             })
           })
-          setPlatformBreakdown(breakdown)
 
-          // Generate enhanced Sankey data
-          const platformData = Array.from(breakdown.entries()).map(([platform, pages]) => ({
-            platform: platform.toLowerCase(),
-            provider: platform,
-            totalSessions: pages.reduce((sum, p) => sum + p.sessions, 0),
-            pages: pages.map(p => ({
-              pageTitle: p.page,
-              pagePath: `/${p.page.toLowerCase().replace(/\s+/g, '-')}`,
-              sessions: p.sessions
-            }))
-          }))
 
           const enhancedSankeyData = sankeyLinks
           console.log('🔗 [JourneyTab] Direct sankey data:', enhancedSankeyData)
@@ -308,170 +297,8 @@ export function JourneyTab({ range, realJourneyData, dateRange = '7 days', isLoa
           console.warn('⚠️ [JourneyTab] No pages data found in response:', result)
         }
       } else {
-        // Fallback: fetch from API if no real data provided
-        console.log('🔍 [JourneyTab] No real journey data, fetching from API for dateRange:', dateRange)
-        fetchPagesDataFromAPI()
-      }
-    }
-
-    const fetchPagesDataFromAPI = async () => {
-      try {
-        const response = await fetch(`/api/ga4/pages?dateRange=${encodeURIComponent(dateRange)}`)
-        const result = await response.json()
-        
-        console.log('📄 [JourneyTab] Pages API response:', result)
-        
-        if (result.success && result.data?.pages) {
-          setPagesData(result.data.pages)
-          
-          // Transform pages data into Sankey format (same logic as above)
-          const sankeyLinks: any[] = []
-          const platformMap = new Map()
-          const pageMap = new Map()
-          
-          // Process each page and create links with GPT classification
-          console.log('🤖 [JourneyTab] Starting GPT classification for', result.data.pages.length, 'pages...')
-          
-          const classificationResults = result.data.pages.map((page: PageData, index: number) => {
-              const platform = page.provider || page.platform || 'LLM Traffic'
-              const pageCategory = classifyPage(page.pagePath, page.pageTitle || page.title)
-            
-              // Debug page classification
-              if (index < 5) {
-                console.log(`🔍 [JourneyTab] GPT classification:`, {
-                  pagePath: page.pagePath,
-                  pageTitle: page.pageTitle,
-                  title: page.title,
-                  classifiedAs: pageCategory,
-                  platform
-                })
-              }
-              
-              return {
-                platform,
-                pageCategory,
-                page,
-                index
-              }
-            })
-          
-          console.log('✅ [JourneyTab] Classification completed for all pages')
-          
-          // Process the classification results
-          classificationResults.forEach(({ platform, pageCategory, page, index }: { platform: string, pageCategory: string, page: PageData, index: number }) => {
-            // Debug first few items
-            if (index < 3) {
-              console.log(`📍 [JourneyTab] Page ${index}:`, { 
-                platform, 
-                pageCategory, 
-                pagePath: page.pagePath,
-                sessions: page.sessions,
-                provider: page.provider,
-                hasPageTitle: !!page.pageTitle,
-                hasTitle: !!page.title,
-                pageTitleValue: page.pageTitle,
-                titleValue: page.title,
-                rawPage: page
-              })
-            }
-            
-            // Track unique platforms and page categories
-            if (!platformMap.has(platform)) {
-              platformMap.set(platform, platform)
-            }
-            if (!pageMap.has(pageCategory)) {
-              pageMap.set(pageCategory, pageCategory)
-            }
-            
-            sankeyLinks.push({
-              from: platform,
-              to: pageCategory,
-              value: page.sessions
-            })
-          })
-          
-          // Create detailed breakdown for debugging
-          const breakdown = new Map<string, Array<{page: string, sessions: number}>>()
-          const breakdownResults = result.data.pages.map((page: PageData) => {
-              const platform = page.provider || page.platform || 'LLM Traffic'
-              const pageCategory = classifyPage(page.pagePath, page.pageTitle || page.title)
-              
-              return { platform, pageCategory, page }
-            })
-          
-          breakdownResults.forEach(({ platform, pageCategory, page }: { platform: string, pageCategory: string, page: PageData }) => {
-            if (!breakdown.has(platform)) {
-              breakdown.set(platform, [])
-            }
-            breakdown.get(platform)!.push({
-              page: pageCategory,
-              sessions: page.sessions
-            })
-          })
-          setPlatformBreakdown(breakdown)
-
-          // Generate enhanced Sankey data
-          const platformData = Array.from(breakdown.entries()).map(([platform, pages]) => ({
-            platform: platform.toLowerCase(),
-            provider: platform,
-            totalSessions: pages.reduce((sum, p) => sum + p.sessions, 0),
-            pages: pages.map(p => ({
-              pageTitle: p.page,
-              pagePath: `/${p.page.toLowerCase().replace(/\s+/g, '-')}`,
-              sessions: p.sessions
-            }))
-          }))
-
-          const enhancedSankeyData = sankeyLinks
-          console.log('🔗 [JourneyTab] Direct sankey data:', enhancedSankeyData)
-          console.log('🔗 [JourneyTab] Sankey data length:', enhancedSankeyData.length)
-          
-          // Debug: Show unique categories
-          const uniqueCategories = new Set(enhancedSankeyData.map(link => link.to))
-          console.log('🎯 [JourneyTab] Unique categories found:', Array.from(uniqueCategories))
-          console.log('🎯 [JourneyTab] Total unique categories:', uniqueCategories.size)
-          setSankeyData(enhancedSankeyData)
-          
-          // Debug: Show unique pages structure
-          const uniquePages = new Set(enhancedSankeyData.map(link => link.to))
-          console.log('🎯 [JourneyTab] Sankey data prepared:', {
-            totalLinks: enhancedSankeyData.length,
-            links: enhancedSankeyData.slice(0, 5),
-            platforms: Array.from(platformMap.keys()),
-            uniquePages: Array.from(uniquePages),
-            totalUniquePages: uniquePages.size,
-            totalPlatforms: platformMap.size
-          })
-          
-          // Show sample of the actual data being used
-          if (enhancedSankeyData.length > 0) {
-            console.log('📊 [JourneyTab] Sample sankey links:', enhancedSankeyData.slice(0, 3))
-            console.log('📊 [JourneyTab] All unique endpoints:', Array.from(uniquePages))
-          } else {
-            console.log('⚠️ [JourneyTab] No sankey data generated!')
-          }
-          
-          console.log('📊 [JourneyTab] UNIQUE PAGE CATEGORIES STRUCTURE:')
-          console.log('Left side (Platforms):', Array.from(platformMap.keys()))
-          console.log('Right side (Page Categories):', Array.from(uniquePages))
-          console.log('Total unique page categories:', uniquePages.size)
-          
-          // Detailed breakdown by platform
-          console.log('📊 [JourneyTab] DETAILED PLATFORM → PAGE CATEGORY BREAKDOWN:')
-          for (const [platform, pages] of breakdown.entries()) {
-            const totalSessions = pages.reduce((sum, p) => sum + p.sessions, 0)
-            console.log(`\n🤖 ${platform.toUpperCase()} (${totalSessions} total sessions):`)
-            pages
-              .sort((a, b) => b.sessions - a.sessions)
-              .forEach((page, index) => {
-                console.log(`  ${index + 1}. ${page.page} - ${page.sessions} sessions`)
-              })
-          }
-        } else {
-          console.warn('⚠️ [JourneyTab] No pages data found in API response:', result)
-        }
-      } catch (error) {
-        console.error('❌ [JourneyTab] Failed to fetch pages data from API:', error)
+        // No real data available - parent component should handle fetching
+        console.log('🔍 [JourneyTab] No real journey data available, waiting for parent to fetch...')
       }
     }
 
@@ -479,35 +306,7 @@ export function JourneyTab({ range, realJourneyData, dateRange = '7 days', isLoa
   }, [dateRange, realJourneyData])
 
   // Define chart initialization functions outside useEffect
-  const loadGoogleCharts = (): Promise<void> => {
-      return new Promise((resolve, reject) => {
-      // Check if Google Charts is already loaded
-      if (window.google && window.google.charts) {
-        console.log('Google Charts already loaded')
-          resolve()
-          return
-        }
-
-      console.log('Loading Google Charts...')
-        const script = document.createElement('script')
-      script.src = 'https://www.gstatic.com/charts/loader.js'
-        script.onload = () => {
-        console.log('Google Charts script loaded')
-        window.google.charts.load('current', { packages: ['sankey'] })
-        window.google.charts.setOnLoadCallback(() => {
-          console.log('Google Charts Sankey package loaded')
-          resolve()
-        })
-        }
-        script.onerror = (error) => {
-        console.error('Failed to load Google Charts:', error)
-          reject(error)
-        }
-        document.head.appendChild(script)
-      })
-    }
-
-    const initChart = () => {
+  const initChart = useCallback(() => {
     console.log('🎨 [JourneyTab] Initializing Google Charts Sankey...', { 
       hasRef: !!chartRef.current, 
       hasGoogle: !!window.google,
@@ -530,40 +329,31 @@ export function JourneyTab({ range, realJourneyData, dateRange = '7 days', isLoa
       data.addColumn('number', 'Weight')
 
       // Add data rows - use real data if available
-        const dataToUse = sankeyData.length > 0 ? sankeyData : [
-        { from: "ChatGPT", to: "Loading...", value: 1 },
-        { from: "Claude", to: "Loading...", value: 1 },
-        { from: "Gemini", to: "Loading...", value: 1 }
-      ]
+      const dataToUse = sankeyData.length > 0 ? sankeyData : []
       
       // If we have real data, use it
       if (sankeyData.length > 0) {
         console.log('✅ [JourneyTab] Using real sankey data with', sankeyData.length, 'links')
         console.log('📊 [JourneyTab] Sample sankey data:', sankeyData.slice(0, 3))
       } else {
-        console.log('⚠️ [JourneyTab] Using fallback data - sankeyData is empty')
+        console.log('⚠️ [JourneyTab] No sankey data available - chart will be empty')
         console.log('🔍 [JourneyTab] Sankey data state:', sankeyData)
+        // Don't draw chart if no data
+        return
       }
 
       console.log('📊 [JourneyTab] Setting chart data:', dataToUse)
       console.log('📊 [JourneyTab] Sankey data length:', sankeyData.length)
       console.log('📊 [JourneyTab] Raw sankey data:', sankeyData)
       
-      dataToUse.forEach(link => {
+      // Add data rows to the chart
+      sankeyData.forEach(link => {
         data.addRow([link.from, link.to, link.value])
       })
 
-      // Platform colors for distinct visual identity
-      const platformColors: Record<string, string> = {
-        'chatgpt': '#a78bfa',
-        'gemini': '#60a5fa', 
-        'claude': '#f472b6',
-        'perplexity': '#fca5a5',
-        'google': '#34d399',
-        'llm traffic': '#94a3b8'
-      }
 
       // Chart options
+      const isDarkMode = document.documentElement.classList.contains('dark')
       const options = {
         width: '100%',
         height: 550,
@@ -572,6 +362,8 @@ export function JourneyTab({ range, realJourneyData, dateRange = '7 days', isLoa
           right: 180, // extra space for right-side labels
           top: 20,
           bottom: 20,
+          width: '100%',
+          height: '100%'
         },
         sankey: {
           node: {
@@ -580,11 +372,9 @@ export function JourneyTab({ range, realJourneyData, dateRange = '7 days', isLoa
             interactivity: false, // prevent highlight shifts
             label: {
               fontName: 'Inter',
-              fontSize: 12,
-              bold: false,
-              color: document.documentElement.classList.contains('dark')
-                ? '#e5e7eb'
-                : '#111827',
+              fontSize: 14,
+              bold: true,
+              color: isDarkMode ? '#ffffff' : '#111827',
             },
           },
           link: {
@@ -620,29 +410,53 @@ export function JourneyTab({ range, realJourneyData, dateRange = '7 days', isLoa
             return;
           }
 
+          // Center the SVG
+          svg.setAttribute('style', 'margin: 0 auto; display: block;')
+
           const labels = svg.querySelectorAll('text')
           console.log('🔍 [JourneyTab] Found', labels.length, 'text labels');
+          
+          // Check if dark mode
+          const isDarkMode = document.documentElement.classList.contains('dark')
           
           labels.forEach((label) => {
             const text = label.textContent?.trim() || ''
             if (!text) return
 
+            // Enhanced styling for all labels - better visibility
+            const labelColor = isDarkMode ? '#ffffff' : '#000000'
+            const strokeColor = isDarkMode ? '#000000' : '#ffffff'
+            
+            label.setAttribute('font-weight', '700')
+            label.setAttribute('font-size', '16')
+            label.setAttribute('fill', labelColor)
+            
+            // Add stroke outline for better visibility
+            label.setAttribute('stroke', strokeColor)
+            label.setAttribute('stroke-width', '2')
+            label.setAttribute('stroke-linejoin', 'round')
+            label.setAttribute('stroke-linecap', 'round')
+            label.setAttribute('paint-order', 'stroke fill')
+            
+            // Add text shadow effect using filter (if supported)
+            if (!isDarkMode) {
+              // For light mode, add a subtle shadow
+              label.setAttribute('filter', 'drop-shadow(0px 0px 2px rgba(255,255,255,0.9))')
+            }
+
             // Move platform labels to the left (ChatGPT, Gemini, etc.)
-            if (['chatgpt', 'gemini', 'perplexity', 'claude', 'google'].includes(text.toLowerCase())) {
-              label.setAttribute('transform', 'translate(-90, 0)')
+            const platformText = text.toLowerCase()
+            if (platformText.includes('chatgpt') || platformText.includes('gemini') || 
+                platformText.includes('perplexity') || platformText.includes('claude') || 
+                platformText.includes('google') || platformText.includes('llm')) {
+              label.setAttribute('transform', 'translate(-100, 0)')
               label.setAttribute('text-anchor', 'end')
-              label.setAttribute('font-weight', '600')
-              label.setAttribute('font-size', '13')
-              label.setAttribute('fill', '#1f2937')
             }
 
             // Move page labels to the right (starting with '/')
             if (text.startsWith('/')) {
-              label.setAttribute('transform', 'translate(90, 0)')
+              label.setAttribute('transform', 'translate(100, 0)')
               label.setAttribute('text-anchor', 'start')
-              label.setAttribute('font-weight', '600')
-              label.setAttribute('font-size', '13')
-              label.setAttribute('fill', '#1f2937')
             }
           })
         }, 400) // wait 400 ms to ensure nodes are ready
@@ -663,7 +477,36 @@ export function JourneyTab({ range, realJourneyData, dateRange = '7 days', isLoa
         hasGoogle: !!window.google
       })
       }
+    }, [sankeyData])
+
+  const loadGoogleCharts = (): Promise<void> => {
+      return new Promise((resolve, reject) => {
+      // Check if Google Charts is already loaded
+      if (window.google && window.google.charts) {
+        console.log('Google Charts already loaded')
+          resolve()
+          return
+        }
+
+      console.log('Loading Google Charts...')
+        const script = document.createElement('script')
+      script.src = 'https://www.gstatic.com/charts/loader.js'
+        script.onload = () => {
+        console.log('Google Charts script loaded')
+        window.google.charts.load('current', { packages: ['sankey'] })
+        window.google.charts.setOnLoadCallback(() => {
+          console.log('Google Charts Sankey package loaded')
+          resolve()
+        })
+        }
+        script.onerror = (error) => {
+        console.error('Failed to load Google Charts:', error)
+          reject(error)
+        }
+        document.head.appendChild(script)
+      })
     }
+
 
 
   useEffect(() => {
@@ -685,7 +528,7 @@ export function JourneyTab({ range, realJourneyData, dateRange = '7 days', isLoa
     return () => {
       // No cleanup needed for Google Charts
     }
-  }, [])
+  }, [initChart])
 
   // Reinitialize charts when sankeyData changes
   useEffect(() => {
@@ -698,7 +541,7 @@ export function JourneyTab({ range, realJourneyData, dateRange = '7 days', isLoa
       // Reinitialize chart with new data
       initChart()
     }
-  }, [sankeyData])
+  }, [sankeyData, initChart])
 
   // Show skeleton if no data and not loading
   if ((!realJourneyData || !realJourneyData.data || !realJourneyData.data.pages || realJourneyData.data.pages.length === 0) && !isLoading) {
@@ -733,21 +576,34 @@ export function JourneyTab({ range, realJourneyData, dateRange = '7 days', isLoa
 
                       {/* Sankey Chart */}
                       <div className="w-full py-6">
-                        <div 
-                          ref={chartRef}
-                          id="chartdiv" 
-                          style={{ 
-                            width: '100%', 
-                            height: '600px',
-                            background: '#ffffff',
-                            border: '1px solid #e2e8f0',
-                            borderRadius: '12px',
-                            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                            padding: '0 100px', // ⬆️ wider for outside labels
-                            overflow: 'hidden'
-                          }}
-                        />
-                        {sankeyData.length === 0 && (
+                        <div className="flex justify-center items-center w-full">
+                          <div 
+                            ref={chartRef}
+                            id="chartdiv" 
+                            style={{ 
+                              width: '100%', 
+                              maxWidth: '1200px',
+                              height: '600px',
+                              background: 'transparent',
+                              padding: '0 120px', // wider padding for outside labels
+                              overflow: 'visible',
+                              margin: '0 auto'
+                            }}
+                          />
+                        </div>
+                        {sankeyData.length === 0 && !isLoading && (
+                          <div className="flex items-center justify-center h-[600px] bg-gray-50 dark:bg-gray-900 rounded-lg">
+                            <div className="text-center">
+                              <div className="text-lg font-semibold text-gray-600 dark:text-gray-400 mb-2">
+                                No Journey Data Available
+                              </div>
+                              <div className="text-sm text-gray-500 dark:text-gray-500">
+                                No LLM platform to page journey data found for the selected period
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {isLoading && (
                           <div className="flex items-center justify-center h-[600px] bg-gray-50 dark:bg-gray-900 rounded-lg">
                             <div className="text-center">
                               <div className="text-lg font-semibold text-gray-600 dark:text-gray-400 mb-2">

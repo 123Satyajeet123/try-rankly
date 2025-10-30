@@ -14,6 +14,7 @@ const gaConnectionSchema = new mongoose.Schema({
   propertyId: String,
   accountName: String,
   propertyName: String,
+  defaultUri: String, // Store the property's default URI (e.g., "https://fibr.ai")
   measurementId: String,
   streamId: String,
   lastDataSyncTime: Date,

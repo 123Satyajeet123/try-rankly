@@ -56,8 +56,15 @@ export const getPlatformSplit = async (startDate: string, endDate: string): Prom
   return response.json()
 }
 
-export const getPages = async (startDate: string, endDate: string, limit: number = 10): Promise<GA4ApiResponse<Array<PageData>>> => {
-  const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/pages?startDate=${startDate}&endDate=${endDate}&limit=${limit}`)
+export const getPages = async (startDate: string, endDate: string, limit: number = 10, dateRange?: string, conversionEvent: string = 'conversions'): Promise<GA4ApiResponse<Array<PageData>>> => {
+  const dateRangeParam = dateRange ? `&dateRange=${encodeURIComponent(dateRange)}` : '';
+  const conversionEventParam = conversionEvent ? `&conversionEvent=${encodeURIComponent(conversionEvent)}` : '';
+  const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/pages?startDate=${startDate}&endDate=${endDate}&limit=${limit}${dateRangeParam}${conversionEventParam}`)
+  return response.json()
+}
+
+export const getConversionEvents = async (): Promise<GA4ApiResponse<{ events: Array<{ name: string, displayName: string, category: string }>, totalEvents: number }>> => {
+  const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/conversion-events`)
   return response.json()
 }
 
@@ -86,5 +93,13 @@ export const getDateRange = (days: number): { startDate: string, endDate: string
     startDate: startDate.toISOString().split('T')[0],
     endDate: endDate.toISOString().split('T')[0],
   }
+}
+
+// Cache Management
+export const clearGA4Cache = async (): Promise<GA4ApiResponse<void>> => {
+  const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/clear-cache`, {
+    method: 'POST',
+  })
+  return response.json()
 }
 

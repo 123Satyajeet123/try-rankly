@@ -162,6 +162,64 @@ class MetricsExtractionService {
   }
 
   /**
+   * Extract all citations in response, categorizing as brand, competitor, social, or earned.
+   * brandUrlsMap: {brandName: [domains]}
+   * competitorUrlsMap: {brandName: [domains]}
+   * socialDomains: array of domains (lowercase, strip www)
+   *
+   * Returns array of {url, type, brand (where relevant), text}
+   */
+  extractCategorizedCitations(response, { brandUrlsMap, competitorUrlsMap, socialDomains }) {
+    if (!response) return [];
+    const hyperlinkRegex = /\[([^\]]*)\]\((https?:\/\/[^\)]+)\)/g;
+    let match;
+    const result = [];
+
+    while ((match = hyperlinkRegex.exec(response)) !== null) {
+      const text = match[1];
+      const url = match[2];
+      const domain = this.cleanDomain(url);
+      let type = 'earned';
+      let brand = null;
+      for (const [bname, domains] of Object.entries(brandUrlsMap)) {
+        if (domains.some(d => d === domain)) { type = 'brand'; brand = bname; break; }
+      }
+      if (type === 'earned') {
+        for (const [cname, domains] of Object.entries(competitorUrlsMap)) {
+          if (domains.some(d => d === domain)) { type = 'competitor'; brand = cname; break; }
+        }
+      }
+      if (type === 'earned' && socialDomains.includes(domain)) {
+        type = 'social';
+      }
+      result.push({ url, type, brand, text });
+    }
+    return result;
+  }
+
+  /**
+   * Filter citations to include only brand, competitor, social, or earned types
+   * Return {type, url, brand, text} for each, excluding unknown/untyped citations
+   */
+  filterRelevantCitations(citations) {
+    const allowed = new Set(['brand', 'competitor', 'social', 'earned']);
+    return (citations || [])
+      .filter(cit => cit && allowed.has(cit.type))
+      .map(cit => ({
+        type: cit.type,
+        url: cit.url,
+        text: cit.text || '',
+        brand: cit.brand || null,
+      }));
+  }
+
+  cleanDomain(url) {
+    try {
+      const u = new URL(url); return u.hostname.replace(/^www\./,"").trim().toLowerCase();
+    } catch { return url; }
+  }
+
+  /**
    * Extract hyperlinks that mention a specific brand
    * @param {object} brandData - Brand data object
    * @param {string} response - LLM response text

@@ -194,7 +194,7 @@ function UnifiedPlatformsPerformanceSection({ realLLMData, isLoading = false }: 
                 <div className="col-span-1 flex justify-center">
                   <div className="text-center">
                     <div className="text-sm font-medium text-foreground">
-                      {(platform.percentage || 0).toFixed(1)}%
+                      {(platform.percentage || 0).toFixed(2)}%
                     </div>
                     <div className="text-xs text-muted-foreground">
                       of total LLM
@@ -206,7 +206,7 @@ function UnifiedPlatformsPerformanceSection({ realLLMData, isLoading = false }: 
                 <div className="col-span-1 flex justify-center">
                   <div className="text-center">
                     <div className="text-sm font-medium text-foreground">
-                      {(platform.sqs || 0).toFixed(1)}
+                      {(platform.sqs || 0).toFixed(2)}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       quality score
@@ -218,7 +218,7 @@ function UnifiedPlatformsPerformanceSection({ realLLMData, isLoading = false }: 
                 <div className="col-span-1 flex justify-center">
                   <div className="text-center">
                     <div className="text-sm font-medium text-foreground">
-                      {(platform.lvs || 0).toFixed(1)}
+                      {(platform.lvs || 0).toFixed(2)}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       value score
@@ -230,7 +230,7 @@ function UnifiedPlatformsPerformanceSection({ realLLMData, isLoading = false }: 
                 <div className="col-span-1 flex justify-center">
                   <div className="text-center">
                     <div className="text-sm font-medium text-foreground">
-                      {((platform.conversionRate || 0) * 100).toFixed(1)}%
+                      {((platform.conversionRate || 0) * 100).toFixed(2)}%
                     </div>
                     <div className="flex items-center justify-center gap-1 mt-1">
                       <Badge 

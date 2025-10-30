@@ -403,7 +403,8 @@ router.post('/analyze-website', devAuth, async (req, res) => {
     // Save topics
     if (analysisResults.topics && analysisResults.topics.length > 0) {
       const topicPromises = analysisResults.topics.map(topic => {
-        return new Topic({
+        // Defensive: Remove any unwanted branding info from topic object (futureproof)
+        const sanitizedTopic = {
           userId: req.userId,
           name: topic.name,
           description: topic.description,
@@ -412,7 +413,11 @@ router.post('/analyze-website', devAuth, async (req, res) => {
           source: 'ai',
           selected: false,
           urlAnalysisId: urlAnalysis._id // ✅ FIX: Set urlAnalysisId
-        }).save();
+        };
+        // Remove any accidental brand/brandContext fields (not present today, but defensive)
+        delete sanitizedTopic.brand;
+        delete sanitizedTopic.brandContext;
+        return new Topic(sanitizedTopic).save();
       });
       await Promise.all(topicPromises);
     }
@@ -635,7 +640,7 @@ router.post('/update-selections', devAuth, async (req, res) => {
           name: compUrl.replace(/^https?:\/\//, '').replace(/\/$/, ''), // Use domain as name
           url: compUrl,
           reason: 'User added manually',
-          similarity: 0,
+          similarity: 'Medium', // Fixed: use valid enum value
           source: 'user',
           selected: true,
           urlAnalysisId: urlAnalysisId // ✅ FIX: Set urlAnalysisId
@@ -663,7 +668,7 @@ router.post('/update-selections', devAuth, async (req, res) => {
           name: topicName,
           description: 'User added manually',
           keywords: [],
-          priority: 1,
+          priority: 'Medium', // Fixed: use valid enum value
           source: 'user',
           selected: true,
           urlAnalysisId: urlAnalysisId
@@ -757,9 +762,8 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
     const selectedPersonas = await Persona.find({ userId, selected: true, urlAnalysisId: latestAnalysis._id });
 
     // Prepare data for prompt generation
-    // Use centralized configuration
-    const { config } = require('../config/hyperparameters');
-    const totalPrompts = config.prompts.maxToTest;
+    // Use default configuration
+    const totalPrompts = 20;
     
     const promptData = {
       topics: selectedTopics.map(topic => ({
@@ -872,7 +876,7 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
       // Test all prompts automatically
       const testResults = await testingService.testAllPrompts(userId, {
         batchSize: 5,
-        testLimit: config.prompts.maxToTest,
+        testLimit: 20,
         urlAnalysisId: latestAnalysis._id
       });
       

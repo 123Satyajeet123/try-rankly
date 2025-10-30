@@ -257,17 +257,18 @@ router.get('/all', devAuth, async (req, res) => {
     res.json({
       success: true,
       data: {
-        // URL Analysis context
-        urlAnalysis: {
-          id: currentUrlAnalysisId,
-          url: urlAnalysis?.url,
-          brandName: userBrandName,
-          analysisDate: urlAnalysis?.analysisDate
-        },
-        
-        // Core metrics (using filtered overall)
+        // ✅ Meta for triggering insights
+        currentUrlAnalysisId,
+        brandName: userBrandName,
+
+        // ✅ Overall visibility-like data (already formatted)
         overall: filteredOverall,
-        platforms: filteredPlatforms, // ✅ Use filtered platforms instead of all platforms
+        platforms: filteredPlatforms.map(p => ({
+          scope: p.scope,
+          scopeValue: p.scopeValue,
+          brandMetrics: p.brandMetrics,
+          lastCalculated: p.lastCalculated
+        })),
         topics: topics,
         personas: personas,
         

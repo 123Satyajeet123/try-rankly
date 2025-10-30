@@ -4,6 +4,7 @@ const Insights = require('../models/Insights');
 const Topic = require('../models/Topic');
 const Persona = require('../models/Persona');
 const Competitor = require('../models/Competitor');
+// Removed hyperparameters config dependency
 
 class InsightsService {
   constructor() {
@@ -31,7 +32,9 @@ class InsightsService {
       
       // 1. Collect and structure data for the specific tab
       const structuredData = await this.collectTabData(userId, urlAnalysisId, tabType);
-      
+      // Deterministic insights
+      const performanceInsights = structuredData.performanceInsights || this.generatePerformanceInsights(structuredData, tabType);
+
       // 2. Generate LLM prompt based on tab type
       const prompt = this.generatePrompt(structuredData, tabType);
       
@@ -40,6 +43,7 @@ class InsightsService {
       
       // 4. Parse and structure the response
       const parsedInsights = this.parseInsightsResponse(insights, tabType);
+      parsedInsights.performanceInsights = performanceInsights;
       
       // 5. Store insights in database
       await this.storeInsights(userId, urlAnalysisId, tabType, parsedInsights);
@@ -84,6 +88,7 @@ class InsightsService {
       return {
         whatsWorking: existingInsights.whatsWorking,
         needsAttention: existingInsights.needsAttention,
+        performanceInsights: existingInsights.performanceInsights || [],
         generatedAt: existingInsights.generatedAt
       };
 
@@ -143,7 +148,7 @@ class InsightsService {
       ]);
 
       // Structure data based on tab type
-      return this.structureDataForTab({
+      const structured = this.structureDataForTab({
         overallMetrics,
         platformMetrics,
         topicMetrics,
@@ -152,6 +157,9 @@ class InsightsService {
         personas,
         competitors
       }, tabType);
+      // Add new: performanceInsights
+      structured.performanceInsights = this.generatePerformanceInsights(structured, tabType);
+      return structured;
 
     } catch (error) {
       console.error(`❌ [InsightsService] Error collecting data:`, error);
@@ -633,6 +641,7 @@ RESPOND WITH JSON ONLY.`;
         tabType: tabType,
         whatsWorking: insights.whatsWorking,
         needsAttention: insights.needsAttention,
+        performanceInsights: insights.performanceInsights || [],
         generatedAt: insights.generatedAt
       });
 
@@ -679,6 +688,106 @@ RESPOND WITH JSON ONLY.`;
   getTopicCitations(topicMetrics) {
     // Implementation for topic citations
     return {};
+  }
+
+  /**
+   * Deterministically calculate performance insights for all tabs
+   */
+  generatePerformanceInsights(structuredData, tabType = 'visibility') {
+    // Helper to produce a clean numeric gap (+/- XX) and %
+    function formatGap(val, compVal, digits = 1) {
+      const raw = val - compVal;
+      if (Math.abs(raw) < 0.01) return '';
+      return (raw >= 0 ? '+' : '') + raw.toFixed(digits);
+    }
+    function percent(val, digits = 1) {
+      return val ? val.toFixed(digits) + '%' : '0%';
+    }
+
+    const user = structuredData.userBrand;
+    const competitors = structuredData.competitors || [];
+    const insights = [];
+
+    if (!user || competitors.length === 0) return [{ metric: 'data', description: 'No competitor data available' }];
+
+    // Define what to inspect for each tab
+    let metricsToCheck = [];
+    switch (tabType) {
+      case 'visibility':
+        metricsToCheck = [
+          { key: 'visibilityScore', label: 'Visibility Score', format: percent },
+          { key: 'shareOfVoice', label: 'Share of Voice', format: percent },
+          { key: 'averagePosition', label: 'Average Position', format: v => v.toFixed(2), invert: true },
+          { key: 'depthOfMention', label: 'Depth of Mention', format: v => v.toFixed(2) }
+        ];
+        break;
+      case 'sentiment':
+        metricsToCheck = [
+          { key: 'sentimentScore', label: 'Sentiment Score', format: v => v.toFixed(2) }
+        ];
+        break;
+      case 'citations':
+        metricsToCheck = [
+          { key: 'citationShare', label: 'Citation Share', format: percent }
+        ];
+        break;
+      case 'prompts':
+        metricsToCheck = [
+          { key: 'totalMentions', label: 'Total Mentions', format: v => v.toString() }
+        ];
+        break;
+      default:
+        break;
+    }
+
+    metricsToCheck.forEach(metric => {
+      const { key, label, format, invert } = metric;
+      const userVal = parseFloat(user[key]) || 0;
+      // Find top and bottom competitor
+      const compVals = competitors.map(c => ({ name: c.name, value: parseFloat(c[key]) || 0 }));
+      let top, bottom, closest;
+      if (invert) {
+        // For ranking type metrics (lower is better)
+        top = compVals.reduce((a, b) => (a.value < b.value ? a : b), compVals[0]);
+        bottom = compVals.reduce((a, b) => (a.value > b.value ? a : b), compVals[0]);
+      } else {
+        // Higher is better
+        top = compVals.reduce((a, b) => (a.value > b.value ? a : b), compVals[0]);
+        bottom = compVals.reduce((a, b) => (a.value < b.value ? a : b), compVals[0]);
+      }
+      // Find nearest-up/nearest-down
+      closest = compVals.reduce((closest, c) => (
+        (!closest || Math.abs(c.value - userVal) < Math.abs(closest.value - userVal)) ? c : closest
+      ), null);
+      // Calculate ranking
+      const allVals = [{ name: user.name, value: userVal }, ...compVals]
+        .sort((a, b) => invert ? a.value - b.value : b.value - a.value);
+      const userRank = allVals.findIndex(v => v.name === user.name) + 1;
+      const rankStr = `(Rank: #${userRank} / ${allVals.length})`;
+      // Main insight
+      if (userVal === top.value) {
+        if (Math.abs(userVal - bottom.value) > 0.01) {
+          insights.push({
+            metric: key,
+            description: `Your brand leads in ${label}: ${format(userVal)} vs best competitor (${top.name}): ${format(top.value)}. ${rankStr}`,
+            value: userVal,
+            gap: userVal - top.value,
+            rank: userRank
+          });
+        }
+      } else {
+        if (Math.abs(userVal - top.value) > 0.01) {
+          insights.push({
+            metric: key,
+            description: `Your brand's ${label} is ${format(userVal)}, trailing vs top competitor (${top.name}): ${format(top.value)}. Gap: ${formatGap(userVal, top.value)}. ${rankStr}`,
+            value: userVal,
+            gap: userVal - top.value,
+            rank: userRank
+          });
+        }
+      }
+    });
+    return insights;
   }
 }
 

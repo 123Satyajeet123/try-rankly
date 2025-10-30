@@ -183,6 +183,7 @@ export function UnifiedPerformanceInsightsSection({ filterContext, dashboardData
     const loadInsights = async () => {
       setIsLoading(true)
       try {
+        const urlAnalysisId = dashboardData?.currentUrlAnalysisId || dashboardData?.meta?.currentUrlAnalysisId
         // First try to get insights from dashboard data
         const dashboardInsights = getInsightsFromDashboard()
         if (dashboardInsights.whatsWorking.length > 0 || dashboardInsights.needsAttention.length > 0) {
@@ -193,14 +194,14 @@ export function UnifiedPerformanceInsightsSection({ filterContext, dashboardData
           console.log(`🔄 [PerformanceInsights] Fetching existing insights for ${tabType}...`)
           try {
             // First try to get existing insights from database
-            const existingResponse = await apiService.getInsightsForTab(tabType)
+            const existingResponse = await apiService.getInsightsForTab(tabType, urlAnalysisId)
             if (existingResponse.success && existingResponse.data) {
               setInsightsData(existingResponse.data)
               console.log('✅ [PerformanceInsights] Existing insights loaded from database:', existingResponse.data.whatsWorking?.length || 0, 'working,', existingResponse.data.needsAttention?.length || 0, 'attention')
             } else {
               // If no existing insights, generate new ones
               console.log(`🔄 [PerformanceInsights] No existing insights found, generating new ones for ${tabType}...`)
-              const response = await apiService.generateInsightsForTab(tabType)
+              const response = await apiService.generateInsightsForTab(tabType, urlAnalysisId)
               if (response.success && response.data) {
                 setInsightsData(response.data)
                 console.log('✅ [PerformanceInsights] New insights generated:', response.data.whatsWorking?.length || 0, 'working,', response.data.needsAttention?.length || 0, 'attention')

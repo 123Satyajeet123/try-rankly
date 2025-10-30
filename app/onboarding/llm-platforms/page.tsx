@@ -13,6 +13,7 @@ import { useOnboarding } from '@/contexts/OnboardingContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useEffect } from 'react'
 import apiService from '@/services/api'
+import { cn } from '@/lib/utils'
 
 const llmPlatforms = [
   {
@@ -169,7 +170,7 @@ export default function LLMPlatformsPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6 md:p-10 relative">
+    <main className="relative flex h-screen w-full items-center justify-center bg-background text-foreground overflow-hidden">
       <BackgroundBeams className="absolute inset-0 z-0" />
       
       {/* Theme Toggle - Top Right */}
@@ -190,10 +191,11 @@ export default function LLMPlatformsPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="w-full max-w-4xl relative z-10"
+        className="w-full max-w-4xl relative z-10 px-4 py-4"
       >
-        <Card className="w-full overflow-hidden rounded-lg h-[600px] relative">
-          <CardContent className="grid rounded-lg md:grid-cols-2 h-full">
+        <div className={cn("flex flex-col gap-6")}>
+          <Card className="overflow-hidden p-0 shadow-lg">
+            <CardContent className="grid p-0 md:grid-cols-2 h-[600px]">
             {/* Left Section - Region & Language Selection (Light Background) */}
             <div className="bg-background  p-6 sm:p-8 flex flex-col justify-center relative">
               {/* Navigation Arrows positioned over the left card */}
@@ -365,8 +367,9 @@ export default function LLMPlatformsPage() {
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </motion.div>
     </main>
   )

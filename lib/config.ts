@@ -1,7 +1,7 @@
 /**
  * Frontend Configuration
  * 
- * This file contains all configurable hyperparameters for the frontend.
+ * This file contains all configurable settings for the frontend.
  * These values should match the backend configuration for consistency.
  */
 

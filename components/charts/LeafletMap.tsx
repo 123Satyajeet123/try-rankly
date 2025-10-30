@@ -302,15 +302,15 @@ export default function LeafletMap({ countries, totalSessions }: LeafletMapProps
                           <div style="color: #6b7280;">LLM Sessions:</div>
                           <div style="font-weight: 600; color: #111827;">${props.sessions.toLocaleString()}</div>
                           <div style="color: #6b7280;">Traffic %:</div>
-                          <div style="font-weight: 600; color: #2563eb;">${props.percentage.toFixed(1)}%</div>
+                          <div style="font-weight: 600; color: #2563eb;">${props.percentage.toFixed(2)}%</div>
                           <div style="color: #6b7280;">Conversion Rate:</div>
-                          <div style="font-weight: 600; color: #059669;">${props.conversionRate.toFixed(1)}%</div>
+                          <div style="font-weight: 600; color: #059669;">${props.conversionRate.toFixed(2)}%</div>
                           <div style="color: #6b7280;">Bounce Rate:</div>
-                          <div style="font-weight: 600; color: #dc2626;">${props.bounceRate.toFixed(1)}%</div>
+                          <div style="font-weight: 600; color: #dc2626;">${props.bounceRate.toFixed(2)}%</div>
                           <div style="color: #6b7280;">Avg Session:</div>
-                          <div style="font-weight: 600; color: #111827;">${Math.round(props.avgSessionDuration)}s</div>
+                          <div style="font-weight: 600; color: #111827;">${props.avgSessionDuration.toFixed(2)}s</div>
                           <div style="color: #6b7280;">Engagement:</div>
-                          <div style="font-weight: 600; color: #7c3aed;">${props.engagementRate.toFixed(1)}%</div>
+                          <div style="font-weight: 600; color: #7c3aed;">${props.engagementRate.toFixed(2)}%</div>
                         </div>
                       </div>
                     `, {

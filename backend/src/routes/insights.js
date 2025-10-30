@@ -81,8 +81,9 @@ router.get('/:tabType', devAuth, async (req, res) => {
     });
 
     const transformedData = {
-      whatsWorking: insights.whatsWorking.map(transformInsight),
-      needsAttention: insights.needsAttention.map(transformInsight),
+      whatsWorking: (insights.whatsWorking || []).map(transformInsight),
+      needsAttention: (insights.needsAttention || []).map(transformInsight),
+      performanceInsights: insights.performanceInsights || [],
       generatedAt: insights.generatedAt
     };
 

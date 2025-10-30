@@ -424,13 +424,46 @@ class MetricsAggregationService {
         else if (brandMetric.rankPosition === 2) brandData.count2nd++;
         else if (brandMetric.rankPosition === 3) brandData.count3rd++;
         
-        // Citation data - get from brandMetrics.citationMetrics, not scorecard
-        brandData.brandCitations += brandMetric.citationMetrics?.brandCitations || 0;
-        brandData.earnedCitations += brandMetric.citationMetrics?.earnedCitations || 0;
-        brandData.socialCitations += brandMetric.citationMetrics?.socialCitations || 0;
-        brandData.totalCitations += brandMetric.citationMetrics?.totalCitations || 0;
-        if (brandMetric.citationMetrics?.totalCitations > 0) {
-          brandData.citationCount++;
+        // Citation data - derive deterministically from labeled citations only
+        // Ignore unlabeled/unknown or malformed URLs
+        if (Array.isArray(brandMetric.citations)) {
+          const validTypes = new Set(['brand', 'earned', 'social']);
+
+          let brandCount = 0;
+          let earnedCount = 0;
+          let socialCount = 0;
+
+          brandMetric.citations.forEach(c => {
+            if (!c || !c.url || typeof c.url !== 'string') return;
+            const type = c.type;
+            if (!validTypes.has(type)) return;
+
+            if (type === 'brand') brandCount++;
+            else if (type === 'earned') earnedCount++;
+            else if (type === 'social') socialCount++;
+          });
+
+          const total = brandCount + earnedCount + socialCount;
+
+          brandData.brandCitations += brandCount;
+          brandData.earnedCitations += earnedCount;
+          brandData.socialCitations += socialCount;
+          brandData.totalCitations += total;
+          if (total > 0) {
+            brandData.citationCount++;
+          }
+        } else if (brandMetric.citationMetrics) {
+          // Fallback to precomputed metrics if citations array is unavailable
+          brandData.brandCitations += brandMetric.citationMetrics?.brandCitations || 0;
+          brandData.earnedCitations += brandMetric.citationMetrics?.earnedCitations || 0;
+          brandData.socialCitations += brandMetric.citationMetrics?.socialCitations || 0;
+          const total = (brandMetric.citationMetrics?.brandCitations || 0)
+            + (brandMetric.citationMetrics?.earnedCitations || 0)
+            + (brandMetric.citationMetrics?.socialCitations || 0);
+          brandData.totalCitations += total;
+          if (total > 0) {
+            brandData.citationCount++;
+          }
         }
         
         // Sentiment data
@@ -457,18 +490,16 @@ class MetricsAggregationService {
       }
     });
 
-    // ✅ UPDATED: Calculate totalAppearances based on brand mentions in LLM responses
-    // Count unique prompt responses where the brand name appears in the LLM response text
-    const uniqueResponsesWithBrandMention = new Set();
-    tests.forEach(test => {
-      if (test.rawResponse && test.rawResponse.toLowerCase().includes(brandName.toLowerCase())) {
-        uniqueResponsesWithBrandMention.add(test._id.toString()); // Use test ID to count unique responses
-      }
-    });
-    
-    brandData.totalAppearances = uniqueResponsesWithBrandMention.size;
-    
-    console.log(`     ✅ Total unique prompt responses where ${brandName} appears in LLM response: ${brandData.totalAppearances}`);
+    // ✅ UPDATED: Calculate totalAppearances using deterministic extraction (brandMetrics.mentioned)
+    // Count tests where this brand was marked mentioned by the extractor, not raw substring checks
+    const testsWithBrandMention = tests.filter(test =>
+      Array.isArray(test.brandMetrics) &&
+      test.brandMetrics.some(bm => bm.brandName === brandName && bm.mentioned)
+    );
+
+    brandData.totalAppearances = testsWithBrandMention.length;
+
+    console.log(`     ✅ Total prompt responses where ${brandName} is mentioned: ${brandData.totalAppearances}`);
     console.log(`     📊 Total mentions across all LLM responses: ${brandData.totalMentions}`);
 
     // Calculate total unique prompt responses in the dataset (for visibility score denominator)

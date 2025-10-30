@@ -4,8 +4,10 @@ import { GA4AgentAnalyticsTab } from '@/components/tabs/agent-analytics/GA4Agent
 import { Sidebar } from '@/components/layout/Sidebar'
 import { TopNav } from '@/components/layout/TopNav'
 import { SettingsModal } from '@/components/agent-analytics/modals/SettingsModal'
+import { clearGA4Cache } from '@/services/ga4Api'
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { toast } from 'sonner'
 
 export default function AgentAnalyticsPage() {
   const searchParams = useSearchParams()
@@ -14,6 +16,7 @@ export default function AgentAnalyticsPage() {
   const [isSyncing, setIsSyncing] = useState(false)
   const [settingsModalOpen, setSettingsModalOpen] = useState(false)
   const [lastSyncTime, setLastSyncTime] = useState<string | null>(null)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
 
   // Set active tab from URL params
   useEffect(() => {
@@ -28,10 +31,37 @@ export default function AgentAnalyticsPage() {
     setLastSyncTime(new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ', ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))
   }, [])
 
-  const handleSyncNow = () => {
+  const handleSyncNow = async () => {
     setIsSyncing(true)
-    // The GA4AgentAnalyticsTab will handle the actual sync
-    setTimeout(() => setIsSyncing(false), 2000)
+    try {
+      // Clear GA4 cache and fetch fresh data
+      await clearCacheAndRefresh()
+      // Update last sync time
+      setLastSyncTime(new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) + ', ' + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }))
+    } catch (error) {
+      console.error('Error during sync:', error)
+    } finally {
+      setIsSyncing(false)
+    }
+  }
+
+  const clearCacheAndRefresh = async () => {
+    try {
+      const response = await clearGA4Cache()
+      
+      if (response.success) {
+        console.log('✅ GA4 cache cleared successfully')
+        toast.success('Cache cleared! Fetching fresh data...')
+        // Trigger refresh by updating the refresh trigger
+        setRefreshTrigger(prev => prev + 1)
+      } else {
+        console.error('Failed to clear GA4 cache:', response.error)
+        toast.error('Failed to clear cache. Please try again.')
+      }
+    } catch (error) {
+      console.error('Error clearing GA4 cache:', error)
+      toast.error('Error clearing cache. Please try again.')
+    }
   }
 
   const handleDateRangeChange = (range: string) => {
@@ -77,6 +107,7 @@ export default function AgentAnalyticsPage() {
               selectedDateRange={selectedDateRange}
               onTabChange={setActiveTab}
               onDateRangeChange={setSelectedDateRange}
+              refreshTrigger={refreshTrigger}
             />
           </div>
         </main>

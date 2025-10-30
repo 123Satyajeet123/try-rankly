@@ -201,10 +201,10 @@ function UnifiedPlatformSplitSection({ realLLMData, dateRange = '30 days', isLoa
                     <>
                       {/* Y-axis labels on the left */}
                       <div className="absolute left-2 top-4 bottom-3 flex flex-col justify-between caption text-muted-foreground">
-                        <span>{Math.max(...platformSplitData.map((p: any) => p.value)).toFixed(1)}%</span>
-                        <span>{(Math.max(...platformSplitData.map((p: any) => p.value)) * 0.75).toFixed(1)}%</span>
-                        <span>{(Math.max(...platformSplitData.map((p: any) => p.value)) * 0.5).toFixed(1)}%</span>
-                        <span>{(Math.max(...platformSplitData.map((p: any) => p.value)) * 0.25).toFixed(1)}%</span>
+                        <span>{Math.max(...platformSplitData.map((p: any) => p.value)).toFixed(2)}%</span>
+                        <span>{(Math.max(...platformSplitData.map((p: any) => p.value)) * 0.75).toFixed(2)}%</span>
+                        <span>{(Math.max(...platformSplitData.map((p: any) => p.value)) * 0.5).toFixed(2)}%</span>
+                        <span>{(Math.max(...platformSplitData.map((p: any) => p.value)) * 0.25).toFixed(2)}%</span>
                         <span>0%</span>
                       </div>
                       
@@ -218,7 +218,7 @@ function UnifiedPlatformSplitSection({ realLLMData, dateRange = '30 days', isLoa
                               const rect = e.currentTarget.getBoundingClientRect()
                               setHoveredBar({
                                 name: platform.name,
-                                score: `${platform.value.toFixed(1)}%`,
+                                score: `${platform.value.toFixed(2)}%`,
                                 x: rect.left + rect.width / 2,
                                 y: rect.top - 10
                               })
@@ -227,7 +227,7 @@ function UnifiedPlatformSplitSection({ realLLMData, dateRange = '30 days', isLoa
                           >
                             {/* Value label above bar */}
                             <div className="text-xs font-medium text-foreground">
-                              {platform.value.toFixed(1)}%
+                              {platform.value.toFixed(2)}%
                             </div>
                             
                             {/* Vertical Bar */}
@@ -484,7 +484,9 @@ function UnifiedPlatformSplitSection({ realLLMData, dateRange = '30 days', isLoa
                             <TableCell className="text-right py-2 px-3 w-24">
                               <div className="flex items-center justify-between">
                                 <span className="text-sm text-foreground font-medium">
-                                  {ranking.percentage}
+                                  {parseFloat(ranking.percentage.replace('%', '')) > 0 
+                                    ? parseFloat(ranking.percentage.replace('%', '')).toFixed(2) + '%'
+                                    : '0.00%'}
                                 </span>
                                 <div className="flex items-center gap-1">
                                   {trend === 'up' ? (
@@ -495,7 +497,7 @@ function UnifiedPlatformSplitSection({ realLLMData, dateRange = '30 days', isLoa
                                   <span className={`text-xs font-medium ${
                                     trend === 'up' ? 'text-green-500' : 'text-red-500'
                                   }`}>
-                                    {percentageChange}%
+                                    {percentageChange.toFixed(2)}%
                                   </span>
                                 </div>
                               </div>

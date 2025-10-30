@@ -14,9 +14,35 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Info } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { getPages, getConversionEvents, getDateRange } from '@/services/ga4Api'
 import { PagesSkeleton } from '@/components/ui/pages-skeleton'
 
-// Function to get the domain for each LLM platform for favicon fetching
+// Function to get the favicon URL for each LLM platform
+function getLLMFaviconUrl(platform: string): string {
+  const platformLower = platform.toLowerCase()
+  
+  // Use direct favicon URLs for better reliability
+  if (platformLower.includes('chatgpt') || platformLower.includes('openai')) {
+    return 'https://chat.openai.com/favicon.ico'
+  }
+  if (platformLower.includes('claude') || platformLower.includes('anthropic')) {
+    return 'https://www.google.com/s2/favicons?domain=claude.ai&sz=32'
+  }
+  if (platformLower.includes('gemini')) {
+    return 'https://www.google.com/s2/favicons?domain=gemini.google.com&sz=32'
+  }
+  if (platformLower.includes('perplexity')) {
+    return 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=32'
+  }
+  if (platformLower.includes('google')) {
+    return 'https://www.google.com/s2/favicons?domain=google.com&sz=32'
+  }
+  
+  // Fallback to domain-based favicon
+  return `https://www.google.com/s2/favicons?domain=${getLLMDomain(platform)}&sz=32`
+}
+
+// Function to get the domain for each LLM platform for favicon fetching (kept for fallback)
 function getLLMDomain(platform: string): string {
   const platformLower = platform.toLowerCase()
   
@@ -59,28 +85,21 @@ export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoadin
       console.log('🔍 [PagesTab] First page platformSessions:', realPagesData.data.pages[0]?.platformSessions)
     }
   }, [realPagesData])
-  
-  // Show skeleton if no data and not loading
-  if ((!realPagesData || !realPagesData.data || !realPagesData.data.pages || realPagesData.data.pages.length === 0) && !isLoading) {
-    return <PagesSkeleton />
-  }
 
-  console.log('[PagesTab] Received data:', {
-    hasRealPagesData: !!realPagesData,
-    dataStructure: realPagesData ? Object.keys(realPagesData) : null,
-    dataDataStructure: realPagesData?.data ? Object.keys(realPagesData.data) : null,
-    hasPages: realPagesData?.data?.pages ? realPagesData.data.pages.length : 0,
-    pagesData: realPagesData?.data?.pages ? realPagesData.data.pages.slice(0, 2) : null
-  })
+  // Sync pagesData with realPagesData prop
+  useEffect(() => {
+    if (realPagesData?.data?.pages) {
+      setPagesData(realPagesData.data.pages)
+    }
+  }, [realPagesData])
 
   // Fetch conversion events on component mount
   useEffect(() => {
     const fetchConversionEvents = async () => {
       try {
-        const response = await fetch('/api/ga4/conversion-events')
-        const data = await response.json()
-        if (data.success) {
-          setConversionEvents(data.data.events)
+        const response = await getConversionEvents()
+        if (response.success) {
+          setConversionEvents(response.data.events || [])
         }
       } catch (error) {
         console.error('Failed to fetch conversion events:', error)
@@ -97,28 +116,50 @@ export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoadin
       console.log('🔄 [PagesTab] Fetching pages data with conversion event:', selectedConversionEvent)
       
       try {
-        const response = await fetch(`/api/ga4/pages?dateRange=${encodeURIComponent(dateRange)}&conversionEvent=${encodeURIComponent(selectedConversionEvent)}`)
-        const data = await response.json()
+        const days = parseInt(dateRange.split(' ')[0])
+        const { startDate, endDate } = getDateRange(days)
+        const response = await getPages(startDate, endDate, 100, dateRange, selectedConversionEvent, false)
         
         console.log('📊 [PagesTab] Pages API response:', {
-          success: data.success,
-          hasData: !!data.data,
-          pagesCount: data.data?.pages?.length || 0,
-          conversionEvent: selectedConversionEvent
+          success: response.success,
+          hasData: !!response.data,
+          pagesCount: response.data?.pages?.length || 0,
+          conversionEvent: selectedConversionEvent,
+          warning: response.warning
         })
         
-        if (data.success) {
-          setPagesData(data.data.pages || [])
-          console.log('✅ [PagesTab] Updated pages data:', data.data.pages?.slice(0, 2))
+        if (response.success && response.data?.pages) {
+          setPagesData(response.data.pages)
+          console.log('✅ [PagesTab] Updated pages data:', response.data.pages?.slice(0, 2))
+          
+          // Show warning if conversion event was not available
+          if (response.warning) {
+            console.warn('⚠️ [PagesTab]', response.warning)
+          }
         } else {
-          console.error('❌ [PagesTab] API error:', data.error)
+          console.error('❌ [PagesTab] API error:', response.error)
         }
       } catch (error) {
         console.error('❌ [PagesTab] Failed to fetch pages data:', error)
       }
     }
+    
+    // Always fetch when conversion event changes (don't rely on realPagesData)
     fetchPagesData()
   }, [dateRange, selectedConversionEvent])
+
+  // Show skeleton if no data and not loading
+  if ((!realPagesData || !realPagesData.data || !realPagesData.data.pages || realPagesData.data.pages.length === 0) && !isLoading) {
+    return <PagesSkeleton />
+  }
+
+  console.log('[PagesTab] Received data:', {
+    hasRealPagesData: !!realPagesData,
+    dataStructure: realPagesData ? Object.keys(realPagesData) : null,
+    dataDataStructure: realPagesData?.data ? Object.keys(realPagesData.data) : null,
+    hasPages: realPagesData?.data?.pages ? realPagesData.data.pages.length : 0,
+    pagesData: realPagesData?.data?.pages ? realPagesData.data.pages.slice(0, 2) : null
+  })
 
   // If no real data, show empty state
   if (!realPagesData || !realPagesData.data?.pages || realPagesData.data.pages.length === 0) {
@@ -157,7 +198,20 @@ export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoadin
               <div className="flex items-center gap-6">
                 {/* Conversion Events Dropdown */}
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">Conversion Event:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">Conversion Event:</span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-[300px]">
+                        <p className="text-sm">
+                          <strong>What does this filter do?</strong><br />
+                          By default, pages show overall "conversions". Select a specific conversion event (like "purchases" or "sign_up") to see pages filtered by that specific event. This helps you identify which pages drive specific actions.
+                        </p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </div>
                   <Select value={selectedConversionEvent} onValueChange={setSelectedConversionEvent}>
                     <SelectTrigger className="w-[200px]">
                       <SelectValue placeholder="Select conversion event" />
@@ -336,14 +390,18 @@ export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoadin
                               {page.title || 'Untitled Page'}
                             </div>
                             <div className="text-xs text-muted-foreground truncate">
-                              <a
-                                href={page.url?.startsWith('http') ? page.url : `https://fibr.ai${page.url}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="hover:text-blue-500 transition-colors"
-                              >
-                                {page.url?.startsWith('http') ? page.url : `https://fibr.ai${page.url}`}
-                              </a>
+                              {page.url ? (
+                                <a
+                                  href={page.url.startsWith('http') ? page.url : page.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="hover:text-blue-500 transition-colors"
+                                >
+                                  {page.url}
+                                </a>
+                              ) : (
+                                <span className="text-muted-foreground">N/A</span>
+                              )}
                             </div>
                           </div>
                         </TableCell>
@@ -358,7 +416,7 @@ export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoadin
                               Object.entries(page.platformSessions).map(([platform, sessions]) => (
                                 <div key={platform} className="flex items-center gap-1" title={`${platform}: ${sessions} sessions`}>
                                   <img
-                                    src={`https://www.google.com/s2/favicons?domain=${getLLMDomain(platform)}&sz=32`}
+                                    src={getLLMFaviconUrl(platform)}
                                     alt={`${platform} favicon`}
                                     className="w-5 h-5"
                                     onError={(e) => {
@@ -386,7 +444,7 @@ export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoadin
                               page.provider && (
                                 <div className="flex items-center gap-1" title={`${page.provider}: ${page.sessions} sessions`}>
                                   <img
-                                    src={`https://www.google.com/s2/favicons?domain=${getLLMDomain(page.provider)}&sz=32`}
+                                    src={getLLMFaviconUrl(page.provider)}
                                     alt={`${page.provider} favicon`}
                                     className="w-5 h-5"
                                     onError={(e) => {

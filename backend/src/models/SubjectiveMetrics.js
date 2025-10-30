@@ -137,7 +137,7 @@ const subjectiveMetricsSchema = new mongoose.Schema({
   },
   model: {
     type: String,
-    default: 'gpt-4o'
+    default: 'gpt-4o-mini'
   },
   tokensUsed: {
     type: Number,

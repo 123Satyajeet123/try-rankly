@@ -1,22 +1,24 @@
 const axios = require('axios');
 const SubjectiveMetrics = require('../models/SubjectiveMetrics');
 const PromptTest = require('../models/PromptTest');
+// Removed hyperparameters config dependency
 
 /**
  * SubjectiveMetricsService
- * Evaluates brand citations using GPT-4o via OpenRouter for qualitative metrics
+ * Evaluates brand citations using GPT-4o-mini via OpenRouter for qualitative metrics
  */
 class SubjectiveMetricsService {
   constructor() {
     this.openRouterApiKey = process.env.OPENROUTER_API_KEY;
     this.openRouterBaseUrl = 'https://openrouter.ai/api/v1';
-    this.model = 'openai/gpt-4o'; // GPT-4o via OpenRouter
+    this.model = 'openai/gpt-4o-mini'; // Default model configuration
     
     if (!this.openRouterApiKey) {
       throw new Error('OPENROUTER_API_KEY environment variable is required');
     }
     
     console.log('🔑 SubjectiveMetrics - OpenRouter API Key loaded:', this.openRouterApiKey ? 'YES' : 'NO');
+    console.log(`🤖 SubjectiveMetrics - Using model: ${this.model}`);
   }
 
   /**
@@ -69,26 +71,27 @@ class SubjectiveMetricsService {
       console.log(`   Platforms: ${promptTests.map(pt => pt.llmProvider).join(', ')}`);
       console.log(`   Query: ${prompt.text.substring(0, 100)}...`);
 
-      // 3. Check if brand is mentioned in any response (case-insensitive)
+      // 3. Check if brand is mentioned in any response using intelligent pattern matching
       const brandFound = promptTests.some(pt => 
         pt.brandMetrics?.some(bm => 
           bm.brandName.toLowerCase() === brandName.toLowerCase() && bm.mentioned
         )
       );
 
-      // Also check if brand is mentioned in the raw response text (case-insensitive)
+      // Also check if brand is mentioned in the raw response text using pattern generation
       const brandFoundInText = promptTests.some(pt => {
         const responseText = pt.rawResponse || '';
-        const brandPatterns = [
-          brandName,
-          brandName.toLowerCase(),
-          brandName.toUpperCase(),
-          brandName.charAt(0).toUpperCase() + brandName.slice(1).toLowerCase()
-        ];
+        const brandPatterns = this.generateBrandPatterns(brandName);
         
-        return brandPatterns.some(pattern => 
-          responseText.toLowerCase().includes(pattern.toLowerCase())
-        );
+        // Use regex matching for more robust detection
+        for (const pattern of brandPatterns) {
+          const regex = new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+          if (regex.test(responseText)) {
+            console.log(`         ✅ Brand detected via pattern: "${pattern}" in ${pt.llmProvider}`);
+            return true;
+          }
+        }
+        return false;
       });
 
       if (!brandFound && !brandFoundInText) {
@@ -115,10 +118,10 @@ class SubjectiveMetricsService {
 
       console.log(`✅ [SubjectiveMetrics] Evaluation prompt built (${evaluationPrompt.length} chars)`);
 
-      // 5. Call GPT-4o
+      // 5. Call GPT-4o-mini
       const gptResponse = await this.callGPT4o(evaluationPrompt);
       
-      console.log(`✅ [SubjectiveMetrics] GPT-4o evaluation complete`);
+      console.log(`✅ [SubjectiveMetrics] GPT-4o-mini evaluation complete`);
       console.log(`   Tokens: ${gptResponse.tokensUsed}`);
       console.log(`   Cost: $${gptResponse.cost.toFixed(4)}`);
 
@@ -177,16 +180,46 @@ class SubjectiveMetricsService {
    * Extract citation context for the brand
    */
   extractCitationContext(response, brandName, brandMetrics) {
-    // Find brand in brandMetrics
-    const brandMetric = brandMetrics?.find(
+    // Find brand in brandMetrics using pattern matching for consistency
+    let brandMetric = brandMetrics?.find(
       bm => bm.brandName.toLowerCase() === brandName.toLowerCase()
     );
 
+    // If not found in brandMetrics, try pattern matching in raw response
     if (!brandMetric || !brandMetric.mentioned) {
-      return {
-        found: false,
+      const responseText = response.rawResponse || '';
+      const brandPatterns = this.generateBrandPatterns(brandName);
+      
+      // Check if brand is mentioned using pattern matching
+      let brandMentioned = false;
+      for (const pattern of brandPatterns) {
+        const regex = new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        if (regex.test(responseText)) {
+          console.log(`         ✅ Brand detected via pattern in citation context: "${pattern}"`);
+          brandMentioned = true;
+          break;
+        }
+      }
+      
+      if (!brandMentioned) {
+        return {
+          found: false,
+          brandName,
+          message: 'Brand not mentioned in response'
+        };
+      }
+      
+      // Create a minimal brand metric for pattern-matched brands
+      brandMetric = {
         brandName,
-        message: 'Brand not mentioned in response'
+        mentioned: true,
+        mentionCount: 1,
+        firstPosition: 0,
+        totalWordCount: responseText.split(/\s+/).length,
+        sentences: [],
+        citations: [],
+        sentiment: 'neutral',
+        sentimentScore: 0
       };
     }
 
@@ -219,22 +252,134 @@ class SubjectiveMetricsService {
   }
 
   /**
-   * Extract citation text from sentences
+   * Generate intelligent brand patterns for robust matching
+   * Same logic as promptTestingService for consistency
+   */
+  generateBrandPatterns(brandName) {
+    const patterns = new Set([brandName]); // Always include exact brand name
+    
+    // Add case variations
+    patterns.add(brandName.toLowerCase());
+    patterns.add(brandName.toUpperCase());
+    patterns.add(brandName.charAt(0).toUpperCase() + brandName.slice(1).toLowerCase()); // Title case
+    
+    // Remove special characters and normalize
+    const cleanBrandName = brandName.replace(/[®™℠©]/g, '').trim();
+    patterns.add(cleanBrandName);
+    patterns.add(cleanBrandName.toLowerCase());
+    patterns.add(cleanBrandName.toUpperCase());
+    patterns.add(cleanBrandName.charAt(0).toUpperCase() + cleanBrandName.slice(1).toLowerCase());
+    
+    // Split brand name into words for intelligent matching
+    const words = cleanBrandName.split(/\s+/).filter(w => w.length > 1);
+    
+    if (words.length === 0) return Array.from(patterns);
+    
+    // Add individual significant words (excluding common product words)
+    const commonProductWords = new Set(['card', 'credit', 'debit', 'prepaid', 'rewards', 'cashback', 'travel', 'business', 'personal', 'premium', 'elite', 'gold', 'silver', 'platinum', 'diamond', 'black', 'blue', 'red', 'green', 'white']);
+    
+    words.forEach(word => {
+      if (!commonProductWords.has(word.toLowerCase())) {
+        patterns.add(word);
+        patterns.add(word.toLowerCase());
+        patterns.add(word.toUpperCase());
+        patterns.add(word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
+      }
+    });
+    
+    // Add meaningful word combinations (avoid over-generating)
+    if (words.length > 1) {
+      // Add first two words (common for "Brand Name" patterns)
+      if (words.length >= 2) {
+        const twoWords = `${words[0]} ${words[1]}`;
+        patterns.add(twoWords);
+        patterns.add(twoWords.toLowerCase());
+        patterns.add(twoWords.toUpperCase());
+        patterns.add(twoWords.charAt(0).toUpperCase() + twoWords.slice(1).toLowerCase());
+      }
+    }
+    
+    // Add strategic abbreviations for major brands
+    const firstWord = words[0];
+    if (firstWord) {
+      const abbreviationMap = {
+        'american': 'amex',
+        'american express': 'amex',
+        'chase': 'jpmorgan',
+        'jpmorgan': 'chase',
+        'capital': 'cap1',
+        'citibank': 'citi',
+        'mastercard': 'mc',
+        'visa': 'vs'
+      };
+      
+      const lowerFirst = firstWord.toLowerCase();
+      if (abbreviationMap[lowerFirst]) {
+        patterns.add(abbreviationMap[lowerFirst]);
+      }
+      
+      // Check if first word contains major brand names
+      Object.entries(abbreviationMap).forEach(([key, abbrev]) => {
+        if (lowerFirst.includes(key)) {
+          patterns.add(abbrev);
+        }
+      });
+    }
+    
+    // Add parent brand patterns for product-specific names
+    const productIndicators = ['card', 'credit', 'debit', 'rewards', 'cashback', 'travel', 'business'];
+    const hasProductIndicator = productIndicators.some(indicator => 
+      cleanBrandName.toLowerCase().includes(indicator)
+    );
+    
+    if (hasProductIndicator) {
+      // Extract parent brand name (everything before the first product indicator)
+      const productWords = cleanBrandName.toLowerCase().split(/\s+/);
+      const productIndex = productWords.findIndex(word => 
+        productIndicators.includes(word)
+      );
+      
+      if (productIndex > 0) {
+        const parentBrand = productWords.slice(0, productIndex).join(' ');
+        if (parentBrand.length > 0) {
+          patterns.add(parentBrand);
+          
+          // Add key parent brand + product combinations (not all combinations)
+          const keyProducts = ['card', 'credit'];
+          keyProducts.forEach(indicator => {
+            patterns.add(`${parentBrand} ${indicator}`);
+          });
+        }
+      }
+    }
+    
+    // Convert Set to Array, remove duplicates, and filter out empty patterns
+    return Array.from(patterns)
+      .filter(pattern => pattern && pattern.trim().length > 0)
+      .sort((a, b) => b.length - a.length); // Sort by length (longest first) for better matching
+  }
+
+  /**
+   * Extract citation text from sentences with improved context
    */
   extractCitationText(sentences) {
     if (!sentences || sentences.length === 0) return '';
     
-    // Take first 3 sentences or 300 chars, whichever is shorter
+    // Take up to 5 sentences or 500 chars, whichever is shorter
+    // This provides more context than the previous 3 sentences/300 chars
     const text = sentences
-      .slice(0, 3)
+      .slice(0, 5)
       .map(s => s.text)
       .join(' ');
     
-    return text.length > 300 ? text.substring(0, 300) + '...' : text;
+    const result = text.length > 500 ? text.substring(0, 500) + '...' : text;
+    console.log(`         📝 Citation context: ${sentences.length} sentences, ${result.length} chars (improved from 3 sentences/300 chars)`);
+    
+    return result;
   }
 
   /**
-   * Build unified evaluation prompt for GPT-4o
+   * Build unified evaluation prompt for GPT-4o-mini
    * Uses exact criteria from original geval prompts with reasoning addition
    */
   buildUnifiedPrompt(query, promptTests, brandName) {
@@ -425,7 +570,7 @@ EXAMPLE BAD REASONING:
   }
 
   /**
-   * Call GPT-4o via OpenRouter API
+   * Call GPT-4o-mini via OpenRouter API
    */
   async callGPT4o(prompt) {
     const startTime = Date.now();
@@ -466,8 +611,8 @@ EXAMPLE BAD REASONING:
       const inputTokens = usage.prompt_tokens;
       const outputTokens = usage.completion_tokens;
       
-      // GPT-4o pricing via OpenRouter: $5/1M input tokens, $15/1M output tokens
-      const cost = (inputTokens * 0.000005) + (outputTokens * 0.000015);
+      // GPT-4o-mini pricing via OpenRouter: $0.15/1M input tokens, $0.6/1M output tokens
+      const cost = (inputTokens * 0.00000015) + (outputTokens * 0.0000006);
 
       return {
         content,
@@ -485,7 +630,7 @@ EXAMPLE BAD REASONING:
   }
 
   /**
-   * Parse and validate GPT-4o response
+   * Parse and validate GPT-4o-mini response
    */
   parseMetricsResponse(gptResponse) {
     let metrics;
@@ -493,7 +638,7 @@ EXAMPLE BAD REASONING:
     try {
       metrics = JSON.parse(gptResponse);
     } catch (error) {
-      throw new Error('Invalid JSON response from GPT-4o');
+      throw new Error('Invalid JSON response from GPT-4o-mini');
     }
 
     // Validate all required metrics are present
@@ -563,7 +708,7 @@ EXAMPLE BAD REASONING:
       overallQuality: metrics.overall_quality,
       
       evaluatedAt: new Date(),
-      model: 'gpt-4o (via OpenRouter)',
+      model: 'gpt-4o-mini (via OpenRouter)',
       tokensUsed: gptResponse.tokensUsed,
       evaluationTime: Date.now() - startTime,
       cost: gptResponse.cost,

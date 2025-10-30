@@ -190,6 +190,18 @@ const urlAnalysisSchema = new mongoose.Schema({
     enum: ['completed', 'failed', 'processing'],
     default: 'completed'
   },
+  testMetadata: {
+    testRunId: {
+      type: String
+    },
+    lowCostModels: {
+      type: Boolean,
+      default: false
+    },
+    testedAt: {
+      type: Date
+    }
+  },
   createdAt: {
     type: Date,
     default: Date.now

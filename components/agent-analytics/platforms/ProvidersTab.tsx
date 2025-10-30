@@ -135,17 +135,17 @@ export function PlatformsTab({ range, realLLMData }: PlatformsTabProps) {
                     </TableCell>
                     <TableCell className="text-right py-3 px-3">
                       <span className="body-text text-muted-foreground">
-                        {platform.percentage.toFixed(1)}%
+                        {platform.percentage.toFixed(2)}%
                       </span>
                     </TableCell>
                     <TableCell className="text-right py-3 px-3">
                       <span className="metric text-sm text-foreground">
-                        {platform.sqs.toFixed(1)}
+                        {platform.sqs.toFixed(2)}
                       </span>
                     </TableCell>
                     <TableCell className="text-right py-3 px-3">
                       <span className="metric text-sm text-primary font-semibold">
-                        {platform.lvs.toFixed(1)}
+                        {platform.lvs.toFixed(2)}
                       </span>
                     </TableCell>
                     <TableCell className="text-right py-3 px-3">

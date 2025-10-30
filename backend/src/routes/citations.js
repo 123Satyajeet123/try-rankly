@@ -95,6 +95,92 @@ router.get('/debug/:brandName', devAuth, async (req, res) => {
 });
 
 /**
+ * Get prompt IDs for citations by URL
+ * POST /api/dashboard/citations/prompt-ids
+ */
+router.post('/prompt-ids', devAuth, async (req, res) => {
+  try {
+    const { citationUrls, brandName } = req.body;
+    const userId = req.userId;
+
+    if (!citationUrls || !Array.isArray(citationUrls) || citationUrls.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'citationUrls array is required'
+      });
+    }
+
+    console.log(`🔍 [CITATION PROMPT IDS] Finding prompt IDs for ${citationUrls.length} URLs, brand: ${brandName}`);
+
+    // Get the latest URL analysis for the user
+    const urlAnalysis = await UrlAnalysis.findOne({ userId })
+      .sort({ analysisDate: -1 })
+      .lean();
+
+    if (!urlAnalysis) {
+      return res.status(404).json({
+        success: false,
+        message: 'No URL analysis found for user'
+      });
+    }
+
+    // Find prompt tests that contain these citation URLs
+    // Query for tests that have citations matching any of the URLs
+    const promptTests = await PromptTest.find({
+      userId,
+      urlAnalysisId: urlAnalysis._id,
+      'brandMetrics.citations.url': { $in: citationUrls }
+    })
+    .select('promptId llmProvider brandMetrics')
+    .lean();
+
+    console.log(`✅ [CITATION PROMPT IDS] Found ${promptTests.length} prompt tests with matching citations`);
+
+    // Extract unique prompt IDs, checking each test's citations precisely
+    const allPromptIds = new Set();
+    const urlToPromptIds = {};
+    citationUrls.forEach(url => {
+      urlToPromptIds[url] = [];
+    });
+
+    promptTests.forEach(test => {
+      if (!test.promptId) return;
+
+      const promptIdStr = test.promptId.toString();
+      
+      // Check each brandMetric's citations to find exact URL matches
+      test.brandMetrics?.forEach(bm => {
+        bm.citations?.forEach(citation => {
+          if (citation.url && citationUrls.includes(citation.url)) {
+            if (!allPromptIds.has(promptIdStr)) {
+              allPromptIds.add(promptIdStr);
+            }
+            if (!urlToPromptIds[citation.url].includes(promptIdStr)) {
+              urlToPromptIds[citation.url].push(promptIdStr);
+            }
+          }
+        });
+      });
+    });
+
+    res.json({
+      success: true,
+      data: {
+        promptIds: Array.from(allPromptIds),
+        urlMapping: urlToPromptIds
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Get citation prompt IDs error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get citation prompt IDs'
+    });
+  }
+});
+
+/**
  * Get detailed citations for a specific brand and type
  * GET /api/dashboard/citations/:brandName/:type
  */
@@ -278,8 +364,9 @@ router.get('/:brandName/:type', devAuth, async (req, res) => {
             // Add platform
             citationGroups[url].platforms.add(test.llmProvider);
             
-            // Add prompt
+            // Add prompt with promptId for subjective metrics
             citationGroups[url].prompts.push({
+              promptId: test.promptId ? test.promptId.toString() : null,
               promptText: test.promptText,
               llmProvider: test.llmProvider,
               createdAt: test.createdAt

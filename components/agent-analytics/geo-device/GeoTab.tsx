@@ -27,6 +27,11 @@ interface GeoTabProps {
 export function GeoTab({ range, realGeoData, dateRange = '30 days', isLoading = false }: GeoTabProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
 
+  // Show skeleton if loading
+  if (isLoading) {
+    return <GeoDeviceSkeleton />
+  }
+
   // If no real data, show skeleton loading state
   if (!realGeoData || !realGeoData.data?.countries || realGeoData.data.countries.length === 0) {
     return <GeoDeviceSkeleton />

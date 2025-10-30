@@ -2,10 +2,9 @@ const axios = require('axios');
 const PromptTest = require('../models/PromptTest');
 const Prompt = require('../models/Prompt');
 const UrlAnalysis = require('../models/UrlAnalysis');
-const { config } = require('../config/hyperparameters');
 
 class PromptTestingService {
-  constructor() {
+  constructor(options = {}) {
     require('dotenv').config();
     this.openRouterApiKey = process.env.OPENROUTER_API_KEY;
     this.openRouterBaseUrl = 'https://openrouter.ai/api/v1';
@@ -14,14 +13,19 @@ class PromptTestingService {
       throw new Error('OPENROUTER_API_KEY environment variable is required');
     }
 
-    // Use centralized LLM model configuration
-    this.llmModels = config.llm.models;
+    // Default LLM models configuration - Low-cost models for testing
+    this.llmModels = options.models || {
+      openai: 'openai/gpt-4o-mini', // Already low-cost
+      gemini: 'google/gemini-2.0-flash-001', // Low-cost Flash model
+      claude: 'anthropic/claude-3-5-haiku', // Low-cost Haiku model
+      perplexity: 'perplexity/sonar' // Low-cost Sonar Reasoning
+    };
 
-    // Use centralized prompt testing configuration
-    this.maxPromptsToTest = config.prompts.maxToTest;
+    // Default prompt testing configuration
+    this.maxPromptsToTest = 20;
     
-    // Use centralized parallelization setting
-    this.aggressiveParallelization = config.prompts.aggressiveParallelization;
+    // Default parallelization setting
+    this.aggressiveParallelization = true;
 
     console.log('📋 [LLM MODELS] Configured:', this.llmModels);
     console.log(`🎯 [TEST LIMIT] Max prompts to test: ${this.maxPromptsToTest}`);
@@ -349,8 +353,11 @@ Be thorough, accurate, and helpful in your responses.`;
               content: promptText
             }
           ],
-          temperature: config.llm.temperature,
-          max_tokens: config.llm.promptTestingMaxTokens
+          temperature: 0.6, // Reduced for more consistent outputs
+          top_p: 0.9, // Nucleus sampling for focused responses
+          max_tokens: 1500, // Reduced to control costs
+          frequency_penalty: 0.3, // Discourage repetition
+          presence_penalty: 0.3 // Encourage variety
         },
         {
           headers: {
@@ -414,82 +421,388 @@ Be thorough, accurate, and helpful in your responses.`;
   }
 
   /**
-   * Extract citations from LLM response
+   * Extract citations from LLM response - Enhanced for unlimited capture across all 4 LLMs
    * @param {object} responseData - Full API response
-   * @param {string} llmProvider - LLM provider name
+   * @param {string} llmProvider - LLM provider name (openai, gemini, claude, perplexity)
    * @param {string} responseText - Response text content
-   * @returns {Array} - Array of citation objects
+   * @returns {Array} - Array of citation objects with proper labeling
    */
   extractCitations(responseData, llmProvider, responseText) {
     const citations = [];
+    const seenUrls = new Set(); // Track unique URLs to prevent duplicates
+    const seenIds = new Set(); // Track unique citation IDs
 
     try {
-      // Method 1: Perplexity returns citations in API response
+      console.log(`      🔍 [CITATIONS] Starting enhanced extraction for ${llmProvider}`);
+
+      // ===== PROVIDER-SPECIFIC CITATION EXTRACTION =====
+      
+      // Method 1: Perplexity API citations (structured in API response)
       if (llmProvider === 'perplexity' && responseData.citations) {
-        citations.push(...responseData.citations.map((cit, idx) => ({
-          url: cit,
-          type: 'source',
-          position: idx + 1,
-          provider: 'perplexity_api'
-        })));
-      }
-
-      // Method 2: Parse markdown links from response text [text](url)
-      const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
-      let match;
-      let position = 1;
-
-      while ((match = markdownLinkRegex.exec(responseText)) !== null) {
-        citations.push({
-          url: match[2],
-          text: match[1],
-          type: 'inline_link',
-          position: position++,
-          provider: llmProvider
-        });
-      }
-
-      // Method 3: Parse bare URLs
-      const urlRegex = /https?:\/\/[^\s<>"{}|\\^`[\]]+/g;
-      const urls = responseText.match(urlRegex) || [];
-      urls.forEach((url, idx) => {
-        // Avoid duplicates from markdown links
-        if (!citations.find(c => c.url === url)) {
-          citations.push({
-            url: url,
-            type: 'bare_url',
-            position: citations.length + 1,
-            provider: llmProvider
-          });
-        }
-      });
-
-      // Method 4: Parse citation markers like [1][3][5] or [1,2,3]
-      const citationMarkerRegex = /\[([0-9,\s]+)\]/g;
-      let citationMatch;
-      while ((citationMatch = citationMarkerRegex.exec(responseText)) !== null) {
-        const citationNumbers = citationMatch[1].split(/[,\s]+/).filter(n => n.trim());
-        citationNumbers.forEach(num => {
-          const citationId = num.trim();
-          if (citationId && !citations.find(c => c.id === citationId)) {
+        responseData.citations.forEach((cit, idx) => {
+          const cleanUrl = this.cleanUrl(cit);
+          if (cleanUrl && !seenUrls.has(cleanUrl)) {
             citations.push({
-              id: citationId,
-              url: `citation_${citationId}`, // Placeholder URL for citation markers
-              type: 'citation_marker',
+              url: cleanUrl,
+              text: `Citation ${idx + 1}`,
+              type: 'api_source',
               position: citations.length + 1,
-              provider: llmProvider
+              provider: 'perplexity_api',
+              confidence: 1.0,
+              label: 'perplexity_api_citation',
+              extractedAt: new Date().toISOString()
             });
+            seenUrls.add(cleanUrl);
+          }
+        });
+        console.log(`         ✅ Extracted ${responseData.citations.length} citations from Perplexity API`);
+      }
+
+      // Method 2: Claude API citations (if available in structured format)
+      if (llmProvider === 'claude' && responseData.sources) {
+        responseData.sources.forEach((source, idx) => {
+          const url = source.url || source;
+          const cleanUrl = this.cleanUrl(url);
+          if (cleanUrl && !seenUrls.has(cleanUrl)) {
+            citations.push({
+              url: cleanUrl,
+              text: source.text || `Claude source ${idx + 1}`,
+              type: 'api_source',
+              position: citations.length + 1,
+              provider: 'claude_api',
+              confidence: 0.95,
+              label: 'claude_api_citation',
+              extractedAt: new Date().toISOString()
+            });
+            seenUrls.add(cleanUrl);
           }
         });
       }
 
-      console.log(`      📎 [CITATIONS] Extracted ${citations.length} citations from ${llmProvider}`);
+      // Method 3: OpenAI API citations (if available in structured format)
+      if (llmProvider === 'openai' && responseData.citations) {
+        responseData.citations.forEach((cit, idx) => {
+          const cleanUrl = this.cleanUrl(cit.url || cit);
+          if (cleanUrl && !seenUrls.has(cleanUrl)) {
+            citations.push({
+              url: cleanUrl,
+              text: cit.text || `OpenAI citation ${idx + 1}`,
+              type: 'api_source',
+              position: citations.length + 1,
+              provider: 'openai_api',
+              confidence: 0.95,
+              label: 'openai_api_citation',
+              extractedAt: new Date().toISOString()
+            });
+            seenUrls.add(cleanUrl);
+          }
+        });
+      }
+
+      // Method 4: Gemini API citations (if available in structured format)
+      if (llmProvider === 'gemini' && responseData.citations) {
+        responseData.citations.forEach((cit, idx) => {
+          const cleanUrl = this.cleanUrl(cit.url || cit);
+          if (cleanUrl && !seenUrls.has(cleanUrl)) {
+            citations.push({
+              url: cleanUrl,
+              text: cit.text || `Gemini citation ${idx + 1}`,
+              type: 'api_source',
+              position: citations.length + 1,
+              provider: 'gemini_api',
+              confidence: 0.95,
+              label: 'gemini_api_citation',
+              extractedAt: new Date().toISOString()
+            });
+            seenUrls.add(cleanUrl);
+          }
+        });
+      }
+
+      // ===== TEXT-BASED CITATION EXTRACTION (Universal for all LLMs) =====
+
+      // Method 5: Enhanced markdown link parsing [text](url) - Multiple patterns
+      const markdownPatterns = [
+        /\[([^\]]+)\]\(([^)]+)\)/g,  // [text](url)
+        /\[([^\]]+)\]\[([^\]]+)\]/g, // [text][ref]
+        /\[([^\]]+)\]:\s*(https?:\/\/[^\s]+)/g, // [ref]: url
+        /\[([^\]]+)\]:\s*([^\s]+)/g  // [ref]: url (without protocol)
+      ];
+
+      markdownPatterns.forEach(pattern => {
+        let match;
+        while ((match = pattern.exec(responseText)) !== null) {
+          const text = match[1]?.trim();
+          let url = match[2]?.trim();
+          
+          if (url) {
+            // Add protocol if missing
+            if (!url.startsWith('http')) {
+              url = 'https://' + url;
+            }
+            
+            const cleanUrl = this.cleanUrl(url);
+            if (cleanUrl && !seenUrls.has(cleanUrl) && this.isValidUrl(cleanUrl)) {
+              citations.push({
+                url: cleanUrl,
+                text: text || 'Link',
+                type: 'markdown_link',
+                position: citations.length + 1,
+                provider: llmProvider,
+                confidence: 0.9,
+                label: 'markdown_link',
+                extractedAt: new Date().toISOString()
+              });
+              seenUrls.add(cleanUrl);
+            }
+          }
+        }
+      });
+
+      // Method 6: Bare URLs extraction - Enhanced regex patterns
+      const urlPatterns = [
+        /https?:\/\/[^\s<>"{}|\\^`[\]]+/g,  // Standard URLs
+        /https?:\/\/[^\s<>"{}|\\^`[\]]*[^\s<>"{}|\\^`[\].]/g,  // URLs ending properly
+        /www\.[^\s<>"{}|\\^`[\]]+\.[a-zA-Z]{2,}[^\s<>"{}|\\^`[\]]*/g,  // www URLs
+        /[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s<>"{}|\\^`[\]]*/g  // Domain patterns
+      ];
+
+      urlPatterns.forEach(pattern => {
+        const urls = responseText.match(pattern) || [];
+        urls.forEach(url => {
+          const cleanUrl = this.cleanUrl(url);
+          if (cleanUrl && !seenUrls.has(cleanUrl) && this.isValidUrl(cleanUrl)) {
+            citations.push({
+              url: cleanUrl,
+              text: null,
+              type: 'bare_url',
+              position: citations.length + 1,
+              provider: llmProvider,
+              confidence: 0.8,
+              label: 'bare_url',
+              extractedAt: new Date().toISOString()
+            });
+            seenUrls.add(cleanUrl);
+          }
+        });
+      });
+
+      // Method 7: Citation markers and references [1][2][3] or [1,2,3]
+      const citationMarkerPatterns = [
+        /\[([0-9,\s]+)\]/g,  // [1,2,3] or [1 2 3]
+        /\[([0-9]+)\]/g,     // [1] [2] [3]
+        /\(([0-9,\s]+)\)/g,  // (1,2,3) or (1 2 3)
+        /\(([0-9]+)\)/g,     // (1) (2) (3)
+        /^\[([0-9]+)\]:\s*(.+)$/gm,  // [1]: url
+        /^(\d+)\.\s*(https?:\/\/[^\s]+)/gm  // 1. url
+      ];
+
+      citationMarkerPatterns.forEach(pattern => {
+        let match;
+        while ((match = pattern.exec(responseText)) !== null) {
+          // Handle direct URL references
+          if (match[2] && match[2].startsWith('http')) {
+            const cleanUrl = this.cleanUrl(match[2]);
+            if (cleanUrl && !seenUrls.has(cleanUrl) && this.isValidUrl(cleanUrl)) {
+              citations.push({
+                url: cleanUrl,
+                text: `Reference ${match[1]}`,
+                type: 'reference',
+                position: citations.length + 1,
+                provider: llmProvider,
+                confidence: 0.9,
+                label: 'numbered_reference',
+                extractedAt: new Date().toISOString()
+              });
+              seenUrls.add(cleanUrl);
+            }
+          } else if (match[1] && !match[2]) {
+            // Citation markers without URLs
+            const citationNumbers = match[1].split(/[,\s]+/).filter(n => n.trim());
+            citationNumbers.forEach(num => {
+              const citationId = num.trim();
+              if (citationId && !seenIds.has(citationId)) {
+                citations.push({
+                  id: citationId,
+                  url: `citation_${citationId}`,
+                  text: `Citation ${citationId}`,
+                  type: 'citation_marker',
+                  position: citations.length + 1,
+                  provider: llmProvider,
+                  confidence: 0.7,
+                  label: 'citation_marker',
+                  extractedAt: new Date().toISOString()
+                });
+                seenIds.add(citationId);
+              }
+            });
+          }
+        }
+      });
+
+      // Method 8: HTML links <a href="url">text</a>
+      const htmlPatterns = [
+        /<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi,  // <a href="url">text</a>
+        /<a[^>]+href=([^\s>]+)[^>]*>([^<]*)<\/a>/gi,         // <a href=url>text</a>
+        /href=["']([^"']+)["']/gi,                           // href="url"
+        /href=([^\s>]+)/gi                                   // href=url
+      ];
+
+      htmlPatterns.forEach(pattern => {
+        let match;
+        while ((match = pattern.exec(responseText)) !== null) {
+          const url = match[1] || match[0];
+          const text = match[2] || 'Link';
+          
+          if (url && url.startsWith('http')) {
+            const cleanUrl = this.cleanUrl(url);
+            if (cleanUrl && !seenUrls.has(cleanUrl) && this.isValidUrl(cleanUrl)) {
+              citations.push({
+                url: cleanUrl,
+                text: text,
+                type: 'html_link',
+                position: citations.length + 1,
+                provider: llmProvider,
+                confidence: 0.9,
+                label: 'html_link',
+                extractedAt: new Date().toISOString()
+              });
+              seenUrls.add(cleanUrl);
+            }
+          }
+        }
+      });
+
+      // Method 9: Reference patterns and footnotes
+      const referencePatterns = [
+        /See\s+(?:also\s+)?(?:https?:\/\/[^\s]+)/gi,  // See also url
+        /For\s+more\s+information[^:]*:\s*(https?:\/\/[^\s]+)/gi,  // For more info: url
+        /Source:\s*(https?:\/\/[^\s]+)/gi,  // Source: url
+        /Reference:\s*(https?:\/\/[^\s]+)/gi,  // Reference: url
+        /Visit:\s*(https?:\/\/[^\s]+)/gi,  // Visit: url
+        /Learn\s+more[^:]*:\s*(https?:\/\/[^\s]+)/gi,  // Learn more: url
+        /Check\s+out[^:]*:\s*(https?:\/\/[^\s]+)/gi  // Check out: url
+      ];
+
+      referencePatterns.forEach(pattern => {
+        let match;
+        while ((match = pattern.exec(responseText)) !== null) {
+          const url = match[1] || match[0];
+          if (url && url.startsWith('http')) {
+            const cleanUrl = this.cleanUrl(url);
+            if (cleanUrl && !seenUrls.has(cleanUrl) && this.isValidUrl(cleanUrl)) {
+              citations.push({
+                url: cleanUrl,
+                text: 'Reference',
+                type: 'reference',
+                position: citations.length + 1,
+                provider: llmProvider,
+                confidence: 0.8,
+                label: 'textual_reference',
+                extractedAt: new Date().toISOString()
+              });
+              seenUrls.add(cleanUrl);
+            }
+          }
+        }
+      });
+
+      // Clean and validate all citations
+      const cleanedCitations = this.cleanAndValidateCitations(citations, llmProvider);
+
+      // Sort by position
+      cleanedCitations.sort((a, b) => a.position - b.position);
+
+      console.log(`      📎 [CITATIONS] Extracted ${cleanedCitations.length} unique citations from ${llmProvider}`);
+      console.log(`      📊 [CITATIONS] Breakdown: ${this.getCitationBreakdown(cleanedCitations)}`);
+
+      return cleanedCitations;
 
     } catch (error) {
       console.error(`      ❌ [CITATIONS ERROR] Failed to extract citations:`, error.message);
+      console.error(`      Stack:`, error.stack);
+      return citations; // Return what we have so far
     }
+  }
 
-    return citations;
+  /**
+   * Clean URL by removing trailing punctuation and normalizing
+   */
+  cleanUrl(url) {
+    if (!url || typeof url !== 'string') return null;
+    
+    try {
+      // Remove trailing punctuation
+      let cleanUrl = url.replace(/[)\\].,;!?]+$/, '');
+      
+      // Add protocol if missing
+      if (!cleanUrl.startsWith('http')) {
+        cleanUrl = 'https://' + cleanUrl;
+      }
+      
+      // Normalize URL
+      const urlObj = new URL(cleanUrl);
+      return urlObj.toString();
+    } catch (e) {
+      // If URL parsing fails, try basic cleaning
+      return url.replace(/[)\\].,;!?]+$/, '').trim();
+    }
+  }
+
+  /**
+   * Validate if URL is properly formatted
+   */
+  isValidUrl(url) {
+    if (!url || typeof url !== 'string') return false;
+    
+    try {
+      const urlObj = new URL(url);
+      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
+   * Clean and validate all extracted citations
+   */
+  cleanAndValidateCitations(citations, llmProvider) {
+    return citations
+      .filter(citation => {
+        // Remove invalid citations
+        if (!citation.url || citation.url === 'undefined' || citation.url === 'null') {
+          return false;
+        }
+        
+        // Keep citation markers (they're placeholders for references)
+        // But filter them out if they're not valid
+        if (citation.url.startsWith('citation_')) {
+          return true; // Keep citation markers
+        }
+        
+        // Validate URL format
+        return this.isValidUrl(citation.url);
+      })
+      .map(citation => ({
+        ...citation,
+        url: citation.url.startsWith('citation_') ? citation.url : this.cleanUrl(citation.url),
+        llmProvider: llmProvider,
+        extractedAt: citation.extractedAt || new Date().toISOString()
+      }));
+  }
+
+  /**
+   * Get citation breakdown for logging
+   */
+  getCitationBreakdown(citations) {
+    const breakdown = {};
+    citations.forEach(citation => {
+      const type = citation.type || 'unknown';
+      breakdown[type] = (breakdown[type] || 0) + 1;
+    });
+    return Object.entries(breakdown)
+      .map(([type, count]) => `${type}: ${count}`)
+      .join(', ');
   }
 
   /**
@@ -544,8 +857,57 @@ Be thorough, accurate, and helpful in your responses.`;
 
   /**
    * Classify if a domain belongs to a brand (official brand-owned sources)
+   * Enhanced to work dynamically with any brand from the database
    */
   classifyBrandCitation(domain, allBrands = []) {
+    // First, check against user's brands and competitors dynamically
+    if (allBrands && allBrands.length > 0) {
+      for (const brand of allBrands) {
+        const brandName = brand.name || brand;
+        if (!brandName) continue;
+        
+        // Generate possible domain variations for this brand
+        const possibleDomains = this.generateDomainVariations(brandName);
+        
+        // Check exact domain match
+        if (possibleDomains.includes(domain)) {
+          return { 
+            type: 'brand', 
+            brand: brandName, 
+            confidence: 0.95,
+            label: 'brand_owned_domain'
+          };
+        }
+        
+        // Check subdomain patterns (e.g., blog.example.com, www.example.com)
+        for (const possibleDomain of possibleDomains) {
+          if (domain.endsWith('.' + possibleDomain)) {
+            return { 
+              type: 'brand', 
+              brand: brandName, 
+              confidence: 0.85,
+              label: 'brand_subdomain'
+            };
+          }
+        }
+        
+        // Check for brand name patterns in domain
+        const brandPatterns = this.generateBrandPatterns(brandName);
+        for (const pattern of brandPatterns) {
+          const normalizedPattern = pattern.toLowerCase().replace(/\s+/g, '');
+          if (domain.includes(normalizedPattern)) {
+            return { 
+              type: 'brand', 
+              brand: brandName, 
+              confidence: 0.75,
+              label: 'brand_pattern_match'
+            };
+          }
+        }
+      }
+    }
+    
+    // Fallback: Check against hardcoded brand domains (for legacy support)
     const brandDomains = [
       'americanexpress.com', 'amex.com', 'americanexpress.co.uk', 'amex.co.uk',
       'chase.com', 'chasebank.com', 'chase.co.uk',
@@ -558,27 +920,68 @@ Be thorough, accurate, and helpful in your responses.`;
     
     // Check exact domain matches
     if (brandDomains.includes(domain)) {
-      return { type: 'brand', brand: this.extractBrandFromDomain(domain), confidence: 0.9 };
+      return { 
+        type: 'brand', 
+        brand: this.extractBrandFromDomain(domain), 
+        confidence: 0.9,
+        label: 'brand_owned_domain'
+      };
     }
     
     // Check subdomain patterns for brands
     for (const brandDomain of brandDomains) {
       if (domain.endsWith('.' + brandDomain)) {
-        return { type: 'brand', brand: this.extractBrandFromDomain(brandDomain), confidence: 0.8 };
-      }
-    }
-    
-    // Check for brand name patterns in domain
-    for (const brand of allBrands) {
-      const brandPatterns = this.generateBrandPatterns(brand.name || brand);
-      for (const pattern of brandPatterns) {
-        if (domain.includes(pattern.toLowerCase().replace(/\s+/g, ''))) {
-          return { type: 'brand', brand: brand.name || brand, confidence: 0.7 };
-        }
+        return { 
+          type: 'brand', 
+          brand: this.extractBrandFromDomain(brandDomain), 
+          confidence: 0.8,
+          label: 'brand_subdomain'
+        };
       }
     }
     
     return { type: 'unknown', brand: null, confidence: 0 };
+  }
+
+  /**
+   * Generate possible domain variations for a brand name
+   * Used for dynamic brand citation detection
+   */
+  generateDomainVariations(brandName) {
+    const variations = new Set();
+    
+    // Clean brand name
+    const cleanName = brandName.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
+    const words = cleanName.split(/\s+/);
+    
+    // Add exact brand name
+    variations.add(cleanName);
+    
+    // Add without spaces
+    variations.add(cleanName.replace(/\s+/g, ''));
+    
+    // Add with hyphens
+    variations.add(cleanName.replace(/\s+/g, '-'));
+    
+    // Add with dots
+    variations.add(cleanName.replace(/\s+/g, '.'));
+    
+    // Add with underscores
+    variations.add(cleanName.replace(/\s+/g, '_'));
+    
+    // Add first word only
+    if (words.length > 1) {
+      variations.add(words[0]);
+    }
+    
+    // Add first two words
+    if (words.length >= 2) {
+      variations.add(words.slice(0, 2).join(''));
+      variations.add(words.slice(0, 2).join('-'));
+      variations.add(words.slice(0, 2).join('.'));
+    }
+    
+    return Array.from(variations);
   }
 
   /**
@@ -609,7 +1012,12 @@ Be thorough, accurate, and helpful in your responses.`;
     
     for (const socialDomain of socialDomains) {
       if (domain === socialDomain || domain.endsWith('.' + socialDomain)) {
-        return { type: 'social', brand: null, confidence: 0.9 };
+        return { 
+          type: 'social', 
+          brand: null, 
+          confidence: 0.9,
+          label: 'social_media_platform'
+        };
       }
     }
     
@@ -633,7 +1041,12 @@ Be thorough, accurate, and helpful in your responses.`;
     
     for (const newsDomain of newsDomains) {
       if (domain === newsDomain || domain.endsWith('.' + newsDomain)) {
-        return { type: 'earned', brand: null, confidence: 0.9 };
+        return { 
+          type: 'earned', 
+          brand: null, 
+          confidence: 0.9,
+          label: 'news_media_outlet'
+        };
       }
     }
     
@@ -653,7 +1066,12 @@ Be thorough, accurate, and helpful in your responses.`;
     
     for (const reviewDomain of reviewDomains) {
       if (domain === reviewDomain || domain.endsWith('.' + reviewDomain)) {
-        return { type: 'earned', brand: null, confidence: 0.8 };
+        return { 
+          type: 'earned', 
+          brand: null, 
+          confidence: 0.8,
+          label: 'review_analysis_site'
+        };
       }
     }
     
@@ -672,12 +1090,22 @@ Be thorough, accurate, and helpful in your responses.`;
     
     for (const financialDomain of financialDomains) {
       if (domain === financialDomain || domain.endsWith('.' + financialDomain)) {
-        return { type: 'earned', brand: null, confidence: 0.8 };
+        return { 
+          type: 'earned', 
+          brand: null, 
+          confidence: 0.8,
+          label: 'financial_media_site'
+        };
       }
     }
     
-    // Default to earned media for unknown domains
-    return { type: 'earned', brand: null, confidence: 0.5 };
+    // Default to earned media for unknown domains (third-party editorial references)
+    return { 
+      type: 'earned', 
+      brand: null, 
+      confidence: 0.5,
+      label: 'third_party_editorial'
+    };
   }
 
   /**
@@ -708,22 +1136,32 @@ Be thorough, accurate, and helpful in your responses.`;
    * @returns {object} - Sentiment analysis { sentiment, sentimentScore, drivers }
    */
   analyzeSentiment(responseText, brandName, brandPatterns = [brandName]) {
-    // Positive keywords
+    // Expanded positive keywords - stronger signals
     const positiveKeywords = [
       'best', 'excellent', 'great', 'top', 'leading', 'trusted', 'reliable', 
       'recommended', 'popular', 'strong', 'superior', 'outstanding', 'premier',
       'robust', 'comprehensive', 'flexible', 'innovative', 'powerful', 'advanced',
       'seamless', 'easy', 'simple', 'efficient', 'effective', 'preferred', 'ideal',
-      'unmatched', 'favored', 'recognized', 'renowned'
+      'unmatched', 'favored', 'recognized', 'renowned', 'good', 'quality', 'solid',
+      'worthy', 'valuable', 'beneficial', 'helpful', 'useful', 'proven', 'established',
+      'successful', 'well-regarded', 'highly', 'very', 'particularly', 'especially',
+      'impressive', 'notable', 'significant', 'substantial', 'essential', 'important',
+      'vital', 'crucial', 'advantageous', 'promising', 'suitable', 'appropriate'
     ];
 
-    // Negative keywords
+    // Expanded negative keywords - stronger signals
     const negativeKeywords = [
       'bad', 'poor', 'worst', 'weak', 'limited', 'lacking', 'difficult', 
       'complicated', 'expensive', 'costly', 'slow', 'unreliable', 'problematic',
       'issues', 'problems', 'concerns', 'drawbacks', 'disadvantages', 'limitations',
-      'struggles', 'fails', 'inferior', 'outdated'
+      'struggles', 'fails', 'inferior', 'outdated', 'challenging', 'complex',
+      'questionable', 'unclear', 'insufficient', 'inadequate', 'substandard',
+      'disappointing', 'concerning', 'troublesome', 'risky', 'uncertain', 'weak',
+      'fragile', 'unstable', 'inefficient', 'ineffective', 'unsuitable', 'inappropriate'
     ];
+
+    // Negation words that flip sentiment
+    const negationWords = ['not', 'no', 'never', 'none', 'neither', 'barely', 'hardly', 'scarcely', 'rarely', 'seldom'];
 
     // Extract sentences mentioning the brand using flexible patterns
     const sentences = responseText.split(/[.!?]+/).filter(s => s.trim().length > 0);
@@ -747,30 +1185,50 @@ Be thorough, accurate, and helpful in your responses.`;
       let sentenceScore = 0;
       const foundKeywords = [];
 
+      // Check for negation words first
+      const hasNegation = negationWords.some(neg => {
+        const regex = new RegExp(`\\b${neg}\\b`, 'i');
+        return regex.test(lowerSentence);
+      });
+
       // Count positive keywords
       positiveKeywords.forEach(keyword => {
-        if (lowerSentence.includes(keyword)) {
-          sentenceScore += 0.3;
-          foundKeywords.push('+' + keyword);
+        const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+        if (regex.test(lowerSentence)) {
+          // If negation is present, flip to negative
+          if (hasNegation) {
+            sentenceScore -= 0.2;
+            foundKeywords.push('-' + keyword + ' (negated)');
+          } else {
+            sentenceScore += 0.4; // Increased from 0.3 for better detection
+            foundKeywords.push('+' + keyword);
+          }
         }
       });
 
       // Count negative keywords
       negativeKeywords.forEach(keyword => {
-        if (lowerSentence.includes(keyword)) {
-          sentenceScore -= 0.3;
-          foundKeywords.push('-' + keyword);
+        const regex = new RegExp(`\\b${keyword}\\b`, 'i');
+        if (regex.test(lowerSentence)) {
+          // If negation is present, flip to positive
+          if (hasNegation) {
+            sentenceScore += 0.2;
+            foundKeywords.push('+' + keyword + ' (negated)');
+          } else {
+            sentenceScore -= 0.4; // Increased from 0.3 for better detection
+            foundKeywords.push('-' + keyword);
+          }
         }
       });
 
-      // Determine sentence sentiment
+      // Determine sentence sentiment with lower thresholds
       let sentenceSentiment = 'neutral';
-      if (sentenceScore > 0.3) sentenceSentiment = 'positive';
-      else if (sentenceScore < -0.3) sentenceSentiment = 'negative';
+      if (sentenceScore > 0.2) sentenceSentiment = 'positive'; // Lowered from 0.3
+      else if (sentenceScore < -0.2) sentenceSentiment = 'negative'; // Lowered from -0.3
 
-      if (foundKeywords.length > 0) {
+      if (foundKeywords.length > 0 || sentenceSentiment !== 'neutral') {
         drivers.push({
-          text: sentence.substring(0, 100),
+          text: sentence.substring(0, 150), // Increased length for better context
           sentiment: sentenceSentiment,
           keywords: foundKeywords
         });
@@ -779,16 +1237,19 @@ Be thorough, accurate, and helpful in your responses.`;
       totalScore += sentenceScore;
     });
 
-    // Calculate overall sentiment
-    const avgScore = totalScore / brandSentences.length;
+    // Calculate overall sentiment with improved thresholds
+    const avgScore = brandSentences.length > 0 ? totalScore / brandSentences.length : 0;
     const normalizedScore = Math.max(-1, Math.min(1, avgScore)); // Clamp to -1 to +1
 
     let overallSentiment = 'neutral';
-    if (normalizedScore > 0.2) overallSentiment = 'positive';
-    else if (normalizedScore < -0.2) overallSentiment = 'negative';
+    // Lowered thresholds for better detection
+    if (normalizedScore > 0.1) overallSentiment = 'positive'; // Lowered from 0.2
+    else if (normalizedScore < -0.1) overallSentiment = 'negative'; // Lowered from -0.2
     else if (drivers.some(d => d.sentiment === 'positive') && drivers.some(d => d.sentiment === 'negative')) {
       overallSentiment = 'mixed';
     }
+
+    console.log(`         😊 Sentiment: ${overallSentiment} (Score: ${normalizedScore.toFixed(3)}, Drivers: ${drivers.length})`);
 
     return {
       sentiment: overallSentiment,
@@ -916,12 +1377,12 @@ Be thorough, accurate, and helpful in your responses.`;
           sentiment: sentimentAnalysis.sentiment,
           sentimentScore: sentimentAnalysis.sentimentScore,
           sentimentDrivers: sentimentAnalysis.drivers,
-          citations: categorizedCitations
+          citations: categorizedCitations,
+          // NEW: owner flag
+          isOwner: (brand.trim().toLowerCase() === brandName.trim().toLowerCase())
         });
       }
     });
-
-    return brandMetrics;
 
     // Add earned citations to primary brand if mentioned
     const assignedUrls = new Set(
@@ -1129,14 +1590,30 @@ Be thorough, accurate, and helpful in your responses.`;
                         earnedCitationsCount > 0 ? 'reference' : 
                         socialCitationsCount > 0 ? 'social' : 'none';
 
-    // Find competitors mentioned in response
+    // Find competitors mentioned in response using intelligent pattern matching
     const competitorsMentioned = [];
     
     competitors.forEach(comp => {
-      const regex = new RegExp(comp.name, 'gi');
-      const mentions = (responseText.match(regex) || []).length;
-      if (mentions > 0) {
-        if (comp.name) competitorsMentioned.push(comp.name);
+      if (!comp.name || comp.name.trim().length === 0) return;
+      
+      // Generate intelligent patterns for competitor name (same as brand patterns)
+      const competitorPatterns = this.generateBrandPatterns(comp.name);
+      let competitorMentioned = false;
+      let totalMentions = 0;
+      
+      // Check if any pattern matches in the response
+      for (const pattern of competitorPatterns) {
+        const regex = new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+        const matches = (responseText.match(regex) || []).length;
+        if (matches > 0) {
+          competitorMentioned = true;
+          totalMentions += matches;
+        }
+      }
+      
+      if (competitorMentioned) {
+        competitorsMentioned.push(comp.name);
+        console.log(`         ✅ Competitor detected: ${comp.name} (${totalMentions} mentions)`);
       }
     });
 
@@ -1471,6 +1948,27 @@ Be thorough, accurate, and helpful in your responses.`;
       bestPerformingLLM: sortedLLMs[0]?.[0] || 'none',
       worstPerformingLLM: sortedLLMs[sortedLLMs.length - 1]?.[0] || 'none',
       llmPerformance: llmAverages
+    };
+  }
+
+  /**
+   * Get default scorecard structure for failed tests
+   * @returns {Object} Default scorecard with all metrics set to default values
+   */
+  getDefaultScorecard() {
+    return {
+      brandMentioned: false,
+      brandPosition: null,
+      brandMentionCount: 0,
+      citationPresent: false,
+      citationType: 'none',
+      brandCitations: 0,
+      earnedCitations: 0,
+      socialCitations: 0,
+      totalCitations: 0,
+      sentiment: 'neutral',
+      sentimentScore: 0,
+      competitorsMentioned: []
     };
   }
 }

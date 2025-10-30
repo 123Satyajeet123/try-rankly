@@ -264,8 +264,8 @@ router.post('/generate', devAuth, async (req, res) => {
 
     // Generate prompts using AI service
     // Use centralized configuration
-    const { config } = require('../config/hyperparameters');
-    const totalPrompts = config.prompts.maxToTest;
+    // Removed hyperparameters config dependency
+    const totalPrompts = 20;
     
     console.log(`📊 Generating ${totalPrompts} prompts per combination`);
     
@@ -285,15 +285,28 @@ router.post('/generate', devAuth, async (req, res) => {
     // Save prompts to database
     const savedPrompts = [];
     for (const promptData of generatedPrompts) {
-      // Find the topic and persona ObjectIds
-      const topic = selectedTopics.find(t => t._id.toString() === promptData.topicId);
-      const persona = selectedPersonas.find(p => p._id.toString() === promptData.personaId);
-
-      if (!topic || !persona) {
-        console.warn('Skipping prompt - topic or persona not found:', promptData);
+      // TOFU/Commercial strictness: Only allow 'Commercial' queryType
+      if (promptData.queryType !== 'Commercial') {
+        console.log(`⏩ Skipping non-commercial prompt (queryType: ${promptData.queryType}):`, promptData.promptText);
         continue;
       }
-
+      // Core deduplication (case-insensitive, normalized)
+      const topic = selectedTopics.find(t => t._id.toString() === promptData.topicId);
+      const persona = selectedPersonas.find(p => p._id.toString() === promptData.personaId);
+      if (!topic || !persona) continue;
+      const normalized = normalizePromptText(promptData.promptText);
+      const exists = await Prompt.findOne({
+        userId,
+        topicId: topic._id,
+        personaId: persona._id,
+        queryType: promptData.queryType,
+        text: { $regex: new RegExp('^' + normalized + '$', 'i') }
+      });
+      if (exists) {
+        console.log('⏩ Skipping duplicate prompt:', promptData.promptText);
+        continue;
+      }
+      // Save commercial prompt
       const prompt = new Prompt({
         userId,
         topicId: topic._id,
@@ -307,7 +320,6 @@ router.post('/generate', devAuth, async (req, res) => {
           targetCompetitors: competitorData.map(c => c.name)
         }
       });
-
       await prompt.save();
       savedPrompts.push({
         id: prompt._id,
@@ -383,8 +395,8 @@ router.post('/test', devAuth, async (req, res) => {
     }
     
     // Use centralized configuration
-    const { config } = require('../config/hyperparameters');
-    const maxPromptsToTest = config.prompts.maxToTest;
+    // Removed hyperparameters config dependency
+    const maxPromptsToTest = 20;
     
     console.log(`📊 [START] Testing prompts across 4 LLMs (limit: ${maxPromptsToTest})...`);
     const testStartTime = Date.now();
@@ -466,6 +478,49 @@ router.get('/:promptId/tests', devAuth, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to get test results'
+    });
+  }
+});
+
+// Search prompt tests by prompt text and LLM provider
+router.post('/tests/search', devAuth, async (req, res) => {
+  try {
+    const { promptText, llmProvider } = req.body;
+    const userId = req.userId;
+    
+    if (!promptText || !llmProvider) {
+      return res.status(400).json({
+        success: false,
+        message: 'promptText and llmProvider are required'
+      });
+    }
+    
+    console.log(`🔍 [PROMPT TEST SEARCH] Searching for prompt: "${promptText.substring(0, 50)}..." with provider: ${llmProvider}`);
+    
+    // Search for prompt tests that match the prompt text and LLM provider
+    const promptTests = await PromptTest.find({
+      userId,
+      promptText: { $regex: promptText, $options: 'i' }, // Case-insensitive search
+      llmProvider: llmProvider.toLowerCase(),
+      status: 'completed'
+    })
+    .populate('promptId', 'text queryType')
+    .sort({ testedAt: -1 })
+    .limit(5) // Limit to 5 results
+    .lean();
+    
+    console.log(`✅ [PROMPT TEST SEARCH] Found ${promptTests.length} matching tests`);
+    
+    res.json({
+      success: true,
+      data: promptTests
+    });
+    
+  } catch (error) {
+    console.error('❌ Prompt test search error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to search prompt tests'
     });
   }
 });
@@ -939,20 +994,27 @@ router.get('/details/:promptId', devAuth, async (req, res) => {
       'perplexity': 'Perplexity',
       'gemini': 'Gemini'
     };
-
+    
     promptTests.forEach(test => {
       const platformName = platformNames[test.llmProvider] || test.llmProvider;
-      
+
+      // Extract mentioned brands/competitors for this prompt test
+      let mentionedBrands = [];
+      let mentionedCompetitors = [];
+      if (Array.isArray(test.brandMetrics)) {
+        mentionedBrands = test.brandMetrics.filter(bm => bm.mentioned && bm.isOwner !== false).map(bm => bm.brandName);
+        // Heuristic: any brandMetric not known as the user's brand is treated as competitor
+        mentionedCompetitors = test.brandMetrics.filter(bm => bm.mentioned && bm.isOwner === false).map(bm => bm.brandName);
+      }
+
       if (!platformResponses[platformName]) {
         platformResponses[platformName] = {
           platform: platformName,
           response: test.rawResponse || 'No response available',
-          llmProvider: test.llmProvider,
-          llmModel: test.llmModel,
-          responseTime: test.responseTime,
-          tokensUsed: test.tokensUsed,
-          cost: test.cost,
-          createdAt: test.createdAt,
+          mentionedEntities: {
+            brands: mentionedBrands,
+            competitors: mentionedCompetitors
+          },
           metrics: test.scorecard || {}
         };
       }

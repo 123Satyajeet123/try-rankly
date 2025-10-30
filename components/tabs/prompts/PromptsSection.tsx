@@ -1881,11 +1881,20 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                                                   {platformResponse.response}
                                                 </ReactMarkdown>
                                               </div>
-                                              <div className="flex gap-4 text-xs text-muted-foreground">
-                                                <span>Model: {platformResponse.llmModel}</span>
-                                                <span>Tokens: {platformResponse.tokensUsed}</span>
-                                                <span>Time: {platformResponse.responseTime}ms</span>
-                                              </div>
+                                              {/* NEW: Brands/Competitors mentioned */}
+                                              {platformResponse.mentionedEntities && (
+                                                <div className="flex flex-wrap gap-2 text-xs text-primary-foreground bg-primary/20 px-2 py-1 rounded-sm">
+                                                  {platformResponse.mentionedEntities.brands && platformResponse.mentionedEntities.brands.length > 0 && (
+                                                    <span><b>Brands mentioned:</b> {platformResponse.mentionedEntities.brands.join(', ')}</span>
+                                                  )}
+                                                  {platformResponse.mentionedEntities.competitors && platformResponse.mentionedEntities.competitors.length > 0 && (
+                                                    <span><b>Competitors:</b> {platformResponse.mentionedEntities.competitors.join(', ')}</span>
+                                                  )}
+                                                  {(!platformResponse.mentionedEntities.brands?.length && !platformResponse.mentionedEntities.competitors?.length) && (
+                                                    <span className="italic text-muted-foreground">No brand or competitor mention detected in this answer</span>
+                                                  )}
+                                                </div>
+                                              )}
                                             </div>
                                           ) : (
                                             <p className="text-sm text-muted-foreground">

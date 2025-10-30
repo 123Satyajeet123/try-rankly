@@ -52,7 +52,14 @@ async function ga4ConnectionMiddleware(req, res, next) {
     }
 
     // Attach connection to request
-    req.ga4Connection = gaConnection;
+    req.ga4Connection = {
+      propertyId: gaConnection.propertyId,
+      accountId: gaConnection.accountId,
+      propertyName: gaConnection.propertyName,
+      accountName: gaConnection.accountName,
+      accessToken: gaConnection.accessToken,
+      defaultUri: gaConnection.defaultUri || null // Include default URI
+    };
     next();
   } catch (error) {
     console.error('Error in GA4 connection middleware:', error);

@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Info } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { GeoDeviceSkeleton } from '@/components/ui/geo-device-skeleton'
+import { getConversionEvents, getDevices, getDateRange } from '@/services/ga4Api'
 
 interface DeviceTabProps {
   range: Range
@@ -31,10 +32,9 @@ export function DeviceTab({ range, realDeviceData, dateRange = '30 days', isLoad
   useEffect(() => {
     const fetchConversionEvents = async () => {
       try {
-        const response = await fetch('/api/ga4/conversion-events')
-        const data = await response.json()
-        if (data.success) {
-          setConversionEvents(data.data.events)
+        const response = await getConversionEvents()
+        if (response.success) {
+          setConversionEvents(response.data.events || [])
         }
       } catch (error) {
         console.error('Failed to fetch conversion events:', error)
@@ -43,26 +43,10 @@ export function DeviceTab({ range, realDeviceData, dateRange = '30 days', isLoad
     fetchConversionEvents()
   }, [])
 
-  // Fetch device data when conversion event changes
-  useEffect(() => {
-    const fetchDeviceData = async () => {
-      try {
-        const response = await fetch(`/api/ga4/devices?dateRange=${dateRange}&conversionEvent=${selectedConversionEvent}`)
-        const data = await response.json()
-        if (data.success) {
-          // Update the device data with new conversion rates
-          // This would require the parent component to handle the data update
-          console.log('Device data updated for conversion event:', selectedConversionEvent, data)
-        }
-      } catch (error) {
-        console.error('Failed to fetch device data:', error)
-      }
-    }
-    
-    if (selectedConversionEvent && selectedConversionEvent !== 'conversions') {
-      fetchDeviceData()
-    }
-  }, [selectedConversionEvent, dateRange])
+  // Show skeleton if loading
+  if (isLoading) {
+    return <GeoDeviceSkeleton />
+  }
 
   // If no real data, show skeleton loading state
   if (!realDeviceData || !realDeviceData.data?.deviceBreakdown || realDeviceData.data.deviceBreakdown.length === 0) {
@@ -239,7 +223,7 @@ export function DeviceTab({ range, realDeviceData, dateRange = '30 days', isLoad
                         </TableCell>
 
                         <TableCell className="text-center align-middle">
-                          <span className="text-sm font-medium text-destructive">{device.bounceRate}%</span>
+                          <span className="text-sm font-medium text-destructive">{device.bounceRate.toFixed(1)}%</span>
                         </TableCell>
 
                         <TableCell className="text-center align-middle">
@@ -247,7 +231,7 @@ export function DeviceTab({ range, realDeviceData, dateRange = '30 days', isLoad
                         </TableCell>
 
                         <TableCell className="text-center align-middle">
-                          <span className="text-sm font-medium text-foreground">{device.engagementRate}%</span>
+                          <span className="text-sm font-medium text-foreground">{device.engagementRate.toFixed(1)}%</span>
                         </TableCell>
                       </TableRow>
                     ))}

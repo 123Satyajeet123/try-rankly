@@ -4,17 +4,16 @@ import { UnifiedCard, UnifiedCardContent } from '@/components/ui/unified-card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Settings, ChevronDown, Calendar as CalendarIcon, ArrowUp, ArrowDown, Expand, ExternalLink, ChevronRight } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { Calendar as CalendarIcon, ExternalLink, ChevronRight, Sparkles, Check } from 'lucide-react'
+import { useState } from 'react'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '@/components/ui/sheet'
 import { getDynamicFaviconUrl, handleFaviconError } from '../../../lib/faviconUtils'
 import { useSkeletonLoading } from '@/components/ui/with-skeleton-loading'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
+import apiService from '@/services/api'
 
 interface CitationTypesDetailSectionProps {
   filterContext?: {
@@ -25,13 +24,6 @@ interface CitationTypesDetailSectionProps {
   dashboardData?: any
 }
 
-// Platform colors mapping (favicons will be handled dynamically)
-const platformColors: { [key: string]: string } = {
-  'openai': '#10A37F',
-  'claude': '#FF6B35',
-  'perplexity': '#8B5CF6',
-  'gemini': '#4285F4'
-}
 
 // Transform dashboard data to detailed citation types format
 const getDetailedCitationData = (dashboardData: any) => {
@@ -177,16 +169,21 @@ const getDetailedCitationData = (dashboardData: any) => {
 
 export function CitationTypesDetailSection({ filterContext, dashboardData }: CitationTypesDetailSectionProps) {
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
-  const [comparisonDate, setComparisonDate] = useState<Date | undefined>(undefined)
   const [expandedSections, setExpandedSections] = useState<{ [key: string]: boolean }>({
     brand: true,
     earned: false,
     social: false
   })
-  const [expandedCitationDetails, setExpandedCitationDetails] = useState<{ [key: string]: boolean }>({})
-  const [citationDetails, setCitationDetails] = useState<{ [key: string]: any[] }>({})
   const [isSheetOpen, setIsSheetOpen] = useState(false)
   const [selectedCitation, setSelectedCitation] = useState<any>(null)
+  
+  // Subjective Metrics state
+  const [subjectiveMetrics, setSubjectiveMetrics] = useState<{ [promptId: string]: any }>({})
+  const [loadingMetrics] = useState<{ [promptId: string]: boolean }>({})
+  const [generatingMetrics, setGeneratingMetrics] = useState<{ [promptId: string]: boolean }>({})
+  const [metricsError, setMetricsError] = useState<{ [promptId: string]: string | null }>({})
+  const [availablePromptIds, setAvailablePromptIds] = useState<string[]>([])
+  const [loadingPromptIds, setLoadingPromptIds] = useState(false)
 
   // Platform favicon mapping - matching onboarding llm-platforms page exactly
   const getPlatformFavicon = (platform: string) => {
@@ -242,6 +239,17 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
     }))
   }
 
+  // Get brand name from dashboard data
+  const getBrandName = () => {
+    if (dashboardData?.urlAnalysis?.brandContext?.companyName) {
+      return dashboardData.urlAnalysis.brandContext.companyName
+    }
+    if (dashboardData?.metrics?.competitorsByCitation?.length > 0) {
+      return dashboardData.metrics.competitorsByCitation[0].name
+    }
+    return 'Unknown Brand'
+  }
+
   const toggleCitationDetails = async (brandName: string, type: string) => {
     // Fetch real citation details from the API
     try {
@@ -258,6 +266,14 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
           details: result.data.details
         })
         setIsSheetOpen(true)
+        
+        // Reset subjective metrics when opening new citation details
+        setSubjectiveMetrics({})
+        setMetricsError({})
+        setAvailablePromptIds([])
+        
+        // Load prompt IDs for this citation
+        loadPromptIdsForCitation(result.data.details, brandName)
       } else {
         console.error('❌ [CITATION DETAILS] Failed to fetch:', result.message)
         // Fallback to empty state
@@ -280,15 +296,129 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
     }
   }
 
+
+  // Generate subjective metrics for a prompt
+  const generateSubjectiveMetrics = async (promptId: string) => {
+    if (!promptId) {
+      console.error('❌ [SUBJECTIVE METRICS] No prompt ID available')
+      return
+    }
+
+    try {
+      setGeneratingMetrics(prev => ({ ...prev, [promptId]: true }))
+      setMetricsError(prev => ({ ...prev, [promptId]: null }))
+      
+      const brandName = getBrandName()
+      console.log(`🚀 [SUBJECTIVE METRICS] Generating metrics for prompt: ${promptId}`)
+      console.log(`📊 [SUBJECTIVE METRICS] Brand name extracted: "${brandName}"`)
+      
+      const response = await apiService.evaluateSubjectiveMetrics(promptId, brandName)
+      
+      if (response.success && response.data) {
+        console.log(`✅ [SUBJECTIVE METRICS] Generated metrics:`, response.data)
+        
+        const generatedMetrics = response.data.metrics || response.data
+        setSubjectiveMetrics(prev => ({ ...prev, [promptId]: generatedMetrics }))
+      } else {
+        throw new Error(response.message || 'Failed to generate metrics')
+      }
+    } catch (error: any) {
+      console.error('❌ [SUBJECTIVE METRICS] Error generating metrics:', error)
+      
+      const errorMessage = error.message || ''
+      if (errorMessage.includes('not found in any platform responses')) {
+        setMetricsError(prev => ({ ...prev, [promptId]: `Brand "${getBrandName()}" not found in the LLM responses.` }))
+      } else {
+        setMetricsError(prev => ({ ...prev, [promptId]: errorMessage || 'Failed to generate metrics' }))
+      }
+    } finally {
+      setGeneratingMetrics(prev => ({ ...prev, [promptId]: false }))
+    }
+  }
+
+  // Load prompt IDs for citation details using citation URLs
+  const loadPromptIdsForCitation = async (citationDetails: any[], brandName: string) => {
+    if (!citationDetails || citationDetails.length === 0) {
+      setAvailablePromptIds([])
+      setLoadingPromptIds(false)
+      return
+    }
+    
+    setLoadingPromptIds(true)
+    
+    try {
+      // First, try to extract promptIds directly from citation data
+      const promptIdsFromData = new Set<string>()
+      citationDetails.forEach((citationGroup: any) => {
+        if (citationGroup.prompts && Array.isArray(citationGroup.prompts)) {
+          citationGroup.prompts.forEach((prompt: any) => {
+            if (prompt.promptId) {
+              promptIdsFromData.add(prompt.promptId.toString())
+            }
+          })
+        }
+      })
+      
+      // If we found promptIds in the data, use them
+      if (promptIdsFromData.size > 0) {
+        const uniquePromptIds = Array.from(promptIdsFromData)
+        setAvailablePromptIds(uniquePromptIds)
+        setLoadingPromptIds(false)
+        console.log(`✅ [CITATION METRICS] Found ${uniquePromptIds.length} prompt IDs from citation data`)
+        return
+      }
+      
+      // Otherwise, find promptIds by citation URLs
+      console.log(`🔍 [CITATION METRICS] No promptIds in citation data, searching by URLs...`)
+      const citationUrls = citationDetails.map((cg: any) => cg.url).filter(Boolean)
+      
+      if (citationUrls.length === 0) {
+        console.warn('⚠️ [CITATION METRICS] No URLs found in citation data')
+        setAvailablePromptIds([])
+        setLoadingPromptIds(false)
+        return
+      }
+      
+      // Call API to find promptIds by URLs
+      const response = await fetch(`http://localhost:5000/api/dashboard/citations/prompt-ids`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          citationUrls,
+          brandName
+        })
+      })
+      
+      if (response.ok) {
+        const result = await response.json()
+        if (result.success && result.data && result.data.promptIds) {
+          const uniquePromptIds = result.data.promptIds
+          setAvailablePromptIds(uniquePromptIds)
+          console.log(`✅ [CITATION METRICS] Found ${uniquePromptIds.length} prompt IDs via URL search`)
+        } else {
+          console.warn('⚠️ [CITATION METRICS] No prompt IDs found via URL search')
+          setAvailablePromptIds([])
+        }
+      } else {
+        console.error('❌ [CITATION METRICS] Failed to fetch prompt IDs:', response.statusText)
+        setAvailablePromptIds([])
+      }
+    } catch (error) {
+      console.error('❌ [CITATION METRICS] Error loading prompt IDs:', error)
+      setAvailablePromptIds([])
+    } finally {
+      setLoadingPromptIds(false)
+    }
+  }
+
   // Mock data generation function removed - now using real data from API
 
   // Mock URL generation function removed - now using real URLs from database
 
   // Mock context generation function removed - now using real contexts from database
 
-  const getPlatformColor = (platform: string) => {
-    return platformColors[platform] || '#6B7280'
-  }
 
   const renderCitationRow = (item: any, index: number) => (
     <TableRow key={`${item.name}-${index}`} className="border-border/60 hover:bg-muted/30 transition-colors">
@@ -398,7 +528,7 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
           <div className="flex items-center gap-3">
             <h2 className="text-xl font-semibold text-foreground">All Citation Types</h2>
             <Badge variant="secondary" className="text-xs">
-              {citationData.brand.length + citationData.earned.length + citationData.social.length} citation types
+              3 citation types
             </Badge>
           </div>
           
@@ -516,7 +646,16 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
     </UnifiedCard>
 
     {/* Citation Details Sheet */}
-    <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
+    <Sheet open={isSheetOpen} onOpenChange={(open) => {
+      setIsSheetOpen(open)
+      if (!open) {
+        // Reset state when modal is closed
+        setSelectedCitation(null)
+        setSubjectiveMetrics({})
+        setMetricsError({})
+        setAvailablePromptIds([])
+      }
+    }}>
       <SheetContent className="!w-[80vw] sm:!w-[75vw] lg:!w-[70vw] !max-w-none overflow-y-auto">
         <SheetHeader>
           <div className="flex justify-between items-center">
@@ -552,7 +691,7 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
             {/* Citations list - grouped by URL */}
             <div className="space-y-3">
               <h4 className="font-semibold text-sm">Citations by URL</h4>
-              {selectedCitation.details.map((citationGroup: any, index: number) => (
+              {selectedCitation.details.map((citationGroup: any) => (
                 <div key={citationGroup.url} className="p-3 bg-background/50 rounded-lg border border-border/40 hover:bg-background/80 transition-colors">
                   {/* URL and platforms in one compact header */}
                   <div className="flex items-center justify-between gap-3 mb-2">
@@ -607,6 +746,327 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
                   No citation details available
                 </div>
               )}
+            </div>
+
+            {/* Subjective Impression Analysis Section */}
+            <div className="mt-8 pt-6 border-t border-border/60">
+              <div className="space-y-4">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="font-semibold text-sm">Subjective Impression Analysis</h4>
+                    <p className="text-xs text-muted-foreground">
+                      AI-powered analysis of how {getBrandName()} is cited across platforms
+                    </p>
+                  </div>
+                </div>
+
+                {/* Show loading state while fetching prompt IDs */}
+                {loadingPromptIds ? (
+                  <div className="text-center py-6 text-muted-foreground text-sm">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary mx-auto mb-2"></div>
+                    Loading prompt data for subjective metrics...
+                  </div>
+                ) : availablePromptIds.length === 0 ? (
+                  <div className="text-center py-6 text-muted-foreground text-sm">
+                    No prompts found in citations. Subjective metrics require prompts with LLM responses.
+                  </div>
+                ) : (
+                  (() => {
+                    const uniquePromptIds = availablePromptIds
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Metrics Grid - Show for all prompts */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {/* Relevance Card */}
+                        <div className="bg-card border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="font-medium text-sm">Relevance</h5>
+                            <span className="text-lg font-bold text-primary">
+                              {(() => {
+                                const scores = uniquePromptIds
+                                  .map(id => subjectiveMetrics[id]?.relevance?.score)
+                                  .filter(s => s !== undefined && s !== null)
+                                if (scores.length === 0) return '0/5'
+                                const avg = scores.reduce((a, b) => a + b, 0) / scores.length
+                                return `${avg.toFixed(1)}/5`
+                              })()}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Is the citation actually answering the query?
+                          </p>
+                          <details className="group">
+                            <summary className="text-xs text-primary cursor-pointer hover:underline">
+                              View reasoning
+                            </summary>
+                            <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                              {(() => {
+                                const allReasonings = uniquePromptIds
+                                  .map(id => subjectiveMetrics[id]?.relevance?.reasoning)
+                                  .filter(r => r && r.trim())
+                                
+                                if (allReasonings.length === 0) {
+                                  return <div>No analysis available. Click "Generate" to analyze.</div>
+                                }
+                                
+                                // Return the first available reasoning (consolidated view)
+                                return <div>{allReasonings[0]}</div>
+                              })()}
+                            </div>
+                          </details>
+                        </div>
+
+                        {/* Influence Card */}
+                        <div className="bg-card border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="font-medium text-sm">Influence</h5>
+                            <span className="text-lg font-bold text-primary">
+                              {(() => {
+                                const scores = uniquePromptIds
+                                  .map(id => subjectiveMetrics[id]?.influence?.score)
+                                  .filter(s => s !== undefined && s !== null)
+                                if (scores.length === 0) return '0/5'
+                                const avg = scores.reduce((a, b) => a + b, 0) / scores.length
+                                return `${avg.toFixed(1)}/5`
+                              })()}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Does it shape the user's takeaway?
+                          </p>
+                          <details className="group">
+                            <summary className="text-xs text-primary cursor-pointer hover:underline">
+                              View reasoning
+                            </summary>
+                            <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                              {(() => {
+                                const allReasonings = uniquePromptIds
+                                  .map(id => subjectiveMetrics[id]?.influence?.reasoning)
+                                  .filter(r => r && r.trim())
+                                
+                                if (allReasonings.length === 0) {
+                                  return <div>No analysis available. Click "Generate" to analyze.</div>
+                                }
+                                
+                                // Return the first available reasoning (consolidated view)
+                                return <div>{allReasonings[0]}</div>
+                              })()}
+                            </div>
+                          </details>
+                        </div>
+
+                        {/* Uniqueness Card */}
+                        <div className="bg-card border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="font-medium text-sm">Uniqueness</h5>
+                            <span className="text-lg font-bold text-primary">
+                              {(() => {
+                                const scores = uniquePromptIds
+                                  .map(id => subjectiveMetrics[id]?.uniqueness?.score)
+                                  .filter(s => s !== undefined && s !== null)
+                                if (scores.length === 0) return '0/5'
+                                const avg = scores.reduce((a, b) => a + b, 0) / scores.length
+                                return `${avg.toFixed(1)}/5`
+                              })()}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Is the info special, or just repeated elsewhere?
+                          </p>
+                          <details className="group">
+                            <summary className="text-xs text-primary cursor-pointer hover:underline">
+                              View reasoning
+                            </summary>
+                            <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                              {(() => {
+                                const allReasonings = uniquePromptIds
+                                  .map(id => subjectiveMetrics[id]?.uniqueness?.reasoning)
+                                  .filter(r => r && r.trim())
+                                
+                                if (allReasonings.length === 0) {
+                                  return <div>No analysis available. Click "Generate" to analyze.</div>
+                                }
+                                
+                                // Return the first available reasoning (consolidated view)
+                                return <div>{allReasonings[0]}</div>
+                              })()}
+                            </div>
+                          </details>
+                        </div>
+
+                        {/* Position Card */}
+                        <div className="bg-card border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="font-medium text-sm">Position</h5>
+                            <span className="text-lg font-bold text-primary">
+                              {(() => {
+                                const scores = uniquePromptIds
+                                  .map(id => subjectiveMetrics[id]?.position?.score)
+                                  .filter(s => s !== undefined && s !== null)
+                                if (scores.length === 0) return '0/5'
+                                const avg = scores.reduce((a, b) => a + b, 0) / scores.length
+                                return `${avg.toFixed(1)}/5`
+                              })()}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-2">
+                            How prominently is the citation placed within the answer?
+                          </p>
+                          <details className="group">
+                            <summary className="text-xs text-primary cursor-pointer hover:underline">
+                              View reasoning
+                            </summary>
+                            <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                              {(() => {
+                                const allReasonings = uniquePromptIds
+                                  .map(id => subjectiveMetrics[id]?.position?.reasoning)
+                                  .filter(r => r && r.trim())
+                                
+                                if (allReasonings.length === 0) {
+                                  return <div>No analysis available. Click "Generate" to analyze.</div>
+                                }
+                                
+                                // Return the first available reasoning (consolidated view)
+                                return <div>{allReasonings[0]}</div>
+                              })()}
+                            </div>
+                          </details>
+                        </div>
+
+                        {/* Click Probability Card */}
+                        <div className="bg-card border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="font-medium text-sm">Click Probability</h5>
+                            <span className="text-lg font-bold text-primary">
+                              {(() => {
+                                const scores = uniquePromptIds
+                                  .map(id => subjectiveMetrics[id]?.clickProbability?.score)
+                                  .filter(s => s !== undefined && s !== null)
+                                if (scores.length === 0) return '0/5'
+                                const avg = scores.reduce((a, b) => a + b, 0) / scores.length
+                                return `${avg.toFixed(1)}/5`
+                              })()}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Would the user click the citation if links are shown?
+                          </p>
+                          <details className="group">
+                            <summary className="text-xs text-primary cursor-pointer hover:underline">
+                              View reasoning
+                            </summary>
+                            <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                              {(() => {
+                                const allReasonings = uniquePromptIds
+                                  .map(id => subjectiveMetrics[id]?.clickProbability?.reasoning)
+                                  .filter(r => r && r.trim())
+                                
+                                if (allReasonings.length === 0) {
+                                  return <div>No analysis available. Click "Generate" to analyze.</div>
+                                }
+                                
+                                // Return the first available reasoning (consolidated view)
+                                return <div>{allReasonings[0]}</div>
+                              })()}
+                            </div>
+                          </details>
+                        </div>
+
+                        {/* Diversity Card */}
+                        <div className="bg-card border rounded-lg p-3 hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center justify-between mb-2">
+                            <h5 className="font-medium text-sm">Diversity</h5>
+                            <span className="text-lg font-bold text-primary">
+                              {(() => {
+                                const scores = uniquePromptIds
+                                  .map(id => subjectiveMetrics[id]?.diversity?.score)
+                                  .filter(s => s !== undefined && s !== null)
+                                if (scores.length === 0) return '0/5'
+                                const avg = scores.reduce((a, b) => a + b, 0) / scores.length
+                                return `${avg.toFixed(1)}/5`
+                              })()}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-2">
+                            Does the citation bring in a new perspective?
+                          </p>
+                          <details className="group">
+                            <summary className="text-xs text-primary cursor-pointer hover:underline">
+                              View reasoning
+                            </summary>
+                            <div className="mt-2 p-2 bg-muted/50 rounded text-xs text-muted-foreground">
+                              {(() => {
+                                const allReasonings = uniquePromptIds
+                                  .map(id => subjectiveMetrics[id]?.diversity?.reasoning)
+                                  .filter(r => r && r.trim())
+                                
+                                if (allReasonings.length === 0) {
+                                  return <div>No analysis available. Click "Generate" to analyze.</div>
+                                }
+                                
+                                // Return the first available reasoning (consolidated view)
+                                return <div>{allReasonings[0]}</div>
+                              })()}
+                            </div>
+                          </details>
+                        </div>
+                      </div>
+
+                      {/* Generate Button - Generate for all prompts */}
+                      <div className="flex items-center justify-between pt-2">
+                        <div className="flex items-center gap-2">
+                          {uniquePromptIds.some(id => subjectiveMetrics[id]) ? (
+                            <div className="flex items-center gap-1 text-green-600 text-xs">
+                              <Check className="w-3 h-3" />
+                              <span>Metrics generated for {uniquePromptIds.filter(id => subjectiveMetrics[id]).length} of {uniquePromptIds.length} prompts</span>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-muted-foreground">
+                              Click "Generate" to analyze {getBrandName()} citations across all prompts
+                            </div>
+                          )}
+                        </div>
+                        <Button
+                          onClick={() => {
+                            uniquePromptIds.forEach(promptId => {
+                              if (!subjectiveMetrics[promptId]) {
+                                generateSubjectiveMetrics(promptId)
+                              }
+                            })
+                          }}
+                          disabled={uniquePromptIds.some(id => generatingMetrics[id] || loadingMetrics[id])}
+                          size="sm"
+                          className="h-8 px-3 text-xs"
+                        >
+                          {uniquePromptIds.some(id => generatingMetrics[id] || loadingMetrics[id]) ? (
+                            <>
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-2"></div>
+                              Generating...
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-3 h-3 mr-2" />
+                              Generate All
+                            </>
+                          )}
+                        </Button>
+                      </div>
+
+                      {/* Error Display */}
+                      {uniquePromptIds.some(id => metricsError[id]) && (
+                        <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-600">
+                          {uniquePromptIds.map(id => metricsError[id] && (
+                            <div key={id}>Prompt {id.substring(0, 8)}...: {metricsError[id]}</div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )
+                  })()
+                )}
+              </div>
             </div>
           </div>
           );

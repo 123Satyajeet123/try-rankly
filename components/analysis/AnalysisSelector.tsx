@@ -89,8 +89,8 @@ export function AnalysisSelector({
   }
 
   const handleStartNewAnalysis = () => {
-    // Navigate to onboarding to start a new analysis
-    router.push('/onboarding')
+    // Navigate to onboarding/website to start a new analysis
+    router.push('/onboarding/website')
   }
 
   if (loading) {
