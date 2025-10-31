@@ -85,7 +85,25 @@ export default function WebsitePage() {
       console.error('❌ Website analysis failed:', error)
       setIsAnalyzing(false)
       setAnalysisSuccess(false)
-      setAnalysisError(error.message || 'Analysis failed')
+      
+      // Provide user-friendly error messages
+      let errorMessage = 'Analysis failed. Please try again.'
+      const errorMsg = error.message || ''
+      
+      if (errorMsg.includes('Network') || errorMsg.includes('fetch')) {
+        errorMessage = 'Unable to connect to server. Please check your internet connection and try again.'
+      } else if (errorMsg.includes('timeout') || errorMsg.includes('Timeout')) {
+        errorMessage = 'Analysis timed out. The website might be too large. Please try again or use a different URL.'
+      } else if (errorMsg.includes('Invalid URL') || errorMsg.includes('invalid')) {
+        errorMessage = 'Invalid URL. Please enter a valid website URL (e.g., https://example.com).'
+      } else if (errorMsg.includes('CORS') || errorMsg.includes('cors')) {
+        errorMessage = 'Unable to access this website. Please ensure the URL is accessible.'
+      } else if (errorMsg.length > 0 && !errorMsg.includes('API request failed')) {
+        // Use the actual error message if it's informative
+        errorMessage = errorMsg
+      }
+      
+      setAnalysisError(errorMessage)
       return
     }
 

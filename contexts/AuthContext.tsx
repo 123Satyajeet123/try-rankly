@@ -48,8 +48,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const token = urlParams.get('token')
       const error = urlParams.get('error')
 
-      if (error === 'oauth_failed') {
-        setError('Google login failed. Please try again.')
+      if (error) {
+        let errorMessage = 'Authentication failed. Please try again.'
+        
+        // Handle specific OAuth error codes
+        if (error === 'oauth_failed') {
+          errorMessage = 'Google login was cancelled or failed. Please try again.'
+        } else if (error === 'access_denied') {
+          errorMessage = 'Access denied. Please grant the necessary permissions.'
+        } else if (error === 'server_error') {
+          errorMessage = 'Server error during authentication. Please try again later.'
+        }
+        
+        setError(errorMessage)
+        console.error('❌ OAuth error:', error)
         // Clean up URL
         window.history.replaceState({}, document.title, window.location.pathname)
         setIsLoading(false)
@@ -88,8 +100,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             window.location.href = '/onboarding/website'
           }
           return
-        } catch (err) {
-          console.error('Failed to refresh user after Google OAuth:', err)
+        } catch (err: any) {
+          console.error('❌ Failed to refresh user after Google OAuth:', err)
+          const errorMessage = err instanceof Error ? err.message : 'Failed to authenticate'
+          
+          // If it's a network error, show helpful message
+          if (errorMessage.includes('Network') || errorMessage.includes('fetch')) {
+            setError('Unable to connect to server. Please check your internet connection.')
+          } else if (errorMessage.includes('timeout')) {
+            setError('Request timed out. Please try again.')
+          } else {
+            setError('Authentication failed. Please try signing in again.')
+          }
+          
           logout()
         }
         // Clean up URL
@@ -108,8 +131,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('✅ AuthContext - User refreshed successfully')
         } catch (err: any) {
           // Token is invalid or expired - clear it silently
-          console.log('ℹ️ Stored token is invalid, clearing...')
-          logout()
+          const errorMessage = err instanceof Error ? err.message : 'Token validation failed'
+          if (errorMessage.includes('Network') || errorMessage.includes('fetch')) {
+            console.warn('⚠️ Network error while validating token, but continuing...')
+            // Don't logout on network errors - might be temporary
+          } else {
+            console.log('ℹ️ Stored token is invalid, clearing...')
+            logout()
+          }
         }
       }
       setIsLoading(false)

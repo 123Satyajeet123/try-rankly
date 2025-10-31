@@ -1,13 +1,14 @@
 const express = require('express');
+const { asyncHandler } = require('../middleware/errorHandler');
 const { body, validationResult } = require('express-validator');
 const Topic = require('../models/Topic');
 const router = express.Router();
 
-// Development authentication middleware (bypasses JWT)
-const devAuth = require('../middleware/devAuth');
+
+const { authenticateToken } = require('../middleware/auth');
 
 // Get all topics for user
-router.get('/', devAuth, async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const { urlAnalysisId } = req.query;
     
@@ -34,7 +35,7 @@ router.get('/', devAuth, async (req, res) => {
 });
 
 // Create new topic
-router.post('/', devAuth, [
+router.post('/', authenticateToken, [
   body('name').trim().notEmpty(),
   body('keywords').optional().isArray()
 ], async (req, res) => {
@@ -76,7 +77,7 @@ router.post('/', devAuth, [
 });
 
 // Update topic
-router.put('/:id', devAuth, [
+router.put('/:id', authenticateToken, [
   body('name').optional().trim().notEmpty(),
   body('keywords').optional().isArray()
 ], async (req, res) => {
@@ -122,7 +123,7 @@ router.put('/:id', devAuth, [
 });
 
 // Delete topic
-router.delete('/:id', devAuth, async (req, res) => {
+router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 

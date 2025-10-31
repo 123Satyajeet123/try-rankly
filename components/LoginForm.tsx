@@ -36,7 +36,8 @@ export function LoginForm() {
 
   const handleGoogleLogin = () => {
     // Redirect to backend Google OAuth endpoint
-    window.location.href = 'http://localhost:5000/api/auth/google'
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+    window.location.href = `${apiUrl}/auth/google`
   }
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {

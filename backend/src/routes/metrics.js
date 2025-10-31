@@ -1,16 +1,17 @@
 const express = require('express');
+const { asyncHandler } = require('../middleware/errorHandler');
 const AggregatedMetrics = require('../models/AggregatedMetrics');
 const metricsAggregation = require('../services/metricsAggregationService');
 const router = express.Router();
 
-// Development authentication middleware (bypasses JWT)
-const devAuth = require('../middleware/devAuth');
+
+const { authenticateToken } = require('../middleware/auth');
 
 /**
  * POST /api/metrics/calculate
  * Calculate and store aggregated metrics
  */
-router.post('/calculate', devAuth, async (req, res) => {
+router.post('/calculate', authenticateToken, async (req, res) => {
   try {
     console.log('\n' + '='.repeat(70));
     console.log('📊 [API] POST /api/metrics/calculate');
@@ -45,7 +46,7 @@ router.post('/calculate', devAuth, async (req, res) => {
  * GET /api/metrics/aggregated
  * Get aggregated metrics by scope (overall, platform, topic, persona)
  */
-router.get('/aggregated', devAuth, async (req, res) => {
+router.get('/aggregated', authenticateToken, async (req, res) => {
   try {
     const { scope, dateFrom, dateTo, urlAnalysisId } = req.query;
 
@@ -112,7 +113,7 @@ router.get('/aggregated', devAuth, async (req, res) => {
  * GET /api/metrics/overall
  * Get overall metrics (all prompts, all platforms)
  */
-router.get('/overall', devAuth, async (req, res) => {
+router.get('/overall', authenticateToken, async (req, res) => {
   try {
     const { dateFrom, dateTo } = req.query;
 
@@ -155,7 +156,7 @@ router.get('/overall', devAuth, async (req, res) => {
  * GET /api/metrics/platform/:platform
  * Get metrics for a specific platform (e.g., chatgpt, claude)
  */
-router.get('/platform/:platform', devAuth, async (req, res) => {
+router.get('/platform/:platform', authenticateToken, async (req, res) => {
   try {
     const { platform } = req.params;
 
@@ -192,7 +193,7 @@ router.get('/platform/:platform', devAuth, async (req, res) => {
  * GET /api/metrics/topic/:topic
  * Get metrics for a specific topic
  */
-router.get('/topic/:topic', devAuth, async (req, res) => {
+router.get('/topic/:topic', authenticateToken, async (req, res) => {
   try {
     const { topic } = req.params;
 
@@ -229,7 +230,7 @@ router.get('/topic/:topic', devAuth, async (req, res) => {
  * GET /api/metrics/persona/:persona
  * Get metrics for a specific persona
  */
-router.get('/persona/:persona', devAuth, async (req, res) => {
+router.get('/persona/:persona', authenticateToken, async (req, res) => {
   try {
     const { persona } = req.params;
 
@@ -266,7 +267,7 @@ router.get('/persona/:persona', devAuth, async (req, res) => {
  * GET /api/metrics/analyses
  * Get list of all analyses (URL analyses) for the user
  */
-router.get('/analyses', devAuth, async (req, res) => {
+router.get('/analyses', authenticateToken, async (req, res) => {
   try {
     const userId = req.userId;
 

@@ -1,13 +1,14 @@
 const express = require('express');
+const { asyncHandler } = require('../middleware/errorHandler');
 const { body, validationResult } = require('express-validator');
 const Persona = require('../models/Persona');
 const router = express.Router();
 
-// Development authentication middleware (bypasses JWT)
-const devAuth = require('../middleware/devAuth');
+
+const { authenticateToken } = require('../middleware/auth');
 
 // Get all personas for user
-router.get('/', devAuth, async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const { urlAnalysisId } = req.query;
     
@@ -34,7 +35,7 @@ router.get('/', devAuth, async (req, res) => {
 });
 
 // Create new persona
-router.post('/', devAuth, [
+router.post('/', authenticateToken, [
   body('type').trim().notEmpty(),
   body('description').trim().notEmpty()
 ], async (req, res) => {
@@ -76,7 +77,7 @@ router.post('/', devAuth, [
 });
 
 // Update persona
-router.put('/:id', devAuth, [
+router.put('/:id', authenticateToken, [
   body('type').optional().trim().notEmpty(),
   body('description').optional().trim().notEmpty()
 ], async (req, res) => {
@@ -122,7 +123,7 @@ router.put('/:id', devAuth, [
 });
 
 // Delete persona
-router.delete('/:id', devAuth, async (req, res) => {
+router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 

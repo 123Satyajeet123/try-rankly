@@ -1,15 +1,16 @@
 const express = require('express');
+const { asyncHandler } = require('../middleware/errorHandler');
 const insightsService = require('../services/insightsService');
 const router = express.Router();
 
-// Development authentication middleware (bypasses JWT)
-const devAuth = require('../middleware/devAuth');
+
+const { authenticateToken } = require('../middleware/auth');
 
 /**
  * POST /api/insights/generate
  * Generate insights for a specific tab
  */
-router.post('/generate', devAuth, async (req, res) => {
+router.post('/generate', authenticateToken, async (req, res) => {
   try {
     const { tabType = 'visibility', urlAnalysisId, forceRegenerate = false } = req.body;
     const userId = req.userId;
@@ -56,7 +57,7 @@ router.post('/generate', devAuth, async (req, res) => {
  * GET /api/insights/:tabType
  * Get stored insights for a specific tab
  */
-router.get('/:tabType', devAuth, async (req, res) => {
+router.get('/:tabType', authenticateToken, async (req, res) => {
   try {
     const { tabType } = req.params;
     const { urlAnalysisId } = req.query;
@@ -107,7 +108,7 @@ router.get('/:tabType', devAuth, async (req, res) => {
  * DELETE /api/insights/:tabType
  * Clear stored insights for a specific tab
  */
-router.delete('/:tabType', devAuth, async (req, res) => {
+router.delete('/:tabType', authenticateToken, async (req, res) => {
   try {
     const { tabType } = req.params;
     const { urlAnalysisId } = req.query;
@@ -137,7 +138,7 @@ router.delete('/:tabType', devAuth, async (req, res) => {
  * GET /api/insights/test/data-collection
  * Test endpoint to see how data is structured for insights
  */
-router.get('/test/data-collection', devAuth, async (req, res) => {
+router.get('/test/data-collection', authenticateToken, async (req, res) => {
   try {
     const { tabType = 'visibility', urlAnalysisId } = req.query;
     const userId = req.userId;
@@ -167,7 +168,7 @@ router.get('/test/data-collection', devAuth, async (req, res) => {
  * GET /api/insights/test/prompt
  * Test endpoint to see the generated prompt
  */
-router.get('/test/prompt', devAuth, async (req, res) => {
+router.get('/test/prompt', authenticateToken, async (req, res) => {
   try {
     const { tabType = 'visibility', urlAnalysisId } = req.query;
     const userId = req.userId;

@@ -1,18 +1,19 @@
 const express = require('express');
+const { asyncHandler } = require('../middleware/errorHandler');
 const router = express.Router();
 const PromptTest = require('../models/PromptTest');
 const Topic = require('../models/Topic');
 const Persona = require('../models/Persona');
 const Prompt = require('../models/Prompt');
 
-// Development authentication middleware (bypasses JWT)
-const devAuth = require('../middleware/devAuth');
+
+const { authenticateToken } = require('../middleware/auth');
 
 /**
  * GET /api/sentiment/breakdown
  * Returns sentiment breakdown data by topic/persona with prompts
  */
-router.get('/breakdown', devAuth, async (req, res) => {
+router.get('/breakdown', authenticateToken, async (req, res) => {
   try {
     const { urlAnalysisId, sortBy = 'topics' } = req.query;
     const userId = req.userId;

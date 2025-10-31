@@ -5,27 +5,8 @@ const PromptTest = require('../models/PromptTest');
 const UrlAnalysis = require('../models/UrlAnalysis');
 const router = express.Router();
 
-// Middleware to verify JWT token
-const authenticateToken = (req, res, next) => {
-  const token = req.headers.authorization?.replace('Bearer ', '');
-  if (!token) {
-    return res.status(401).json({
-      success: false,
-      message: 'No token provided'
-    });
-  }
-
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    req.userId = decoded.userId;
-    next();
-  } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid token'
-    });
-  }
-};
+// JWT Authentication middleware
+const { authenticateToken } = require('../middleware/auth');
 
 /**
  * GET /api/analytics/visibility

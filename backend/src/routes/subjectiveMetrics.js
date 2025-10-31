@@ -1,10 +1,11 @@
 const express = require('express');
+const { asyncHandler } = require('../middleware/errorHandler');
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const subjectiveMetricsService = require('../services/subjectiveMetricsService');
 const SubjectiveMetrics = require('../models/SubjectiveMetrics');
 const PromptTest = require('../models/PromptTest');
-const devAuth = require('../middleware/devAuth');
+const { authenticateToken } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -13,7 +14,7 @@ const router = express.Router();
  * Generate subjective metrics for a prompt across ALL platforms
  */
 router.post('/evaluate',
-  devAuth,
+  authenticateToken,
   [
     body('promptId').notEmpty().withMessage('promptId is required'),
     body('brandName').notEmpty().withMessage('brandName is required')
@@ -106,7 +107,7 @@ router.post('/evaluate',
  * Get existing subjective metrics for a prompt
  */
 router.get('/:promptId',
-  devAuth,
+  authenticateToken,
   async (req, res) => {
     try {
       const { promptId } = req.params;
@@ -164,7 +165,7 @@ router.get('/:promptId',
  * Evaluate multiple prompts at once
  */
 router.post('/batch',
-  devAuth,
+  authenticateToken,
   [
     body('promptIds').isArray().withMessage('promptIds must be an array'),
     body('brandName').notEmpty().withMessage('brandName is required')
@@ -233,7 +234,7 @@ router.post('/batch',
  * Get all metrics for a prompt across platforms
  */
 router.get('/prompt/:promptId',
-  devAuth,
+  authenticateToken,
   async (req, res) => {
     try {
       const { promptId } = req.params;
@@ -278,7 +279,7 @@ router.get('/prompt/:promptId',
  * Get summary statistics for all evaluations by user
  */
 router.get('/summary/:userId',
-  devAuth,
+  authenticateToken,
   async (req, res) => {
     try {
       const { userId } = req.params;
@@ -372,7 +373,7 @@ router.get('/summary/:userId',
  * Delete specific metrics (for re-evaluation)
  */
 router.delete('/:metricsId',
-  devAuth,
+  authenticateToken,
   async (req, res) => {
     try {
       const { metricsId } = req.params;

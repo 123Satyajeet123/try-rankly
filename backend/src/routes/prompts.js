@@ -1,4 +1,5 @@
 const express = require('express');
+const { asyncHandler } = require('../middleware/errorHandler');
 const { body, validationResult } = require('express-validator');
 const Prompt = require('../models/Prompt');
 const Topic = require('../models/Topic');
@@ -10,11 +11,11 @@ const promptTestingService = require('../services/promptTestingService');
 const PromptTest = require('../models/PromptTest');
 const router = express.Router();
 
-// Development authentication middleware (bypasses JWT)
-const devAuth = require('../middleware/devAuth');
+// JWT Authentication middleware
+const { authenticateToken } = require('../middleware/auth');
 
 // Get all prompts for user
-router.get('/', devAuth, async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const { topicId, status = 'active' } = req.query;
     
@@ -39,7 +40,7 @@ router.get('/', devAuth, async (req, res) => {
 });
 
 // Create new prompt
-router.post('/', devAuth, [
+router.post('/', authenticateToken, [
   body('topicId').isMongoId(),
   body('personaId').isMongoId(),
   body('queryType').isIn(['Informational', 'Navigational', 'Commercial', 'Transactional']),
@@ -110,7 +111,7 @@ router.post('/', devAuth, [
 });
 
 // Update prompt
-router.put('/:id', devAuth, [
+router.put('/:id', authenticateToken, [
   body('title').optional().trim().notEmpty(),
   body('text').optional().trim().notEmpty()
 ], async (req, res) => {
@@ -156,7 +157,7 @@ router.put('/:id', devAuth, [
 });
 
 // Delete prompt
-router.delete('/:id', devAuth, async (req, res) => {
+router.delete('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -195,7 +196,7 @@ router.delete('/:id', devAuth, async (req, res) => {
 
 // Generate prompts using AI (placeholder)
 // Generate prompts for all selected topics and personas
-router.post('/generate', devAuth, async (req, res) => {
+router.post('/generate', authenticateToken, async (req, res) => {
   try {
     const userId = req.userId;
     
@@ -375,7 +376,7 @@ router.post('/generate', devAuth, async (req, res) => {
 });
 
 // Test all prompts with LLMs
-router.post('/test', devAuth, async (req, res) => {
+router.post('/test', authenticateToken, async (req, res) => {
   try {
     const userId = req.userId;
     const { urlAnalysisId } = req.body; // Optional URL analysis ID
@@ -449,7 +450,7 @@ router.post('/test', devAuth, async (req, res) => {
 });
 
 // Get test results for a specific prompt
-router.get('/:promptId/tests', devAuth, async (req, res) => {
+router.get('/:promptId/tests', authenticateToken, async (req, res) => {
   try {
     const { promptId } = req.params;
     const userId = req.userId;
@@ -495,7 +496,7 @@ router.get('/:promptId/tests', devAuth, async (req, res) => {
 });
 
 // Search prompt tests by prompt text and LLM provider
-router.post('/tests/search', devAuth, async (req, res) => {
+router.post('/tests/search', authenticateToken, async (req, res) => {
   try {
     const { promptText, llmProvider } = req.body;
     const userId = req.userId;
@@ -538,7 +539,7 @@ router.post('/tests/search', devAuth, async (req, res) => {
 });
 
 // Get all test results for user (for dashboard analytics)
-router.get('/tests/all', devAuth, async (req, res) => {
+router.get('/tests/all', authenticateToken, async (req, res) => {
   try {
     const userId = req.userId;
     const { limit = 100, llmProvider, status = 'completed' } = req.query;
@@ -611,7 +612,7 @@ router.get('/tests/all', devAuth, async (req, res) => {
 });
 
 // Get prompts tab data with topics/personas and individual prompts
-router.get('/dashboard', devAuth, async (req, res) => {
+router.get('/dashboard', authenticateToken, async (req, res) => {
   try {
     const userId = req.userId;
     const { urlAnalysisId } = req.query; // Get analysis ID from query parameter
@@ -1119,7 +1120,7 @@ router.get('/dashboard', devAuth, async (req, res) => {
 });
 
 // Get detailed prompt analysis with LLM responses
-router.get('/details/:promptId', devAuth, async (req, res) => {
+router.get('/details/:promptId', authenticateToken, async (req, res) => {
   try {
     const { promptId } = req.params;
     const userId = req.userId;

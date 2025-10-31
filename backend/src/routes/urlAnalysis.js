@@ -1,16 +1,17 @@
 const express = require('express');
+const { asyncHandler } = require('../middleware/errorHandler');
 const UrlAnalysis = require('../models/UrlAnalysis');
 const AggregatedMetrics = require('../models/AggregatedMetrics');
 const router = express.Router();
 
-// Development authentication middleware (bypasses JWT)
-const devAuth = require('../middleware/devAuth');
+
+const { authenticateToken } = require('../middleware/auth');
 
 /**
  * GET /api/url-analysis/list
  * Get all URL analyses for the authenticated user
  */
-router.get('/list', devAuth, async (req, res) => {
+router.get('/list', authenticateToken, async (req, res) => {
   try {
     console.log('\n' + '='.repeat(70));
     console.log('📊 [API] GET /api/url-analysis/list');
@@ -48,7 +49,7 @@ router.get('/list', devAuth, async (req, res) => {
  * GET /api/url-analysis/:id
  * Get specific URL analysis details
  */
-router.get('/:id', devAuth, async (req, res) => {
+router.get('/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -89,7 +90,7 @@ router.get('/:id', devAuth, async (req, res) => {
  * GET /api/url-analysis/:id/metrics
  * Get metrics for a specific URL analysis
  */
-router.get('/:id/metrics', devAuth, async (req, res) => {
+router.get('/:id/metrics', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params;
 

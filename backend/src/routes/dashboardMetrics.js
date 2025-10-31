@@ -1,4 +1,5 @@
 /**
+const { asyncHandler } = require('../middleware/errorHandler');
  * Dashboard Metrics API Routes
  * 
  * These routes provide data in the exact format needed by the Rankly Dashboard frontend.
@@ -13,15 +14,15 @@ const Persona = require('../models/Persona');
 const Competitor = require('../models/Competitor');
 const router = express.Router();
 
-// Development authentication middleware (bypasses JWT)
-const devAuth = require('../middleware/devAuth');
+
+const { authenticateToken } = require('../middleware/auth');
 
 /**
  * GET /api/dashboard/all
  * 
  * Get all dashboard data in one request (recommended for initial load)
  */
-router.get('/all', devAuth, async (req, res) => {
+router.get('/all', authenticateToken, async (req, res) => {
   try {
     const { dateFrom, dateTo, urlAnalysisId, topics: topicsQuery, personas: personasQuery, platforms: platformsQuery } = req.query;
     const userId = req.userId;
@@ -993,7 +994,7 @@ async function aggregateFilteredMetrics(metrics, fallback, userBrandName) {
 }
 
 // Get real citation details for a specific brand and type
-router.get('/citations/:brandName/:type', devAuth, async (req, res) => {
+router.get('/citations/:brandName/:type', authenticateToken, async (req, res) => {
   try {
     const { brandName, type } = req.params;
     const userId = req.userId;

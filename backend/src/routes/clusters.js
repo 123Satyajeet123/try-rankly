@@ -1,17 +1,18 @@
 const express = require('express');
+const { asyncHandler } = require('../middleware/errorHandler');
 const PromptTest = require('../models/PromptTest');
 const Prompt = require('../models/Prompt');
 const router = express.Router();
 
-// Development authentication middleware (bypasses JWT)
-const devAuth = require('../middleware/devAuth');
+
+const { authenticateToken } = require('../middleware/auth');
 
 /**
  * GET /api/clusters
  * Returns clustered topic analysis
  * Groups related topics/prompts and shows their performance
  */
-router.get('/', devAuth, async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
     const { urlAnalysisId } = req.query;
 
@@ -160,7 +161,7 @@ router.get('/', devAuth, async (req, res) => {
  * GET /api/clusters/:clusterId
  * Get detailed view of a specific cluster
  */
-router.get('/:clusterId', devAuth, async (req, res) => {
+router.get('/:clusterId', authenticateToken, async (req, res) => {
   try {
     const { clusterId } = req.params;
     const { urlAnalysisId } = req.query;

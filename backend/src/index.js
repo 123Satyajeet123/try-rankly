@@ -13,11 +13,67 @@ const passport = require('./config/passport');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+// Trust proxy for nginx reverse proxy
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
+
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+  crossOriginEmbedderPolicy: false,
+}));
+
+// CORS configuration - support multiple origins in production
+const allowedOrigins = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+  : process.env.FRONTEND_URL 
+    ? [process.env.FRONTEND_URL]
+    : ['http://localhost:3000'];
+
+// Validate FRONTEND_URL in production
+if (process.env.NODE_ENV === 'production' && !process.env.FRONTEND_URL) {
+  console.warn('⚠️  WARNING: FRONTEND_URL not set in production. CORS may not work correctly.');
+}
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, Postman, curl, etc.)
+    // This is safe because we validate the token in the Authorization header
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // In development, allow all origins for easier testing
+    if (process.env.NODE_ENV === 'development') {
+      return callback(null, true);
+    }
+    
+    // In production, check against allowed origins
+    const originMatch = allowedOrigins.some(allowedOrigin => {
+      // Support exact match or subdomain match
+      if (origin === allowedOrigin) return true;
+      // Support wildcard subdomain (e.g., *.example.com)
+      if (allowedOrigin.startsWith('*.')) {
+        const domain = allowedOrigin.substring(2);
+        return origin.endsWith('.' + domain) || origin === `https://${domain}` || origin === `http://${domain}`;
+      }
+      return false;
+    });
+    
+    if (originMatch) {
+      callback(null, true);
+    } else {
+      console.warn(`⚠️  CORS: Blocked request from origin: ${origin}`);
+      console.warn(`⚠️  CORS: Allowed origins: ${allowedOrigins.join(', ')}`);
+      callback(new Error(`Not allowed by CORS. Origin ${origin} is not in allowed list.`));
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-ID'],
+  exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Per-Page'],
+  maxAge: 86400, // 24 hours preflight cache
 }));
 
 // Rate limiting - More lenient for development
@@ -54,13 +110,25 @@ app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
 // Session configuration for OAuth
+// Validate JWT_SECRET in production
+if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32)) {
+  console.error('❌ ERROR: JWT_SECRET must be at least 32 characters in production!');
+  console.error('❌ Generate one with: openssl rand -base64 32');
+  process.exit(1);
+}
+
 app.use(session({
-  secret: process.env.JWT_SECRET || 'your-session-secret',
+  secret: process.env.JWT_SECRET || 'your-session-secret-change-in-production',
   resave: false,
   saveUninitialized: false,
+  name: 'rankly_session',
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+    httpOnly: true, // Prevent XSS attacks
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Support cross-site in production with HTTPS
+    domain: process.env.COOKIE_DOMAIN || undefined, // Set if using subdomains
+    path: '/', // Available site-wide
   }
 }));
 
@@ -68,23 +136,73 @@ app.use(session({
 app.use(passport.initialize());
 app.use(passport.session());
 
-// MongoDB connection
-mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/rankly')
-.then(async () => {
-  console.log('✅ MongoDB connected');
-  
-  // Run startup cleanup to ensure database integrity
-  try {
-    const dataCleanupService = require('./services/dataCleanupService');
-    console.log('\n🧹 Running startup cleanup...');
-    await dataCleanupService.cleanOrphanedPrompts();
-    await dataCleanupService.cleanOrphanedTestResults();
-    console.log('✅ Startup cleanup complete\n');
-  } catch (cleanupError) {
-    console.error('⚠️  Startup cleanup failed (non-critical):', cleanupError.message);
+// MongoDB connection with retry logic
+async function connectMongoDB(retries = 5, delay = 2000) {
+  const connect = async () => {
+    try {
+      await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/rankly', {
+        serverSelectionTimeoutMS: 5000, // 5 second timeout
+        socketTimeoutMS: 45000, // 45 second socket timeout
+      });
+      
+      console.log('✅ MongoDB connected');
+      
+      // Run startup cleanup to ensure database integrity
+      try {
+        const dataCleanupService = require('./services/dataCleanupService');
+        console.log('\n🧹 Running startup cleanup...');
+        await dataCleanupService.cleanOrphanedPrompts();
+        await dataCleanupService.cleanOrphanedTestResults();
+        console.log('✅ Startup cleanup complete\n');
+      } catch (cleanupError) {
+        console.error('⚠️  Startup cleanup failed (non-critical):', cleanupError.message);
+      }
+
+      // Handle connection events
+      mongoose.connection.on('error', (err) => {
+        console.error('❌ MongoDB connection error:', err);
+      });
+
+      mongoose.connection.on('disconnected', () => {
+        console.warn('⚠️  MongoDB disconnected. Attempting to reconnect...');
+        // Auto-reconnect handled by mongoose
+      });
+
+      mongoose.connection.on('reconnected', () => {
+        console.log('✅ MongoDB reconnected');
+      });
+
+      return true;
+    } catch (err) {
+      console.error(`❌ MongoDB connection attempt failed:`, err.message);
+      return false;
+    }
+  };
+
+  // Try to connect with retries
+  for (let i = 0; i < retries; i++) {
+    if (await connect()) {
+      return;
+    }
+    
+    if (i < retries - 1) {
+      console.log(`⏳ Retrying MongoDB connection in ${delay}ms... (attempt ${i + 1}/${retries})`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      delay *= 1.5; // Exponential backoff
+    }
   }
-})
-.catch(err => console.error('❌ MongoDB connection error:', err));
+
+  console.error('❌ Failed to connect to MongoDB after all retries');
+  console.error('⚠️  Server will continue but database operations will fail');
+  
+  // Don't exit process - allow server to start but log errors
+  mongoose.connection.on('error', (err) => {
+    console.error('❌ MongoDB error (connection may be down):', err.message);
+  });
+}
+
+// Connect to MongoDB
+connectMongoDB();
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -145,6 +263,9 @@ const citationsRoutes = require('./routes/citations');
 const insightsRoutes = require('./routes/insights');
 const sentimentBreakdownRoutes = require('./routes/sentimentBreakdown');
 
+// Import error handler
+const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
+
 // Use routes
 app.use('/api/auth', authRoutes);
 app.use('/api/auth/ga4', ga4AuthRoutes);
@@ -165,37 +286,11 @@ app.use('/api/dashboard/citations', citationsRoutes);
 app.use('/api/insights', insightsRoutes);
 app.use('/api/sentiment', sentimentBreakdownRoutes);
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({ 
-    error: 'Route not found',
-    path: req.originalUrl,
-    method: req.method,
-    availableEndpoints: [
-      'GET /health',
-      'GET /api',
-      'POST /api/auth/register',
-      'POST /api/auth/login',
-      'GET /api/user/profile',
-      'GET /api/onboarding',
-      'GET /api/competitors',
-      'GET /api/topics',
-      'GET /api/personas',
-      'GET /api/prompts',
-      'GET /api/analytics/*',
-      'GET /api/dashboard/all'
-    ]
-  });
-});
+// 404 handler (must be before error handler)
+app.use(notFoundHandler);
 
-// Error handler
-app.use((err, req, res, next) => {
-  console.error('Error:', err);
-  res.status(500).json({ 
-    error: 'Internal server error',
-    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong'
-  });
-});
+// Error handler (must be last)
+app.use(errorHandler);
 
 // Start server
 app.listen(PORT, () => {

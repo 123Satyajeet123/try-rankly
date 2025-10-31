@@ -362,7 +362,7 @@ Be thorough, accurate, and helpful in your responses.`;
         {
           headers: {
             'Authorization': `Bearer ${this.openRouterApiKey}`,
-            'HTTP-Referer': 'https://tryrankly.com',
+            'HTTP-Referer': process.env.OPENROUTER_REFERER || process.env.FRONTEND_URL || 'https://rankly.ai',
             'X-Title': 'Rankly AEO Platform',
             'Content-Type': 'application/json'
           },
@@ -1805,7 +1805,7 @@ Be thorough, accurate, and helpful in your responses.`;
    */
   /**
    * Smart sampling: Select a balanced subset of prompts
-   * Ensures even distribution across query types, topics, and personas
+   * Ensures even distribution across topic×persona combinations
    * @param {Array} prompts - All available prompts
    * @param {number} limit - Maximum number of prompts to select
    * @returns {Array} - Sampled prompts
@@ -1816,39 +1816,44 @@ Be thorough, accurate, and helpful in your responses.`;
       return prompts;
     }
 
-    // Group prompts by query type for balanced sampling
-    const promptsByQueryType = {};
+    // Group prompts by topic×persona combination for balanced sampling
+    const promptsByCombination = {};
     prompts.forEach(prompt => {
-      const queryType = prompt.queryType || 'Unknown';
-      if (!promptsByQueryType[queryType]) {
-        promptsByQueryType[queryType] = [];
+      const topicId = prompt.topicId?._id || prompt.topicId;
+      const personaId = prompt.personaId?._id || prompt.personaId;
+      const combinationKey = `${topicId}_${personaId}`;
+      
+      if (!promptsByCombination[combinationKey]) {
+        promptsByCombination[combinationKey] = [];
       }
-      promptsByQueryType[queryType].push(prompt);
+      promptsByCombination[combinationKey].push(prompt);
     });
 
-    const queryTypes = Object.keys(promptsByQueryType);
-    const promptsPerQueryType = Math.floor(limit / queryTypes.length);
-    const remainder = limit % queryTypes.length;
+    const combinations = Object.keys(promptsByCombination).sort(); // Sort for deterministic order
+    const promptsPerCombination = Math.floor(limit / combinations.length);
+    const remainder = limit % combinations.length;
 
     console.log(`   📊 Sampling strategy:`);
     console.log(`      - Total prompts: ${prompts.length}`);
     console.log(`      - Limit: ${limit}`);
-    console.log(`      - Query types: ${queryTypes.length} (${queryTypes.join(', ')})`);
-    console.log(`      - Per query type: ${promptsPerQueryType} (+ ${remainder} for top types)`);
+    console.log(`      - Topic×Persona combinations: ${combinations.length}`);
+    console.log(`      - Per combination: ${promptsPerCombination} (+ ${remainder} for first ${remainder} combinations)`);
 
     const sampledPrompts = [];
 
-    // Sample evenly from each query type
-    queryTypes.forEach((queryType, index) => {
-      const typePrompts = promptsByQueryType[queryType];
-      // Add 1 extra to first few types to handle remainder
-      const sampleCount = index < remainder ? promptsPerQueryType + 1 : promptsPerQueryType;
+    // Sample evenly from each topic×persona combination
+    combinations.forEach((combinationKey, index) => {
+      const comboPrompts = promptsByCombination[combinationKey];
+      // Add 1 extra to first few combinations to handle remainder
+      const sampleCount = index < remainder ? promptsPerCombination + 1 : promptsPerCombination;
       
-      // Randomly sample from this query type
-      const shuffled = typePrompts.sort(() => Math.random() - 0.5);
-      const sampled = shuffled.slice(0, Math.min(sampleCount, typePrompts.length));
+      // Randomly sample from this combination
+      const shuffled = comboPrompts.sort(() => Math.random() - 0.5);
+      const sampled = shuffled.slice(0, Math.min(sampleCount, comboPrompts.length));
       
-      console.log(`      - ${queryType}: ${sampled.length}/${typePrompts.length} prompts`);
+      const topicName = sampled[0]?.topicId?.name || 'Unknown';
+      const personaName = sampled[0]?.personaId?.type || 'Unknown';
+      console.log(`      - ${topicName} × ${personaName}: ${sampled.length}/${comboPrompts.length} prompts`);
       sampledPrompts.push(...sampled);
     });
 

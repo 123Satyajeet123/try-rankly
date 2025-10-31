@@ -37,7 +37,8 @@ export function AuthCard({ mode, onGoogleAuth, onEmailAuth, isLoading, error }: 
       onGoogleAuth()
     } else {
       // Default Google OAuth redirect
-      window.location.href = 'http://localhost:5000/api/auth/google'
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+      window.location.href = `${apiUrl}/auth/google`
     }
   }
 

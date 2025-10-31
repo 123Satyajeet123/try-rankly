@@ -82,19 +82,21 @@ router.get('/callback', async (req, res) => {
   try {
     const { code, error } = req.query;
 
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    
     if (error) {
       console.error('OAuth callback error:', error);
-      return res.redirect(`${process.env.FRONTEND_URL}/agent-analytics?error=${error}`);
+      return res.redirect(`${frontendUrl}/agent-analytics?error=${error}`);
     }
 
     if (!code) {
-      return res.redirect(`${process.env.FRONTEND_URL}/agent-analytics?error=missing_code`);
+      return res.redirect(`${frontendUrl}/agent-analytics?error=missing_code`);
     }
 
     const codeVerifier = req.session.ga4CodeVerifier;
 
     if (!codeVerifier) {
-      return res.redirect(`${process.env.FRONTEND_URL}/agent-analytics?error=missing_code_verifier`);
+      return res.redirect(`${frontendUrl}/agent-analytics?error=missing_code_verifier`);
     }
 
     // Exchange code for tokens
@@ -119,7 +121,7 @@ router.get('/callback', async (req, res) => {
 
     if (!access_token || !refresh_token) {
       console.error('Missing tokens:', { access: !!access_token, refresh: !!refresh_token });
-      return res.redirect(`${process.env.FRONTEND_URL}/agent-analytics?error=no_tokens`);
+      return res.redirect(`${frontendUrl}/agent-analytics?error=no_tokens`);
     }
 
     // Get user info
@@ -173,9 +175,10 @@ router.get('/callback', async (req, res) => {
     res.cookie('ga4_session', sessionCookie, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax', // Support cross-site in production
       maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      path: '/'
+      path: '/',
+      domain: process.env.COOKIE_DOMAIN || undefined // Support subdomains
     });
 
     // Clear code verifier from session
@@ -184,10 +187,11 @@ router.get('/callback', async (req, res) => {
     console.log('✅ GA4 session created for user:', userInfo.id);
 
     // Redirect to frontend with success flag
-    res.redirect(`${process.env.FRONTEND_URL}/agent-analytics?oauth_complete=true`);
+    res.redirect(`${frontendUrl}/agent-analytics?oauth_complete=true`);
   } catch (error) {
     console.error('GA4 OAuth callback error:', error.response?.data || error.message);
-    res.redirect(`${process.env.FRONTEND_URL}/agent-analytics?error=callback_error`);
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    res.redirect(`${frontendUrl}/agent-analytics?error=callback_error`);
   }
 });
 

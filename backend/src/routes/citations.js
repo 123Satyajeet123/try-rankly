@@ -1,6 +1,7 @@
 const express = require('express');
+const { asyncHandler } = require('../middleware/errorHandler');
 const router = express.Router();
-const devAuth = require('../middleware/devAuth');
+const { authenticateToken } = require('../middleware/auth');
 const PromptTest = require('../models/PromptTest');
 const UrlAnalysis = require('../models/UrlAnalysis');
 
@@ -8,7 +9,7 @@ const UrlAnalysis = require('../models/UrlAnalysis');
  * Test endpoint to debug citation data
  * GET /api/dashboard/citations/debug
  */
-router.get('/debug', devAuth, async (req, res) => {
+router.get('/debug', authenticateToken, async (req, res) => {
   try {
     const userId = req.userId;
     
@@ -46,7 +47,7 @@ router.get('/debug', devAuth, async (req, res) => {
  * Test endpoint to debug specific brand citations
  * GET /api/dashboard/citations/debug/:brandName
  */
-router.get('/debug/:brandName', devAuth, async (req, res) => {
+router.get('/debug/:brandName', authenticateToken, async (req, res) => {
   try {
     const { brandName } = req.params;
     const userId = req.userId;
@@ -98,7 +99,7 @@ router.get('/debug/:brandName', devAuth, async (req, res) => {
  * Get prompt IDs for citations by URL
  * POST /api/dashboard/citations/prompt-ids
  */
-router.post('/prompt-ids', devAuth, async (req, res) => {
+router.post('/prompt-ids', authenticateToken, async (req, res) => {
   try {
     const { citationUrls, brandName } = req.body;
     const userId = req.userId;
@@ -184,7 +185,7 @@ router.post('/prompt-ids', devAuth, async (req, res) => {
  * Get detailed citations for a specific brand and type
  * GET /api/dashboard/citations/:brandName/:type
  */
-router.get('/:brandName/:type', devAuth, async (req, res) => {
+router.get('/:brandName/:type', authenticateToken, async (req, res) => {
   try {
     console.log(`🚀 [CITATIONS] Route hit! Params:`, req.params);
     const { brandName, type } = req.params;

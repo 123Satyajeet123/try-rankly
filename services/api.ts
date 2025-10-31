@@ -1,4 +1,9 @@
+import { classifyError, isRetryableError, getUserFriendlyMessage, sleep, getRetryDelay, type ApiError } from '@/lib/utils/errorUtils'
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+const DEFAULT_TIMEOUT = 120000 // 120 seconds (2 minutes) - increased for long-running operations
+const MAX_RETRIES = 3
+const RETRYABLE_STATUS_CODES = [408, 429, 500, 502, 503, 504]
 
 class ApiService {
   token: string | null = null
@@ -6,6 +11,11 @@ class ApiService {
   constructor() {
     if (typeof window !== 'undefined') {
       this.token = localStorage.getItem('authToken')
+    }
+
+    // Validate API_BASE_URL
+    if (!API_BASE_URL || API_BASE_URL.trim() === '') {
+      console.error('⚠️ NEXT_PUBLIC_API_URL is not configured')
     }
   }
 
@@ -35,20 +45,84 @@ class ApiService {
     return headers
   }
 
-  async request(endpoint: string, options: RequestInit = {}) {
+  /**
+   * Create abort controller for timeout
+   */
+  private createTimeoutController(timeout: number): AbortController {
+    const controller = new AbortController()
+    setTimeout(() => controller.abort(), timeout)
+    return controller
+  }
+
+  /**
+   * Parse JSON response safely
+   */
+  private async parseJsonResponse(response: Response): Promise<any> {
+    const contentType = response.headers.get('content-type')
+    
+    // Check if response is JSON
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text()
+      throw new Error(`Expected JSON response but got ${contentType}. Response: ${text.substring(0, 200)}`)
+    }
+
+    try {
+      const text = await response.text()
+      if (!text) {
+        return {}
+      }
+      return JSON.parse(text)
+    } catch (parseError) {
+      console.error('❌ [API] Failed to parse JSON response:', parseError)
+      throw new Error('Invalid response format from server')
+    }
+  }
+
+  /**
+   * Make request with retry logic
+   */
+  async request(
+    endpoint: string, 
+    options: RequestInit = {}, 
+    retryCount: number = 0
+  ): Promise<any> {
+    // Validate endpoint
+    if (!endpoint || typeof endpoint !== 'string') {
+      throw new Error('Invalid endpoint provided')
+    }
+
+    // Validate API_BASE_URL
+    if (!API_BASE_URL || API_BASE_URL.trim() === '') {
+      throw new Error('API base URL is not configured')
+    }
+
     // Add cache-busting parameter to ensure fresh data
     const separator = endpoint.includes('?') ? '&' : '?'
     const url = `${API_BASE_URL}${endpoint}${separator}_t=${Date.now()}`
+    
+    // Create timeout controller
+    const timeout = options.timeout as number || DEFAULT_TIMEOUT
+    const timeoutController = this.createTimeoutController(timeout)
+    
     const config: RequestInit = {
       headers: this.getHeaders(),
+      credentials: 'include', // Include cookies for session-based auth (OAuth)
+      signal: timeoutController.signal,
       ...options,
     }
 
-    console.log(`🌐 [API] ${options.method || 'GET'} ${endpoint}`)
+    // Remove timeout from options (not a valid fetch option)
+    delete (config as any).timeout
+
+    console.log(`🌐 [API] ${options.method || 'GET'} ${endpoint}${retryCount > 0 ? ` (retry ${retryCount}/${MAX_RETRIES})` : ''}`)
     console.log(`📍 [API] Full URL: ${url}`)
 
     if (options.body) {
-      console.log(`📦 [API] Request body:`, JSON.parse(options.body as string))
+      try {
+        console.log(`📦 [API] Request body:`, JSON.parse(options.body as string))
+      } catch (e) {
+        // Body might not be JSON, that's okay
+      }
     }
 
     try {
@@ -58,7 +132,18 @@ class ApiService {
 
       console.log(`✅ [API] Response received in ${duration}ms (status: ${response.status})`)
 
-      const data = await response.json()
+      // Parse JSON safely
+      let data: any
+      try {
+        data = await this.parseJsonResponse(response)
+      } catch (parseError) {
+        // If parsing fails, check if it's an expected error scenario
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error')
+          throw new Error(`Server error (${response.status}): ${errorText.substring(0, 100)}`)
+        }
+        throw parseError
+      }
 
       if (!response.ok) {
         // Check if this is an expected error that shouldn't be logged as red error
@@ -84,6 +169,22 @@ class ApiService {
           isExpectedError
         })
 
+        // Check if error is retryable
+        const errorInfo: ApiError = {
+          message: data.message || 'API request failed',
+          code: data.code,
+          status: response.status,
+          isRetryable: RETRYABLE_STATUS_CODES.includes(response.status),
+        }
+
+        // Retry if appropriate
+        if (isRetryableError(errorInfo) && retryCount < MAX_RETRIES) {
+          const delay = getRetryDelay(retryCount)
+          console.log(`⏳ [API] Retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`)
+          await sleep(delay)
+          return this.request(endpoint, options, retryCount + 1)
+        }
+
         if (isExpectedError) {
           // Don't log error for expected scenarios (no data, invalid token, etc.)
           console.log(`ℹ️ [API] Expected response (${response.status}): ${data.message || 'Not found'}`)
@@ -92,12 +193,44 @@ class ApiService {
           console.error(`❌ [API] Request failed:`, data.message || 'Unknown error')
         }
 
-        throw new Error(data.message || 'API request failed')
+        throw new Error(data.message || `API request failed with status ${response.status}`)
       }
 
       console.log(`📦 [API] Response data:`, data)
       return data
-    } catch (error) {
+
+    } catch (error: any) {
+      // Handle AbortError (timeout)
+      if (error.name === 'AbortError') {
+        const timeoutError: ApiError = {
+          message: getUserFriendlyMessage({ isTimeout: true } as ApiError),
+          code: 'TIMEOUT',
+          isTimeout: true,
+          isRetryable: true,
+        }
+
+        // Retry on timeout if we haven't exceeded max retries
+        if (retryCount < MAX_RETRIES) {
+          const delay = getRetryDelay(retryCount)
+          console.log(`⏳ [API] Request timed out, retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`)
+          await sleep(delay)
+          return this.request(endpoint, options, retryCount + 1)
+        }
+
+        throw new Error(timeoutError.message)
+      }
+
+      // Handle network errors
+      const classifiedError = classifyError(error)
+      
+      // Retry on network errors if retryable
+      if (isRetryableError(classifiedError) && retryCount < MAX_RETRIES) {
+        const delay = getRetryDelay(retryCount)
+        console.log(`⏳ [API] Network error, retrying in ${delay}ms... (attempt ${retryCount + 1}/${MAX_RETRIES})`)
+        await sleep(delay)
+        return this.request(endpoint, options, retryCount + 1)
+      }
+
       // Only log if it's not an expected error
       if (error instanceof Error &&
           !error.message.includes('No metrics') &&
@@ -106,7 +239,9 @@ class ApiService {
           !error.message.includes('Unauthorized')) {
         console.error('❌ [API ERROR]:', error)
       }
-      throw error
+
+      // Throw user-friendly error
+      throw new Error(getUserFriendlyMessage(classifiedError))
     }
   }
 
@@ -184,6 +319,7 @@ class ApiService {
     return this.request('/onboarding/analyze-website', {
       method: 'POST',
       body: JSON.stringify({ url }),
+      timeout: 180000, // 3 minutes for website analysis (AI processing can take time)
     })
   }
 
@@ -201,6 +337,7 @@ class ApiService {
   async generatePrompts() {
     return this.request('/onboarding/generate-prompts', {
       method: 'POST',
+      timeout: 180000, // 3 minutes for prompt generation + testing (can involve multiple AI calls)
     })
   }
 
@@ -221,6 +358,7 @@ class ApiService {
   async testPrompts() {
     return this.request('/prompts/test', {
       method: 'POST',
+      timeout: 180000, // 3 minutes for prompt testing (can involve multiple AI calls)
     })
   }
 
@@ -340,6 +478,7 @@ class ApiService {
     return this.request('/insights/generate', {
       method: 'POST',
       body: JSON.stringify({ urlAnalysisId }),
+      timeout: 180000, // 3 minutes for insights generation (AI processing can take time)
     })
   }
 
@@ -348,6 +487,7 @@ class ApiService {
     return this.request('/insights/generate', {
       method: 'POST',
       body: JSON.stringify({ tabType, urlAnalysisId }),
+      timeout: 180000, // 3 minutes for insights generation (AI processing can take time)
     })
   }
 

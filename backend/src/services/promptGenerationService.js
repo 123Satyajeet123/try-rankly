@@ -280,7 +280,7 @@ async function generatePromptsForCombination({
         headers: {
           'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
-          'HTTP-Referer': websiteUrl || 'https://rankly.ai',
+          'HTTP-Referer': process.env.OPENROUTER_REFERER || process.env.FRONTEND_URL || websiteUrl || 'https://rankly.ai',
           'X-Title': 'Rankly Prompt Generator'
         },
         timeout: 60000

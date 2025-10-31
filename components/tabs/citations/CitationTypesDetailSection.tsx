@@ -255,7 +255,8 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
     try {
       console.log(`📊 [CITATION DETAILS] Fetching real citations for ${brandName} - ${type}`)
       
-      const response = await fetch(`http://localhost:5000/api/dashboard/citations/${encodeURIComponent(brandName)}/${encodeURIComponent(type)}`)
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/dashboard/citations/${encodeURIComponent(brandName)}/${encodeURIComponent(type)}`)
       const result = await response.json()
       
       if (result.success) {
@@ -380,7 +381,8 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
       }
       
       // Call API to find promptIds by URLs
-      const response = await fetch(`http://localhost:5000/api/dashboard/citations/prompt-ids`, {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
+      const response = await fetch(`${apiUrl}/dashboard/citations/prompt-ids`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

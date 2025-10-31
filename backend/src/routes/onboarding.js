@@ -4,6 +4,7 @@ const Competitor = require('../models/Competitor');
 const Topic = require('../models/Topic');
 const Persona = require('../models/Persona');
 const UrlAnalysis = require('../models/UrlAnalysis');
+const { asyncHandler } = require('../middleware/errorHandler');
 const router = express.Router();
 
 /**
@@ -88,11 +89,11 @@ function extractBrandContext(urlAnalysis) {
   };
 }
 
-// Development authentication middleware (bypasses JWT)
-const devAuth = require('../middleware/devAuth');
+// JWT Authentication middleware
+const { authenticateToken } = require('../middleware/auth');
 
 // Get onboarding data
-router.get('/', devAuth, async (req, res) => {
+router.get('/', authenticateToken, asyncHandler(async (req, res) => {
   try {
     const user = await User.findById(req.userId);
     if (!user) {
@@ -135,16 +136,13 @@ router.get('/', devAuth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get onboarding data error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get onboarding data'
-    });
+    // Error will be handled by errorHandler middleware
+    throw error;
   }
-});
+}));
 
 // Update onboarding data in bulk
-router.put('/bulk', devAuth, async (req, res) => {
+router.put('/bulk', authenticateToken, asyncHandler(async (req, res) => {
   try {
     const { profile, websiteUrl, competitors, topics, personas, regions, languages, preferences } = req.body;
 
@@ -232,16 +230,13 @@ router.put('/bulk', devAuth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Update onboarding error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to update onboarding data'
-    });
+    // Error will be handled by errorHandler middleware
+    throw error;
   }
-});
+}));
 
 // Analyze website endpoint with AI integration
-router.post('/analyze-website', devAuth, async (req, res) => {
+router.post('/analyze-website', authenticateToken, asyncHandler(async (req, res) => {
   try {
     const { url } = req.body;
     
@@ -462,17 +457,13 @@ router.post('/analyze-website', devAuth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Website analysis error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Website analysis failed',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Analysis service temporarily unavailable'
-    });
+    // Error will be handled by errorHandler middleware
+    throw error;
   }
-});
+}));
 
 // Get latest website analysis results
-router.get('/latest-analysis', devAuth, async (req, res) => {
+router.get('/latest-analysis', authenticateToken, asyncHandler(async (req, res) => {
   try {
     const user = await User.findById(req.userId);
     if (!user) {
@@ -523,16 +514,13 @@ router.get('/latest-analysis', devAuth, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Get latest analysis error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to get analysis data'
-    });
+    // Error will be handled by errorHandler middleware
+    throw error;
   }
-});
+}));
 
 // Check if user has done URL analysis before
-router.get('/has-analysis', devAuth, async (req, res) => {
+router.get('/has-analysis', authenticateToken, asyncHandler(async (req, res) => {
   try {
     const analysisCount = await UrlAnalysis.countDocuments({ userId: req.userId });
 
@@ -544,16 +532,13 @@ router.get('/has-analysis', devAuth, async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Check analysis error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Failed to check analysis status'
-    });
+    // Error will be handled by errorHandler middleware
+    throw error;
   }
-});
+}));
 
 // Cleanup URL data endpoint (for manual cleanup if needed)
-router.post('/cleanup-url', devAuth, async (req, res) => {
+router.post('/cleanup-url', authenticateToken, asyncHandler(async (req, res) => {
   try {
     const { url } = req.body;
     
@@ -597,10 +582,10 @@ router.post('/cleanup-url', devAuth, async (req, res) => {
       error: process.env.NODE_ENV === 'development' ? error.message : 'Cleanup service temporarily unavailable'
     });
   }
-});
+}));
 
 // Update selections for competitors, topics, and personas
-router.post('/update-selections', devAuth, async (req, res) => {
+router.post('/update-selections', authenticateToken, asyncHandler(async (req, res) => {
   try {
     const { competitors = [], topics = [], personas = [], urlAnalysisId = null } = req.body;
     const userId = req.userId;
@@ -729,10 +714,10 @@ router.post('/update-selections', devAuth, async (req, res) => {
       message: 'Failed to update selections'
     });
   }
-});
+}));
 
 // Generate prompts based on user selections
-router.post('/generate-prompts', devAuth, async (req, res) => {
+router.post('/generate-prompts', authenticateToken, asyncHandler(async (req, res) => {
   try {
     const userId = req.userId;
     console.log('🎯 Starting prompt generation for user:', userId);
@@ -937,7 +922,7 @@ router.post('/generate-prompts', devAuth, async (req, res) => {
       error: process.env.NODE_ENV === 'development' ? error.message : 'Prompt generation service temporarily unavailable'
     });
   }
-});
+}));
 
 // Export the extractBrandContext function for testing
 module.exports.extractBrandContext = extractBrandContext;
