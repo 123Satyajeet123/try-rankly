@@ -22,6 +22,9 @@ export default function ResultsPage() {
   const [dataLoading, setDataLoading] = useState(true)
   const [metricsData, setMetricsData] = useState<any>(null)
   const [metricsError, setMetricsError] = useState<string | null>(null)
+  const [insightsLoading, setInsightsLoading] = useState(false)
+  const [insightsData, setInsightsData] = useState<{ whatsWorking: any[]; needsAttention: any[] }>({ whatsWorking: [], needsAttention: [] })
+  const hasInsights = (insightsData.whatsWorking?.length || 0) > 0 || (insightsData.needsAttention?.length || 0) > 0
   
   // Debug logging
   useEffect(() => {
@@ -81,13 +84,72 @@ export default function ResultsPage() {
     fetchMetrics()
   }, [data.generatedPrompts])
 
+  // After metrics are fetched, load Opportunities & Insights (ensure generation triggers here)
+  useEffect(() => {
+    const loadOpportunitiesInsights = async () => {
+      if (!metricsData) return
+      setInsightsLoading(true)
+      try {
+        const urlAnalysisId = data.urlAnalysisId
+        // Prefer proactively generating fresh insights for visibility
+        try {
+          const generated = await apiService.generateInsightsForTab('visibility', urlAnalysisId)
+          if (generated?.success && generated.data) {
+            setInsightsData({
+              whatsWorking: generated.data.whatsWorking || [],
+              needsAttention: generated.data.needsAttention || []
+            })
+          } else {
+            // If generation didn't return data, attempt to fetch existing cached insights
+            const existing = await apiService.getInsightsForTab('visibility', urlAnalysisId)
+            if (existing?.success && existing.data) {
+              setInsightsData({
+                whatsWorking: existing.data.whatsWorking || [],
+                needsAttention: existing.data.needsAttention || []
+              })
+            }
+          }
+        } catch (genErr) {
+          // If generation errors (e.g., expected 404s transformed into throws), try existing insights
+          try {
+            const existing = await apiService.getInsightsForTab('visibility', urlAnalysisId)
+            if (existing?.success && existing.data) {
+              setInsightsData({
+                whatsWorking: existing.data.whatsWorking || [],
+                needsAttention: existing.data.needsAttention || []
+              })
+            }
+          } catch (existingErr) {
+            // Fall through to derived fallback below
+            console.log('ℹ️ Using derived insights fallback due to generation/fetch errors')
+          }
+        }
+      } catch (e) {
+        console.error('❌ Failed to load opportunities & insights:', e)
+        // Keep fallback rendering from metrics below
+      } finally {
+        setInsightsLoading(false)
+      }
+    }
+
+    loadOpportunitiesInsights()
+  }, [metricsData, data.urlAnalysisId])
+
   const handleOpenDashboard = async () => {
     setIsOpening(true)
     
     try {
-      // Navigate to dashboard
+      // ✅ Pass urlAnalysisId as URL parameter so dashboard can use it immediately
+      const urlAnalysisId = data.urlAnalysisId
+      const dashboardUrl = urlAnalysisId 
+        ? `/dashboard?analysisId=${encodeURIComponent(urlAnalysisId)}`
+        : '/dashboard'
+      
+      console.log('🔗 [ResultsPage] Navigating to dashboard with urlAnalysisId:', urlAnalysisId)
+      
+      // Navigate to dashboard with urlAnalysisId parameter
       setTimeout(() => {
-        router.push('/dashboard')
+        router.push(dashboardUrl)
       }, 1000)
     } catch (err) {
       console.error('Failed to open dashboard:', err)
@@ -111,7 +173,7 @@ export default function ResultsPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6 md:p-10 relative">
+    <main className="relative flex h-screen w-full items-center justify-center bg-background text-foreground overflow-hidden">
       <BackgroundBeams className="absolute inset-0 z-0" />
       
       {/* Theme Toggle - Top Right */}
@@ -132,41 +194,41 @@ export default function ResultsPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="w-full max-w-4xl relative z-10"
+        className="w-full max-w-4xl relative z-10 px-4 py-4"
       >
-        <Card className="w-full overflow-hidden rounded-lg h-[600px] relative">
-          <CardContent className="grid rounded-lg md:grid-cols-2 h-full">
+        <Card className="overflow-hidden p-0 shadow-lg">
+          <CardContent className="grid p-0 md:grid-cols-2 h-[600px]">
             {/* Left Section - View Dashboard (Light Background) */}
-            <div className="bg-background p-6 sm:p-8 flex flex-col justify-center relative">
+            <div className="bg-background  p-6 sm:p-8 flex flex-col justify-center relative">
               {/* Navigation Arrows positioned over the left card */}
               <NavigationArrows 
                 previousPath="/onboarding/llm-platforms"
                 showNext={false}
               />
-              <div className="space-y-6 text-center w-full">
-                <div>
+              <div className="space-y-6 w-full">
+                <div className="text-left">
                   <h1 className="text-xl font-semibold tracking-tight text-foreground mb-1">
-                    View Dashboard for detailed insights
+                    View dashboard for detailed insights
                   </h1>
-                  {/* <p className="text-sm text-muted-foreground">
-                    {data.totalPrompts ? `${data.totalPrompts} prompts generated` : 'Analysis complete'}
-                  </p> */}
+                  <p className="text-sm font-normal leading-[1.4] text-muted-foreground">
+                    Open your results with live metrics and opportunities
+                  </p>
                 </div>
                 
                 <Button
                   onClick={handleOpenDashboard}
-                  disabled={isOpening}
-                  className="w-full h-12 bg-primary text-primary-foreground hover:bg-primary/90 font-medium flex items-center justify-center gap-2"
+                  disabled={isOpening || dataLoading || insightsLoading}
+                  className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  {isOpening ? 'Opening...' : (
-                    <>
-                      Open Dashboard
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </>
-                  )}
+                  {isOpening
+                    ? 'Opening…'
+                    : dataLoading || insightsLoading
+                      ? 'Preparing results…'
+                      : 'Open Dashboard'}
                 </Button>
+                <p className="text-center text-xs font-normal text-muted-foreground">
+                  You can always access this from the dashboard later
+                </p>
               </div>
             </div>
 
@@ -249,54 +311,82 @@ export default function ResultsPage() {
                         </p>
                   </div>
 
-                  {/* Average Position Card */}
+                  {/* Opportunities & Insights Card */}
                   <div className="bg-background/50 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-xs font-medium tracking-wide text-foreground">Average Position</h3>
-                      <span className="text-base font-semibold text-foreground">
-                        {metricsData?.metrics?.averagePosition?.value 
-                          ? `#${Math.round(metricsData.metrics.averagePosition.value)}`
-                          : '#0'}
-                      </span>
+                    <div className="mb-2">
+                      <h3 className="text-xs font-medium tracking-wide text-foreground">Opportunities & Insights</h3>
+                      <p className="text-xs font-normal leading-[1.4] text-muted-foreground">Key takeaways derived from your current metrics</p>
                     </div>
-                    <p className="text-xs font-normal leading-[1.4] text-muted-foreground">
-                      Average position of your brand in responses
-                    </p>
-                  </div>
+                    {(() => {
+                      // Prefer fetched insights from service
+                      const serviceWorking = insightsData.whatsWorking || []
+                      const serviceAttention = insightsData.needsAttention || []
 
-                  {/* Topic Rankings Card */}
-                  <div className="bg-background/50 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-xs font-medium tracking-wide text-foreground">Depth of Mention</h3>
-                      <span className="text-base font-semibold text-foreground">
-                        {metricsData?.metrics?.depthOfMention?.value 
-                          ? `${metricsData.metrics.depthOfMention.value.toFixed(2)}`
-                          : '0.00'}
-                      </span>
-                    </div>
-                    <p className="text-xs font-normal leading-[1.4] text-muted-foreground">
-                      Average word count when brand is mentioned
-                    </p>
-                  </div>
+                      // Fallback: derive simple insights from available metrics
+                      const overall = metricsData?.overall || {}
+                      const brand = overall?.brandMetrics?.[0] || {}
+                      const totalPrompts = overall?.totalPrompts || metricsData?.metrics?.totalPrompts || 0
 
-                  {/* Share of Voice Card */}
-                  <div className="bg-background/50 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-xs font-medium tracking-wide text-foreground">Share of Voice</h3>
-                      <span className="text-base font-semibold text-foreground">
-                        {(() => {
-                          // Try multiple paths to find share of voice
-                          const shareOfVoice = 
-                            metricsData?.overall?.brandMetrics?.[0]?.shareOfVoice ||
-                            metricsData?.competitors?.find((c: any) => c.isOwner)?.shareOfVoice ||
-                            metricsData?.overall?.summary?.userBrand?.shareOfVoice;
-                          return shareOfVoice !== undefined ? `${Math.round(shareOfVoice)}%` : '0%';
-                        })()}
-                      </span>
-                    </div>
-                    <p className="text-xs font-normal leading-[1.4] text-muted-foreground">
-                      Your brand's share of all brand mentions in responses
-                    </p>
+                      const fallbackWorking: any[] = []
+                      const fallbackAttention: any[] = []
+
+                      if (typeof brand.shareOfVoice === 'number' && brand.shareOfVoice >= 70) {
+                        fallbackWorking.push({ title: 'Dominant Share of Voice', recommendation: `Your brand commands ${Math.round(brand.shareOfVoice)}% of mentions indicating strong market presence.` })
+                      }
+                      if (typeof brand.avgPosition === 'number' && brand.avgPosition <= 2) {
+                        fallbackWorking.push({ title: 'Excellent Average Position', recommendation: `Consistently ranking around #${Math.round(brand.avgPosition)} across prompts.` })
+                      }
+                      if (typeof brand.citationShare === 'number' && brand.citationShare === 0) {
+                        fallbackAttention.push({ title: 'No Citations Yet', recommendation: 'Improve authority with source-rich content to start earning citations.' })
+                      }
+                      if (totalPrompts > 0 && totalPrompts < 5) {
+                        fallbackAttention.push({ title: 'Limited Data Volume', recommendation: `Only ${totalPrompts} prompts analyzed. Run more tests for reliable insights.` })
+                      }
+
+                      const whatsWorking = (serviceWorking.length ? serviceWorking : fallbackWorking).slice(0, 3)
+                      const needsAttention = (serviceAttention.length ? serviceAttention : fallbackAttention).slice(0, 3)
+
+                      return (
+                        <div className="grid grid-cols-1 gap-4">
+                          {insightsLoading && (
+                            <div className="text-xs text-muted-foreground">Generating opportunities & insights…</div>
+                          )}
+                          {whatsWorking.length > 0 && (
+                            <div className="space-y-2">
+                              <div className="text-[11px] font-semibold tracking-wide text-foreground">What's Working</div>
+                              <ul className="space-y-2">
+                                {whatsWorking.map((item: any, idx: number) => (
+                                  <li key={`ok-${idx}`} className="text-xs">
+                                    <span className="font-medium text-foreground">{item.insight || item.title}</span>
+                                    {(item.recommendation || item.detail) && (
+                                      <span className="text-muted-foreground"> — {item.recommendation || item.detail}</span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {needsAttention.length > 0 && (
+                            <div className="space-y-2">
+                              <div className="text-[11px] font-semibold tracking-wide text-foreground">Needs Attention</div>
+                              <ul className="space-y-2">
+                                {needsAttention.map((item: any, idx: number) => (
+                                  <li key={`na-${idx}`} className="text-xs">
+                                    <span className="font-medium text-foreground">{item.insight || item.title}</span>
+                                    {(item.recommendation || item.detail) && (
+                                      <span className="text-muted-foreground"> — {item.recommendation || item.detail}</span>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {whatsWorking.length === 0 && needsAttention.length === 0 && !insightsLoading && (
+                            <div className="text-xs text-muted-foreground">Insights will appear here once enough data is available.</div>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
               )}

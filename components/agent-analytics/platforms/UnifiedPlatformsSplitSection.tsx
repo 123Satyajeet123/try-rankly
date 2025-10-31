@@ -14,6 +14,7 @@ import { PieChart, Pie, Cell, ResponsiveContainer, Label } from 'recharts'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartConfig } from '@/components/ui/chart'
 import { LineChart, Line, XAxis, CartesianGrid } from 'recharts'
 import { LLMPlatformTrendChart } from '@/components/charts/LLMPlatformTrendChart'
+import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
 
 interface UnifiedPlatformsSplitSectionProps {
   realLLMData?: any
@@ -236,16 +237,22 @@ function UnifiedPlatformsSplitSection({ realLLMData, dateRange = '30 days', isLo
                               {platformSplitData.map((entry: any, index: number) => (
                                 <div key={entry.name} className="flex items-center gap-1">
                                   <img
-                                    src={`https://www.google.com/s2/favicons?domain=${getLLMDomain(entry.name)}&sz=32`}
+                                    src={getDynamicFaviconUrl(getLLMDomain(entry.name), 32)}
                                     alt={`${entry.name} favicon`}
                                     className="w-4 h-4 rounded-sm"
+                                    data-favicon-identifier={entry.name}
+                                    data-favicon-size="32"
                                     onError={(e) => {
+                                      handleFaviconError(e as any)
+                                      // Also apply custom fallback for visual consistency
                                       const target = e.target as HTMLImageElement
-                                      target.style.display = 'none'
-                                      const fallback = document.createElement('div')
-                                      fallback.className = 'w-4 h-4 rounded-full'
-                                      fallback.style.backgroundColor = entry.color
-                                      target.parentNode?.insertBefore(fallback, target)
+                                      if (!target.src.includes('fetchfavicon') && !target.src.includes('google.com')) {
+                                        target.style.display = 'none'
+                                        const fallback = document.createElement('div')
+                                        fallback.className = 'w-4 h-4 rounded-full'
+                                        fallback.style.backgroundColor = entry.color
+                                        target.parentNode?.insertBefore(fallback, target)
+                                      }
                                     }}
                                   />
                                   <span className="text-xs text-foreground">{entry.name}</span>
@@ -341,7 +348,7 @@ function UnifiedPlatformsSplitSection({ realLLMData, dateRange = '30 days', isLo
                         {platformSplitData.map((entry: any, index: number) => (
                           <div key={entry.name} className="flex items-center gap-1">
                             <img
-                              src={`https://www.google.com/s2/favicons?domain=${getLLMDomain(entry.name)}&sz=32`}
+                              src={getDynamicFaviconUrl(getLLMDomain(entry.name), 32)}
                               alt={`${entry.name} favicon`}
                               className="w-4 h-4 rounded-sm"
                               onError={(e) => {
@@ -482,7 +489,7 @@ function UnifiedPlatformsSplitSection({ realLLMData, dateRange = '30 days', isLo
                             {/* Favicon only below bar */}
                             <div className="w-16 h-8 flex items-center justify-center">
                               <img
-                                src={`https://www.google.com/s2/favicons?domain=${getLLMDomain(platform.name)}&sz=64`}
+                                src={getDynamicFaviconUrl(getLLMDomain(platform.name), 64)}
                                 alt={`${platform.name} favicon`}
                                 className="w-6 h-6 rounded-sm"
                                 onError={(e) => {
@@ -508,7 +515,7 @@ function UnifiedPlatformsSplitSection({ realLLMData, dateRange = '30 days', isLo
                                 {platformSplitData.map((entry: any, index: number) => (
                                   <div key={entry.name} className="flex items-center gap-1">
                                     <img
-                                      src={`https://www.google.com/s2/favicons?domain=${getLLMDomain(entry.name)}&sz=32`}
+                                      src={getDynamicFaviconUrl(getLLMDomain(entry.name), 32)}
                                       alt={`${entry.name} favicon`}
                                       className="w-4 h-4 rounded-sm"
                                       onError={(e) => {
@@ -667,17 +674,22 @@ function UnifiedPlatformsSplitSection({ realLLMData, dateRange = '30 days', isLo
                                         {/* Platform name with favicon */}
                                         <div className="flex items-center gap-2">
                                           <img
-                                    src={`https://www.google.com/s2/favicons?domain=${getLLMDomain(ranking.name)}&sz=32`}
+                                    src={getDynamicFaviconUrl(getLLMDomain(ranking.name), 32)}
                                             alt={`${ranking.name} favicon`}
                                     className="w-4 h-4 rounded-sm"
+                                            data-favicon-identifier={ranking.name}
+                                            data-favicon-size="32"
                                             onError={(e) => {
-                                              // Fallback to colored dot if favicon fails to load
+                                              handleFaviconError(e as any)
+                                              // Also apply custom fallback for visual consistency
                                               const target = e.target as HTMLImageElement
-                                              target.style.display = 'none'
-                                              const fallback = document.createElement('div')
-                                              fallback.className = 'w-2.5 h-2.5 rounded-full'
-                                              fallback.style.backgroundColor = platformSplitData[index]?.color || '#6B7280'
-                                              target.parentNode?.insertBefore(fallback, target)
+                                              if (!target.src.includes('fetchfavicon') && !target.src.includes('google.com')) {
+                                                target.style.display = 'none'
+                                                const fallback = document.createElement('div')
+                                                fallback.className = 'w-2.5 h-2.5 rounded-full'
+                                                fallback.style.backgroundColor = platformSplitData[index]?.color || '#6B7280'
+                                                target.parentNode?.insertBefore(fallback, target)
+                                              }
                                             }}
                                           />
                                           <div className="flex items-center gap-1">

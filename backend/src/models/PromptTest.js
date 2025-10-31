@@ -95,6 +95,7 @@ const promptTestSchema = new mongoose.Schema({
   brandMetrics: [{
     brandName: { type: String, required: true },
     mentioned: { type: Boolean, default: false },
+    isOwner: { type: Boolean, default: false }, // Flag to identify user's brand vs competitors
 
     // Position metrics
     firstPosition: { type: Number }, // 1-indexed: where brand first appears in response (sentence number)

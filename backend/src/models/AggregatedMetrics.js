@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const BrandMetricsSchema = new mongoose.Schema({
   brandId: { type: String, required: true },
   brandName: { type: String, required: true },
+  isOwner: { type: Boolean, default: false }, // Whether this is the user's brand
 
   // Visibility Score (primary metric)
   visibilityScore: { type: Number, required: true }, // Percentage (0-100)

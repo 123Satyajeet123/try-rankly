@@ -4,6 +4,7 @@ import mongoose, { Schema, Document } from 'mongoose';
 export interface IBrandMetrics {
   brandId: string;
   brandName: string;
+  isOwner?: boolean; // Whether this is the user's brand
 
   // Visibility Score
   visibilityScore: number; // Percentage

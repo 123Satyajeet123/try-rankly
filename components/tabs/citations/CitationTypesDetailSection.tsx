@@ -82,8 +82,8 @@ const getDetailedCitationData = (dashboardData: any) => {
         citationShares: brandShares,
         citationRanks: brandRanks,
         totalCitations: brandCitations,
-        isOwner: index === 0,
-        favicon: getDynamicFaviconUrl(competitor.name)
+        isOwner: competitor.isOwner || false, // ✅ Use isOwner from backend data, not index
+        favicon: getDynamicFaviconUrl((competitor as any).url || competitor.name)
       })
     }
 
@@ -120,7 +120,7 @@ const getDetailedCitationData = (dashboardData: any) => {
         citationShares: earnedShares,
         citationRanks: earnedRanks,
         totalCitations: earnedCitations,
-        isOwner: index === 0,
+        isOwner: competitor.isOwner || false, // ✅ Use isOwner from backend data, not index
         favicon: getDynamicFaviconUrl(competitor.name)
       })
     }
@@ -158,7 +158,7 @@ const getDetailedCitationData = (dashboardData: any) => {
         citationShares: socialShares,
         citationRanks: socialRanks,
         totalCitations: socialCitations,
-        isOwner: index === 0,
+        isOwner: competitor.isOwner || false, // ✅ Use isOwner from backend data, not index
         favicon: getDynamicFaviconUrl(competitor.name)
       })
     }

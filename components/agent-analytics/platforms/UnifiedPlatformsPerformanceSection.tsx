@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Info, Minus } from 'lucide-react'
 import { ModernTrendUp, ModernTrendDown } from '@/components/ui/modern-arrows'
+import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
 
 interface UnifiedPlatformsPerformanceSectionProps {
   realLLMData?: any
@@ -161,17 +162,22 @@ function UnifiedPlatformsPerformanceSection({ realLLMData, isLoading = false }: 
                 <div className="col-span-1 flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                     <img
-                      src={`https://www.google.com/s2/favicons?domain=${getLLMDomain(platform.platform || 'Unknown')}&sz=16`}
+                      src={getDynamicFaviconUrl(getLLMDomain(platform.platform || 'Unknown'), 16)}
                       alt={`${platform.platform || 'Unknown'} favicon`}
                       className="w-5 h-5 rounded-sm"
+                      data-favicon-identifier={platform.platform || 'Unknown'}
+                      data-favicon-size="16"
                       onError={(e) => {
-                        // Fallback to first letter if favicon fails to load
+                        handleFaviconError(e as any)
+                        // Also apply custom fallback for visual consistency
                         const target = e.target as HTMLImageElement
-                        target.style.display = 'none'
-                        const fallback = document.createElement('span')
-                        fallback.className = 'text-white text-xs font-bold'
-                        fallback.textContent = (platform.platform || '?').charAt(0)
-                        target.parentNode?.insertBefore(fallback, target)
+                        if (!target.src.includes('fetchfavicon') && !target.src.includes('google.com')) {
+                          target.style.display = 'none'
+                          const fallback = document.createElement('span')
+                          fallback.className = 'text-white text-xs font-bold'
+                          fallback.textContent = (platform.platform || '?').charAt(0)
+                          target.parentNode?.insertBefore(fallback, target)
+                        }
                       }}
                     />
                   </div>

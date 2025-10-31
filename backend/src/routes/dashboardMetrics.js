@@ -10,6 +10,7 @@ const AggregatedMetrics = require('../models/AggregatedMetrics');
 const PromptTest = require('../models/PromptTest');
 const Topic = require('../models/Topic');
 const Persona = require('../models/Persona');
+const Competitor = require('../models/Competitor');
 const router = express.Router();
 
 // Development authentication middleware (bypasses JWT)
@@ -55,11 +56,20 @@ router.get('/all', devAuth, async (req, res) => {
         });
       }
     } else {
+      // Get the latest analysis for this user
       urlAnalysis = await UrlAnalysis.findOne({
         userId: userId
       })
       .sort({ analysisDate: -1 })
       .lean();
+      
+      // If no analysis exists at all, return a helpful error message
+      if (!urlAnalysis) {
+        return res.status(404).json({
+          success: false,
+          message: 'No analysis found. Please complete the onboarding flow first.'
+        });
+      }
     }
 
     const userBrandName = urlAnalysis?.brandContext?.companyName || null;
@@ -280,9 +290,9 @@ router.get('/all', devAuth, async (req, res) => {
           topicRankings: formatTopicRankings(topics, userBrandName),
           personaRankings: formatPersonaRankings(personas, userBrandName),
           performanceInsights: formatPerformanceInsights(filteredOverall, userBrandName),
-          competitors: formatCompetitorsData(filteredOverall, userBrandName),
+          competitors: await formatCompetitorsData(filteredOverall, userBrandName, userId, currentUrlAnalysisId),
           // ✅ NEW: Citation-specific data structure for Citations tab
-          competitorsByCitation: formatCompetitorsByCitationData(filteredOverall, userBrandName)
+          competitorsByCitation: await formatCompetitorsByCitationData(filteredOverall, userBrandName, userId, currentUrlAnalysisId)
         },
         
         // ✅ Keep backward compatibility (using filtered overall)
@@ -292,7 +302,7 @@ router.get('/all', devAuth, async (req, res) => {
         topicRankings: formatTopicRankings(topics, userBrandName),
         personaRankings: formatPersonaRankings(personas, userBrandName),
         performanceInsights: formatPerformanceInsights(filteredOverall, userBrandName),
-        competitors: formatCompetitorsData(filteredOverall, userBrandName),
+        competitors: await formatCompetitorsData(filteredOverall, userBrandName, userId, currentUrlAnalysisId),
         
         // Platform-level data (formatted) - using filtered platforms
         platforms: filteredPlatforms.map(p => {
@@ -683,9 +693,48 @@ function formatPerformanceInsights(metrics, userBrandName) {
 }
 
 /**
- * Format competitors data for frontend (matches Competitor interface)
+ * Helper function to fetch competitor URLs in batch
+ * @param {string} userId - User ID
+ * @param {string} urlAnalysisId - URL Analysis ID (optional)
+ * @param {Array<string>} brandNames - Array of brand names to look up
+ * @returns {Promise<Map<string, string>>} Map of brand name to URL
  */
-function formatCompetitorsData(metrics, userBrandName) {
+async function getCompetitorUrlMap(userId, urlAnalysisId, brandNames) {
+  if (!brandNames || brandNames.length === 0) {
+    return new Map();
+  }
+
+  try {
+    const query = {
+      userId: userId,
+      name: { $in: brandNames }
+    };
+    
+    if (urlAnalysisId) {
+      query.urlAnalysisId = urlAnalysisId;
+    }
+
+    const competitors = await Competitor.find(query).select('name url').lean();
+    const urlMap = new Map();
+    
+    competitors.forEach(comp => {
+      if (comp.url) {
+        urlMap.set(comp.name, comp.url);
+      }
+    });
+
+    return urlMap;
+  } catch (error) {
+    console.error('⚠️ [getCompetitorUrlMap] Error fetching competitor URLs:', error);
+    return new Map(); // Return empty map on error
+  }
+}
+
+/**
+ * Format competitors data for frontend (matches Competitor interface)
+ * Now includes URLs from Competitor model
+ */
+async function formatCompetitorsData(metrics, userBrandName, userId, urlAnalysisId) {
   if (!metrics || !metrics.brandMetrics || metrics.brandMetrics.length === 0) {
     console.log('⚠️ [formatCompetitorsData] No metrics or brand metrics found');
     return [];
@@ -695,14 +744,20 @@ function formatCompetitorsData(metrics, userBrandName) {
   const sortedBrands = metrics.brandMetrics
     .sort((a, b) => (a.visibilityRank || 0) - (b.visibilityRank || 0));
 
-  return sortedBrands.map((brand, index) => ({
+  // Batch fetch competitor URLs to avoid N+1 queries
+  const brandNames = sortedBrands.map(brand => brand.brandName || 'Unknown').filter(Boolean);
+  const competitorUrlMap = await getCompetitorUrlMap(userId, urlAnalysisId, brandNames);
+
+  const competitors = sortedBrands.map((brand, index) => ({
     id: brand.brandId || `brand-${index}`,
     name: brand.brandName || 'Unknown',
+    url: competitorUrlMap.get(brand.brandName || 'Unknown') || null, // Include URL from database
     logo: '', // Will be handled by frontend favicon logic
     score: brand.visibilityScore || 0,
     rank: brand.visibilityRank || 0,
     change: 0, // TODO: Calculate from historical data
     trend: 'stable', // TODO: Calculate from historical data
+    isOwner: (brand.brandName || 'Unknown') === userBrandName, // Mark user's brand
     // Sentiment data
     sentimentScore: brand.sentimentScore || 0,
     sentimentBreakdown: brand.sentimentBreakdown || { positive: 0, neutral: 0, negative: 0, mixed: 0 },
@@ -714,12 +769,19 @@ function formatCompetitorsData(metrics, userBrandName) {
     socialCitationsTotal: brand.socialCitationsTotal || 0,
     totalCitations: brand.totalCitations || 0
   }));
+  
+  // Debug log to verify isOwner is set correctly
+  console.log('🔍 [formatCompetitorsData] User brand name:', userBrandName);
+  console.log('🔍 [formatCompetitorsData] Competitors with isOwner:', competitors.map(c => ({ name: c.name, isOwner: c.isOwner })));
+  
+  return competitors;
 }
 
 /**
  * Format competitors data specifically for Citations tab (matches citations frontend expectations)
+ * Now includes URLs from Competitor model
  */
-function formatCompetitorsByCitationData(metrics, userBrandName) {
+async function formatCompetitorsByCitationData(metrics, userBrandName, userId, urlAnalysisId) {
   if (!metrics || !metrics.brandMetrics || metrics.brandMetrics.length === 0) {
     console.log('⚠️ [formatCompetitorsByCitationData] No metrics or brand metrics found');
     return [];
@@ -729,9 +791,14 @@ function formatCompetitorsByCitationData(metrics, userBrandName) {
   const sortedBrands = metrics.brandMetrics
     .sort((a, b) => (a.citationShareRank || 0) - (b.citationShareRank || 0));
 
+  // Batch fetch competitor URLs to avoid N+1 queries
+  const brandNames = sortedBrands.map(brand => brand.brandName || 'Unknown').filter(Boolean);
+  const competitorUrlMap = await getCompetitorUrlMap(userId, urlAnalysisId, brandNames);
+
   return sortedBrands.map((brand, index) => ({
     id: brand.brandId || `brand-${index}`,
     name: brand.brandName || 'Unknown',
+    url: competitorUrlMap.get(brand.brandName || 'Unknown') || null, // Include URL from database
     // Citation-specific fields that frontend expects
     score: brand.citationShare || 0, // Frontend expects 'score' for citation share
     rank: brand.citationShareRank || 0,

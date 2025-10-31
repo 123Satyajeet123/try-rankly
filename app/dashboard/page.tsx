@@ -6,5 +6,7 @@ interface DashboardPageProps {
 
 export default async function DashboardPage({ searchParams }: DashboardPageProps) {
   const params = await searchParams
-  return <Dashboard initialTab={params.tab as string} />
+  // ✅ Pass urlAnalysisId from URL params to Dashboard component
+  const urlAnalysisId = params.analysisId as string | undefined
+  return <Dashboard initialTab={params.tab as string} urlAnalysisId={urlAnalysisId} />
 }

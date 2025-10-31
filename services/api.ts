@@ -68,9 +68,21 @@ class ApiService {
           data.message?.includes('No metrics') ||
           data.message?.includes('not found') ||
           data.message?.includes('Please run prompt tests first') ||
+          data.message?.includes('No insights found') ||
+          data.message?.includes('Generate insights first') ||
           data.message?.includes('Invalid token') ||
           data.message?.includes('Token expired') ||
           data.message?.includes('Unauthorized')
+
+        // Enhanced debug logging
+        console.log(`🔍 [API] DEBUG - Response not OK:`, {
+          status: response.status,
+          statusText: response.statusText,
+          endpoint: endpoint,
+          message: data.message,
+          fullData: data,
+          isExpectedError
+        })
 
         if (isExpectedError) {
           // Don't log error for expected scenarios (no data, invalid token, etc.)
@@ -213,9 +225,10 @@ class ApiService {
   }
 
   // Calculate metrics from test results
-  async calculateMetrics() {
+  async calculateMetrics(urlAnalysisId?: string) {
     return this.request('/metrics/calculate', {
       method: 'POST',
+      body: JSON.stringify({ urlAnalysisId }),
     })
   }
 

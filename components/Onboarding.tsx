@@ -259,10 +259,12 @@ function Onboarding() {
     // ✅ FIX: Card 4 only completes when API actually finishes
     useEffect(() => {
       if (analysisComplete && card4Visible) {
-        const timer = setTimeout(() => setCard4Loaded(true), 500)
-        return () => clearTimeout(timer)
+        // Enable the button immediately when backend finishes
+        setCard4Loaded(true)
       }
     }, [analysisComplete, card4Visible])
+
+    // Button will be visible immediately; enable only when processing completes.
 
     const steps = [
       { text: "Scraping URL and fetching brand context", visible: card1Visible, loaded: card1Loaded },
@@ -328,22 +330,20 @@ function Onboarding() {
           </div>
         )}
 
-        {card4Visible && (
-          <div className="mt-12 animate-in fade-in-0 slide-in-from-bottom-4 duration-500">
-            <Button
-              size="lg"
-              className="h-12 px-8 text-lg font-semibold bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={() => {
-                setIsAnalyzing(false)
-                setAnalysisComplete(false)
-                setCurrentStep(5)
-              }}
-              disabled={!card4Loaded}
-            >
-              {card4Loaded ? 'Continue to Next Step →' : 'Processing...'}
-            </Button>
-          </div>
-        )}
+        <div className="mt-12 animate-in fade-in-0 slide-in-from-bottom-4 duration-0">
+          <Button
+            size="lg"
+            className="h-12 px-8 text-lg font-semibold bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={() => {
+              setIsAnalyzing(false)
+              setAnalysisComplete(false)
+              setCurrentStep(5)
+            }}
+            disabled={!card4Loaded}
+          >
+            {card4Loaded ? 'Continue to Next Step →' : 'Processing...'}
+          </Button>
+        </div>
       </div>
     )
   }
@@ -1346,6 +1346,7 @@ function Onboarding() {
           // Update local data with the analysis results
           updateData({
             websiteUrl: url,
+            urlAnalysisId: response.data.urlAnalysisId, // Save the ID for dashboard navigation
             // Store analysis results for use in later steps
             analysisResults: response.data.analysis
           })

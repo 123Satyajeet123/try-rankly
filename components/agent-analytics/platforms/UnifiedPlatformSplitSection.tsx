@@ -11,6 +11,7 @@ import { Info, Settings, ChevronDown, BarChart, PieChart as PieChartIcon } from 
 import { ModernTrendUp, ModernTrendDown, TrendArrowUp } from '@/components/ui/modern-arrows'
 import { PieChart, Pie, Cell, ResponsiveContainer, Label } from 'recharts'
 import { PlatformTrendChart } from '@/components/charts/PlatformTrendChart'
+import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
 
 // Function to get the domain for each LLM platform for favicon fetching
 function getLLMDomain(platform: string): string {
@@ -243,7 +244,7 @@ function UnifiedPlatformSplitSection({ realLLMData, dateRange = '30 days', isLoa
                             {/* Platform favicon below bar */}
                             <div className="w-16 h-6 flex items-center justify-center">
                               <img
-                                src={`https://www.google.com/s2/favicons?domain=${getLLMDomain(platform.name)}&sz=16`}
+                                src={getDynamicFaviconUrl(getLLMDomain(platform.name), 16)}
                                 alt={`${platform.name} favicon`}
                                 className="w-4 h-4 rounded-sm"
                                 onError={(e) => {
@@ -269,7 +270,7 @@ function UnifiedPlatformSplitSection({ realLLMData, dateRange = '30 days', isLoa
                         {platformSplitData.map((entry: any, index: number) => (
                           <div key={entry.name} className="flex items-center gap-1">
                             <img
-                              src={`https://www.google.com/s2/favicons?domain=${getLLMDomain(entry.name)}&sz=16`}
+                              src={getDynamicFaviconUrl(getLLMDomain(entry.name), 16)}
                               alt={`${entry.name} favicon`}
                               className="w-3 h-3 rounded-sm"
                               onError={(e) => {
@@ -427,17 +428,22 @@ function UnifiedPlatformSplitSection({ realLLMData, dateRange = '30 days', isLoa
                                 {/* Platform name with favicon */}
                                 <div className="flex items-center gap-2">
                                   <img
-                                    src={`https://www.google.com/s2/favicons?domain=${getLLMDomain(ranking.name)}&sz=16`}
+                                    src={getDynamicFaviconUrl(getLLMDomain(ranking.name), 16)}
                                     alt={`${ranking.name} favicon`}
                                     className="w-4 h-4 rounded-sm"
+                                    data-favicon-identifier={ranking.name}
+                                    data-favicon-size="16"
                                     onError={(e) => {
-                                      // Fallback to colored dot if favicon fails to load
+                                      handleFaviconError(e as any)
+                                      // Also apply custom fallback for visual consistency
                                       const target = e.target as HTMLImageElement
-                                      target.style.display = 'none'
-                                      const fallback = document.createElement('div')
-                                      fallback.className = 'w-2.5 h-2.5 rounded-full'
-                                      fallback.style.backgroundColor = platformSplitData[index]?.color || '#6B7280'
-                                      target.parentNode?.insertBefore(fallback, target)
+                                      if (!target.src.includes('fetchfavicon') && !target.src.includes('google.com')) {
+                                        target.style.display = 'none'
+                                        const fallback = document.createElement('div')
+                                        fallback.className = 'w-2.5 h-2.5 rounded-full'
+                                        fallback.style.backgroundColor = platformSplitData[index]?.color || '#6B7280'
+                                        target.parentNode?.insertBefore(fallback, target)
+                                      }
                                     }}
                                   />
                                   <div className="flex items-center gap-1">

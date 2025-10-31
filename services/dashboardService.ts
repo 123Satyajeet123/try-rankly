@@ -147,24 +147,63 @@ class DashboardService {
       }
 
       // ✅ Use new /api/dashboard/all endpoint (includes AI insights)
+      // Convert null to undefined so backend can fall back to latest analysis
+      const urlAnalysisId = filters.selectedAnalysisId || filters.urlAnalysisId || undefined
       console.log('🔄 [DashboardService] Calling /api/dashboard/all with filters:', {
         dateFrom: filters.dateFrom,
         dateTo: filters.dateTo,
-        urlAnalysisId: filters.selectedAnalysisId || filters.urlAnalysisId
+        urlAnalysisId: urlAnalysisId
       })
       console.log('🔍 [DashboardService] Full filters object:', filters)
       
-      const dashboardResponse = await apiService.getDashboardAll({
-        dateFrom: filters.dateFrom,
-        dateTo: filters.dateTo,
-        urlAnalysisId: filters.selectedAnalysisId || filters.urlAnalysisId,
-        topics: filters.topics,
-        personas: filters.personas,
-        platforms: filters.platforms
-      }).catch(e => {
-        console.error('❌ [DashboardService] Failed to fetch dashboard/all:', e)
-        return { success: false, data: null }
-      })
+      console.log('🔍 [DashboardService] DEBUG - Starting dashboard data fetch')
+      console.log('🔍 [DashboardService] DEBUG - urlAnalysisId:', urlAnalysisId)
+      console.log('🔍 [DashboardService] DEBUG - filters.selectedAnalysisId:', filters.selectedAnalysisId)
+      console.log('🔍 [DashboardService] DEBUG - filters.urlAnalysisId:', filters.urlAnalysisId)
+      console.log('🔍 [DashboardService] DEBUG - Full filters object:', JSON.stringify(filters, null, 2))
+      
+      let dashboardResponse;
+      let errorMessage = '';
+      
+      try {
+        console.log('🔍 [DashboardService] DEBUG - Calling getDashboardAll with:', {
+          dateFrom: filters.dateFrom,
+          dateTo: filters.dateTo,
+          urlAnalysisId: urlAnalysisId,
+          topics: filters.topics?.length || 0,
+          personas: filters.personas?.length || 0,
+          platforms: filters.platforms?.length || 0
+        })
+        
+        dashboardResponse = await apiService.getDashboardAll({
+          dateFrom: filters.dateFrom,
+          dateTo: filters.dateTo,
+          urlAnalysisId: urlAnalysisId,
+          topics: filters.topics,
+          personas: filters.personas,
+          platforms: filters.platforms
+        })
+        
+        console.log('🔍 [DashboardService] DEBUG - getDashboardAll response:', {
+          success: dashboardResponse.success,
+          hasData: !!dashboardResponse.data,
+          message: (dashboardResponse as any).message
+        })
+      } catch (e) {
+        console.error('❌ [DashboardService] DEBUG - Exception caught:', {
+          error: e,
+          message: e instanceof Error ? e.message : String(e),
+          stack: e instanceof Error ? e.stack : undefined,
+          name: e instanceof Error ? e.name : undefined
+        })
+        errorMessage = e instanceof Error ? e.message : String(e)
+        dashboardResponse = { 
+          success: false, 
+          data: null,
+          message: errorMessage
+        }
+        console.log('🔍 [DashboardService] DEBUG - Set dashboardResponse to:', dashboardResponse)
+      }
       
       console.log('📊 [DashboardService] Dashboard response:', {
         success: dashboardResponse.success,
@@ -173,49 +212,149 @@ class DashboardService {
         personaRankings: dashboardResponse.data?.metrics?.personaRankings?.length || 0
       })
 
-      // If dashboard/all fails, fallback to individual endpoints
+      // If dashboard/all fails, check if it's because metrics don't exist yet
       if (!dashboardResponse.success || !dashboardResponse.data) {
-        console.log('⚠️ [DashboardService] dashboard/all failed, falling back to individual endpoints')
+        const responseErrorMessage = errorMessage || (dashboardResponse as any).message || ''
+        const isMetricsNotFound = 
+          responseErrorMessage.includes('No metrics') || 
+          responseErrorMessage.includes('not found') || 
+          responseErrorMessage.includes('Please run calculations') ||
+          responseErrorMessage.includes('run calculations first')
         
-        const [
-          overallMetrics,
-          platformMetrics,
-          topicMetrics,
-          personaMetrics,
-          competitors,
-          topics,
-          personas
-        ] = await Promise.all([
-          apiService.getAggregatedMetrics({ ...filters, scope: 'overall' }).catch(e => ({ success: false, data: null })),
-          apiService.getAggregatedMetrics({ ...filters, scope: 'platform' }).catch(e => ({ success: false, data: [] })),
-          apiService.getAggregatedMetrics({ ...filters, scope: 'topic' }).catch(e => ({ success: false, data: [] })),
-          apiService.getAggregatedMetrics({ ...filters, scope: 'persona' }).catch(e => ({ success: false, data: [] })),
-          apiService.getCompetitors(filters.selectedAnalysisId || filters.urlAnalysisId).catch(e => ({ success: false, data: [] })),
-          apiService.getTopics(filters.selectedAnalysisId || filters.urlAnalysisId).catch(e => ({ success: false, data: [] })),
-          apiService.getPersonas(filters.selectedAnalysisId || filters.urlAnalysisId).catch(e => ({ success: false, data: [] }))
-        ])
-      
-        // Process fallback data (existing code continues below)
-        return this.processFallbackData(overallMetrics, platformMetrics, topicMetrics, personaMetrics, competitors, topics, personas, filters)
+        // If metrics don't exist, try to calculate them automatically
+        if (isMetricsNotFound && urlAnalysisId) {
+          console.log('🔄 [DashboardService] DEBUG - Metrics not found, triggering automatic calculation')
+          console.log('🔍 [DashboardService] DEBUG - urlAnalysisId for calculation:', urlAnalysisId)
+          console.log('🔍 [DashboardService] DEBUG - urlAnalysisId type:', typeof urlAnalysisId)
+          console.log('🔍 [DashboardService] DEBUG - urlAnalysisId length:', urlAnalysisId?.length)
+          
+          try {
+            // Trigger metrics calculation
+            console.log('🔍 [DashboardService] DEBUG - Calling calculateMetrics with urlAnalysisId:', urlAnalysisId)
+            const calculateResponse = await apiService.calculateMetrics(urlAnalysisId)
+            
+            console.log('🔍 [DashboardService] DEBUG - calculateMetrics response:', {
+              success: calculateResponse.success,
+              message: (calculateResponse as any).message,
+              data: (calculateResponse as any).data
+            })
+            
+            if (calculateResponse.success) {
+              console.log('✅ [DashboardService] Metrics calculation completed, retrying dashboard fetch...')
+              console.log('🔍 [DashboardService] DEBUG - Waiting 2 seconds before retry...')
+              // Wait a bit longer for metrics to be stored
+              await new Promise(resolve => setTimeout(resolve, 2000))
+              
+              // Retry the dashboard/all call
+              console.log('🔍 [DashboardService] DEBUG - Retrying getDashboardAll with urlAnalysisId:', urlAnalysisId)
+              try {
+                const retryResponse = await apiService.getDashboardAll({
+                  dateFrom: filters.dateFrom,
+                  dateTo: filters.dateTo,
+                  urlAnalysisId: urlAnalysisId,
+                  topics: filters.topics,
+                  personas: filters.personas,
+                  platforms: filters.platforms
+                })
+                
+                console.log('🔍 [DashboardService] DEBUG - Retry response:', {
+                  success: retryResponse.success,
+                  hasData: !!retryResponse.data,
+                  message: (retryResponse as any).message
+                })
+                
+                if (retryResponse.success && retryResponse.data) {
+                  console.log('✅ [DashboardService] Dashboard data fetched successfully after metrics calculation')
+                  // Use the retry response data
+                  dashboardResponse = retryResponse
+                } else {
+                  console.warn('⚠️ [DashboardService] DEBUG - Retry response had no data:', {
+                    success: retryResponse.success,
+                    message: (retryResponse as any).message
+                  })
+                }
+              } catch (retryError) {
+                console.error('❌ [DashboardService] DEBUG - Retry exception:', {
+                  error: retryError,
+                  message: retryError instanceof Error ? retryError.message : String(retryError),
+                  stack: retryError instanceof Error ? retryError.stack : undefined
+                })
+                // Continue with fallback logic
+              }
+            } else {
+              console.warn('⚠️ [DashboardService] Metrics calculation returned success:false', {
+                message: (calculateResponse as any).message,
+                response: calculateResponse
+              })
+            }
+          } catch (calcError) {
+            console.error('❌ [DashboardService] DEBUG - Calculate metrics exception:', {
+              error: calcError,
+              message: calcError instanceof Error ? calcError.message : String(calcError),
+              stack: calcError instanceof Error ? calcError.stack : undefined
+            })
+            // Continue with fallback logic below
+          }
+        } else {
+          console.log('🔍 [DashboardService] DEBUG - Not triggering calculation:', {
+            isMetricsNotFound,
+            hasUrlAnalysisId: !!urlAnalysisId,
+            errorMessage: responseErrorMessage
+          })
+        }
+        
+        // If still no data, fallback to individual endpoints
+        if (!dashboardResponse.success || !dashboardResponse.data) {
+          console.log('⚠️ [DashboardService] dashboard/all failed, falling back to individual endpoints')
+          
+          // Convert null to undefined for fallback API calls as well
+          const fallbackUrlAnalysisId = filters.selectedAnalysisId || filters.urlAnalysisId || undefined
+          const [
+            overallMetrics,
+            platformMetrics,
+            topicMetrics,
+            personaMetrics,
+            competitors,
+            topics,
+            personas
+          ] = await Promise.all([
+            apiService.getAggregatedMetrics({ ...filters, scope: 'overall', urlAnalysisId: fallbackUrlAnalysisId }).catch(e => ({ success: false, data: null })),
+            apiService.getAggregatedMetrics({ ...filters, scope: 'platform', urlAnalysisId: fallbackUrlAnalysisId }).catch(e => ({ success: false, data: [] })),
+            apiService.getAggregatedMetrics({ ...filters, scope: 'topic', urlAnalysisId: fallbackUrlAnalysisId }).catch(e => ({ success: false, data: [] })),
+            apiService.getAggregatedMetrics({ ...filters, scope: 'persona', urlAnalysisId: fallbackUrlAnalysisId }).catch(e => ({ success: false, data: [] })),
+            apiService.getCompetitors(fallbackUrlAnalysisId).catch(e => ({ success: false, data: [] })),
+            apiService.getTopics(fallbackUrlAnalysisId).catch(e => ({ success: false, data: [] })),
+            apiService.getPersonas(fallbackUrlAnalysisId).catch(e => ({ success: false, data: [] }))
+          ])
+        
+          // Process fallback data (existing code continues below)
+          return this.processFallbackData(overallMetrics, platformMetrics, topicMetrics, personaMetrics, competitors, topics, personas, filters)
+        }
       }
 
       // ✅ Process dashboard/all response (includes aiInsights)
       console.log('✅ [DashboardService] Using dashboard/all response with AI insights')
-      const dashData = dashboardResponse.data
+      let dashData = dashboardResponse.data
+      console.log('🔍 [DashboardService] DEBUG - dashData exists:', !!dashData)
+      console.log('🔍 [DashboardService] DEBUG - dashData type:', typeof dashData)
+      console.log('🔍 [DashboardService] DEBUG - dashData keys:', dashData ? Object.keys(dashData) : 'null')
+      console.log('🔍 [DashboardService] DEBUG - dashData.overall:', dashData?.overall ? 'exists' : 'null')
+      console.log('🔍 [DashboardService] DEBUG - dashData.platformMetrics length:', dashData?.platformMetrics?.length || 0)
       
       // Fetch competitors, topics, personas separately (still needed for filtering)
-      const [competitors, topics, personas] = await Promise.all([
-        apiService.getCompetitors(filters.selectedAnalysisId || filters.urlAnalysisId).catch(e => ({ success: false, data: [] })),
-        apiService.getTopics(filters.selectedAnalysisId || filters.urlAnalysisId).catch(e => ({ success: false, data: [] })),
-        apiService.getPersonas(filters.selectedAnalysisId || filters.urlAnalysisId).catch(e => ({ success: false, data: [] }))
+      // Use let so they can be reassigned in retry logic below
+      let [competitors, topics, personas] = await Promise.all([
+        apiService.getCompetitors(urlAnalysisId).catch(e => ({ success: false, data: [] })),
+        apiService.getTopics(urlAnalysisId).catch(e => ({ success: false, data: [] })),
+        apiService.getPersonas(urlAnalysisId).catch(e => ({ success: false, data: [] }))
       ])
 
-      // Extract data from response
-      const overallMetrics = { success: true, data: dashData.overall || null }
+      // Extract data from response - use let so they can be reassigned in retry logic
+      let overallMetrics = { success: true, data: dashData?.overall || null }
       // ✅ Fix: Use raw platform metrics for citation analysis
-      const platformMetrics = { success: true, data: dashData.platformMetrics || [] }
-      const topicMetrics = { success: true, data: dashData.topics || [] }
-      const personaMetrics = { success: true, data: dashData.personas || [] }
+      let platformMetrics = { success: true, data: dashData?.platformMetrics || [] }
+      let topicMetrics = { success: true, data: dashData?.topics || [] }
+      let personaMetrics = { success: true, data: dashData?.personas || [] }
       const aiInsights = dashData.aiInsights || null  // ✅ NEW: AI insights from backend
       
       // ✅ NEW: Extract formatted rankings from backend
@@ -238,9 +377,136 @@ class DashboardService {
       console.log('  Personas:', personas.success ? '✅' : '❌', personas.data?.length || 0, 'items')
 
       // Check if we have any data
+      console.log('🔍 [DashboardService] DEBUG - Checking data availability:', {
+        hasOverallMetrics: !!overallMetrics.data,
+        hasCompetitors: competitors.data?.length > 0,
+        competitorsCount: competitors.data?.length || 0,
+        overallMetricsKeys: overallMetrics.data ? Object.keys(overallMetrics.data) : [],
+        competitorsData: competitors.data ? competitors.data.slice(0, 2) : [],
+        overallMetricsSuccess: overallMetrics.success,
+        competitorsSuccess: competitors.success
+      })
+      
       if (!overallMetrics.data && !competitors.data?.length) {
-        console.log('⚠️ [DashboardService] No data available yet')
-        throw new Error('No data available. Please complete the onboarding flow first.')
+        console.log('⚠️ [DashboardService] DEBUG - No data available, checking if we need to calculate metrics first')
+        console.log('🔍 [DashboardService] DEBUG - Overall metrics response:', {
+          success: overallMetrics.success,
+          data: overallMetrics.data,
+          error: (overallMetrics as any).error || (overallMetrics as any).message
+        })
+        console.log('🔍 [DashboardService] DEBUG - Competitors response:', {
+          success: competitors.success,
+          data: competitors.data,
+          count: competitors.data?.length || 0
+        })
+        
+        // Before throwing error, check if we need to calculate metrics
+        if (urlAnalysisId) {
+          console.log('🔍 [DashboardService] DEBUG - urlAnalysisId exists, checking for prompt tests via API...')
+          try {
+            // Check if there are any prompt tests via API
+            const testsResponse = await apiService.getAllTests({ urlAnalysisId })
+            const testCount = testsResponse.data?.length || 0
+            console.log('🔍 [DashboardService] DEBUG - Prompt tests count from API:', testCount)
+            
+            if (testCount > 0) {
+              console.log('🔄 [DashboardService] Prompt tests exist but metrics not calculated yet, attempting calculation...')
+              // Try to calculate metrics one more time
+              const calcResponse = await apiService.calculateMetrics(urlAnalysisId)
+              console.log('🔍 [DashboardService] DEBUG - Calculate metrics response:', {
+                success: calcResponse.success,
+                message: (calcResponse as any).message,
+                data: (calcResponse as any).data
+              })
+              
+              if (calcResponse.success) {
+                console.log('✅ [DashboardService] Metrics calculation triggered, waiting 3 seconds and retrying...')
+                await new Promise(resolve => setTimeout(resolve, 3000))
+                
+                // Retry fetching dashboard data via getDashboardAll
+                console.log('🔍 [DashboardService] DEBUG - Retrying getDashboardAll after calculation...')
+                try {
+                  const retryResult = await apiService.getDashboardAll({
+                    dateFrom: filters.dateFrom,
+                    dateTo: filters.dateTo,
+                    urlAnalysisId: urlAnalysisId,
+                    topics: filters.topics,
+                    personas: filters.personas,
+                    platforms: filters.platforms
+                  })
+                  
+                  console.log('🔍 [DashboardService] DEBUG - Retry getDashboardAll response:', {
+                    success: retryResult.success,
+                    hasData: !!retryResult.data,
+                    message: (retryResult as any).message
+                  })
+                  
+                  if (retryResult.success && retryResult.data) {
+                    console.log('✅ [DashboardService] Successfully fetched data after calculation, updating variables...')
+                    // Update dashboardResponse to use retry data
+                    dashboardResponse.success = true
+                    dashboardResponse.data = retryResult.data
+                    // Update dashData with retry result
+                    dashData = retryResult.data
+                    console.log('🔍 [DashboardService] DEBUG - Updated dashData keys:', dashData ? Object.keys(dashData) : 'null')
+                    
+                    // Re-extract data from retryResult
+                    overallMetrics = { success: true, data: dashData.overall || null }
+                    platformMetrics = { success: true, data: dashData.platformMetrics || [] }
+                    topicMetrics = { success: true, data: dashData.topics || [] }
+                    personaMetrics = { success: true, data: dashData.personas || [] }
+                    
+                    console.log('🔍 [DashboardService] DEBUG - Updated metrics:', {
+                      hasOverallMetrics: !!overallMetrics.data,
+                      overallMetricsKeys: overallMetrics.data ? Object.keys(overallMetrics.data) : [],
+                      platformMetricsLength: platformMetrics.data?.length || 0
+                    })
+                    
+                    // Re-fetch competitors, topics, personas
+                    [competitors, topics, personas] = await Promise.all([
+                      apiService.getCompetitors(urlAnalysisId).catch(e => ({ success: false, data: [] })),
+                      apiService.getTopics(urlAnalysisId).catch(e => ({ success: false, data: [] })),
+                      apiService.getPersonas(urlAnalysisId).catch(e => ({ success: false, data: [] }))
+                    ])
+                    
+                    console.log('🔍 [DashboardService] DEBUG - After reprocessing:', {
+                      hasOverallMetrics: !!overallMetrics.data,
+                      hasCompetitors: competitors.data?.length > 0,
+                      competitorsCount: competitors.data?.length || 0,
+                      dashDataKeys: dashData ? Object.keys(dashData) : [],
+                      competitorsSuccess: competitors.success,
+                      topicsSuccess: topics.success,
+                      personasSuccess: personas.success
+                    })
+                    
+                    // After successful retry, we have data so we should skip the error throw
+                    // The updated variables will be checked again below, but now they should have data
+                  }
+                } catch (retryError) {
+                  console.error('❌ [DashboardService] DEBUG - Error retrying getDashboardAll:', retryError)
+                }
+              }
+            } else {
+              console.log('🔍 [DashboardService] DEBUG - No prompt tests found, user needs to complete onboarding')
+            }
+          } catch (checkError) {
+            console.error('❌ [DashboardService] DEBUG - Error checking for prompt tests:', {
+              error: checkError,
+              message: checkError instanceof Error ? checkError.message : String(checkError)
+            })
+          }
+        }
+        
+        // Final check after potential calculation
+        if (!overallMetrics.data && !competitors.data?.length) {
+          console.log('⚠️ [DashboardService] DEBUG - No data available after all attempts')
+          console.log('🔍 [DashboardService] DEBUG - Final state:', {
+            overallMetrics: overallMetrics,
+            competitors: competitors,
+            urlAnalysisId: urlAnalysisId
+          })
+          throw new Error('No data available. Please complete the onboarding flow first.')
+        }
       }
 
       // Check if we have the required data structure
@@ -285,7 +551,7 @@ class DashboardService {
       
       // 🧠 Always trigger insights generation for all tabs in background
       // This ensures each tab has fresh, tab-specific insights
-      this.triggerInsightsGeneration(filters.selectedAnalysisId || filters.urlAnalysisId)
+      this.triggerInsightsGeneration(urlAnalysisId)
 
       // Add filter options to dashboard data
       const filterOptions = transformFilters({

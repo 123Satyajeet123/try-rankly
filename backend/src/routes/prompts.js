@@ -5,7 +5,7 @@ const Topic = require('../models/Topic');
 const Persona = require('../models/Persona');
 const Competitor = require('../models/Competitor');
 const UrlAnalysis = require('../models/UrlAnalysis');
-const { generatePrompts } = require('../services/promptGenerationService');
+const { generatePrompts, normalizePromptText } = require('../services/promptGenerationService');
 const promptTestingService = require('../services/promptTestingService');
 const PromptTest = require('../models/PromptTest');
 const router = express.Router();
@@ -243,14 +243,14 @@ router.post('/generate', devAuth, async (req, res) => {
 
     // Prepare data for prompt generation
     const topics = selectedTopics.map(t => ({
-      id: t._id.toString(),
+      _id: t._id.toString(),
       name: t.name,
       description: t.description || '',
       keywords: t.keywords || []
     }));
 
     const personas = selectedPersonas.map(p => ({
-      id: p._id.toString(),
+      _id: p._id.toString(),
       type: p.type,
       description: p.description || '',
       painPoints: p.painPoints || [],
@@ -265,9 +265,18 @@ router.post('/generate', devAuth, async (req, res) => {
     // Generate prompts using AI service
     // Use centralized configuration
     // Removed hyperparameters config dependency
-    const totalPrompts = 20;
+    // Calculate equal prompts per combination to reach ~80 total
+    const totalCombinations = selectedTopics.length * selectedPersonas.length;
+    // Target ~80 total prompts, so calculate prompts per combination
+    // Ensure minimum 5 prompts per combination for quality
+    const targetTotal = 80;
+    const promptsPerCombination = Math.max(5, Math.floor(targetTotal / totalCombinations));
+    // Adjust to ensure we get close to target total
+    const actualTotal = promptsPerCombination * totalCombinations;
     
-    console.log(`📊 Generating ${totalPrompts} prompts per combination`);
+    console.log(`📊 Generating ${promptsPerCombination} prompts per combination`);
+    console.log(`   Total combinations: ${totalCombinations} (${selectedTopics.length} topics × ${selectedPersonas.length} personas)`);
+    console.log(`   Expected total: ~${actualTotal} prompts (${promptsPerCombination} × ${totalCombinations})`);
     
     const generatedPrompts = await generatePrompts({
       topics,
@@ -277,7 +286,10 @@ router.post('/generate', devAuth, async (req, res) => {
       websiteUrl: latestAnalysis.url,
       brandContext: latestAnalysis.brandContext || '',
       // competitors removed - not needed for TOFU queries
-      totalPrompts
+      totalPrompts: promptsPerCombination, // This will be used for EACH combination
+      options: {
+        promptsPerCombination: true // Flag to indicate we want equal per combination
+      }
     });
 
     console.log(`✨ Generated ${generatedPrompts.length} prompts`);
@@ -396,7 +408,7 @@ router.post('/test', devAuth, async (req, res) => {
     
     // Use centralized configuration
     // Removed hyperparameters config dependency
-    const maxPromptsToTest = 20;
+    const maxPromptsToTest = 5; // Reduced from 20 to 5 for faster testing/debugging
     
     console.log(`📊 [START] Testing prompts across 4 LLMs (limit: ${maxPromptsToTest})...`);
     const testStartTime = Date.now();
@@ -632,9 +644,43 @@ router.get('/dashboard', devAuth, async (req, res) => {
     }
     
     const brandName = analysis?.brandContext?.companyName || 'Unknown Brand';
-    const brandId = brandName.toLowerCase().replace(/[^a-z0-9®]/g, '-').replace(/-+/g, '-').replace(/-$/, '');
+    const brandUrl = analysis?.url || null; // Get brand URL from UrlAnalysis
+    // Use EXACT same normalization as metricsAggregationService.js line 358 for consistency
+    const brandId = brandName.toLowerCase().replace(/\s+/g, '-');
     
     console.log(`✅ [PROMPTS DASHBOARD] Brand name: ${brandName}, brandId: ${brandId}`);
+    console.log(`🔍 [PROMPTS DASHBOARD] Brand URL: ${brandUrl}`);
+    console.log(`🔍 [PROMPTS DASHBOARD] Looking for brandId in metrics: ${brandId}`);
+    
+    // Helper function to batch fetch competitor URLs
+    async function getCompetitorUrlsMap(userId, urlAnalysisId, competitorNames) {
+      if (!competitorNames || competitorNames.length === 0) {
+        return new Map();
+      }
+      
+      try {
+        const query = {
+          userId: userId,
+          name: { $in: competitorNames }
+        };
+        
+        if (urlAnalysisId) {
+          query.urlAnalysisId = urlAnalysisId;
+        }
+        
+        const competitors = await Competitor.find(query).select('name url').lean();
+        const urlMap = new Map();
+        competitors.forEach(comp => {
+          if (comp.url) {
+            urlMap.set(comp.name, comp.url);
+          }
+        });
+        return urlMap;
+      } catch (error) {
+        console.error('⚠️ [getCompetitorUrlsMap] Error fetching competitor URLs:', error);
+        return new Map();
+      }
+    }
     
     // Helper functions for mathematical calculations with edge case handling
     const calculateResponseLevelMetrics = (test) => {
@@ -753,15 +799,53 @@ router.get('/dashboard', devAuth, async (req, res) => {
     .lean();
     
     // Process topics data using existing calculated metrics from aggregatedmetrics
-    const processedTopics = topics.map(topic => {
+    const processedTopics = await Promise.all(topics.map(async (topic) => {
       // Find the aggregated metrics for this topic (scope: 'topic')
       const topicAggregatedMetrics = topicMetrics.find(m => m.scopeValue === topic.name);
-      const brandMetrics = topicAggregatedMetrics?.brandMetrics?.find(bm => bm.brandId === brandId);
+      
+      // Debug: Log available brandIds if metrics found
+      if (topicAggregatedMetrics && topicAggregatedMetrics.brandMetrics) {
+        const availableBrandIds = topicAggregatedMetrics.brandMetrics.map(bm => bm.brandId);
+        console.log(`🔍 [PROMPTS DASHBOARD] Topic "${topic.name}": Looking for brandId "${brandId}", available:`, availableBrandIds);
+      }
+      
+      // Try exact match first, then fallback to brandName match if brandId doesn't match
+      let brandMetrics = topicAggregatedMetrics?.brandMetrics?.find(bm => bm.brandId === brandId);
+      if (!brandMetrics && topicAggregatedMetrics?.brandMetrics) {
+        // Fallback: try matching by brandName (case-insensitive)
+        brandMetrics = topicAggregatedMetrics.brandMetrics.find(bm => 
+          bm.brandName && bm.brandName.toLowerCase().trim() === brandName.toLowerCase().trim()
+        );
+        if (brandMetrics) {
+          console.log(`✅ [PROMPTS DASHBOARD] Found brandMetrics for topic "${topic.name}" using brandName fallback`);
+        }
+      }
+      
+      if (!brandMetrics && topicAggregatedMetrics) {
+        console.log(`⚠️ [PROMPTS DASHBOARD] No brandMetrics found for topic "${topic.name}" with brandId "${brandId}" or brandName "${brandName}"`);
+        console.log(`   Available brandNames:`, topicAggregatedMetrics.brandMetrics.map(bm => bm.brandName));
+      }
       
       // Get all prompt tests for this topic to group by prompt
       const topicPromptTests = promptTests.filter(test => 
         test.topicId && test.topicId.name === topic.name
       );
+      
+      // Extract all unique competitors mentioned across all tests for this topic
+      const allCompetitorNames = new Set();
+      topicPromptTests.forEach(test => {
+        if (Array.isArray(test.brandMetrics)) {
+          test.brandMetrics.forEach(bm => {
+            // Competitors are brands that are mentioned but not the owner
+            if (bm.mentioned && bm.isOwner === false) {
+              allCompetitorNames.add(bm.brandName);
+            }
+          });
+        }
+      });
+      
+      // Batch fetch competitor URLs for this topic
+      const competitorUrlMap = await getCompetitorUrlsMap(userId, analysis._id.toString(), Array.from(allCompetitorNames));
       
       // Group by prompt ID to aggregate response-level metrics across LLMs
       const promptGroups = {};
@@ -788,6 +872,27 @@ router.get('/dashboard', devAuth, async (req, res) => {
       const aggregatedPrompts = Object.values(promptGroups).map(group => {
         const responseMetrics = group.responseMetrics;
         
+        // Extract unique brands mentioned in this specific prompt across all tests (brands + competitors)
+        const promptBrandNames = new Set();
+        group.tests.forEach(test => {
+          if (Array.isArray(test.brandMetrics)) {
+            test.brandMetrics.forEach(bm => {
+              // Include ALL mentioned brands (both user's brand and competitors)
+              if (bm.mentioned) {
+                promptBrandNames.add(bm.brandName);
+              }
+            });
+          }
+        });
+        
+        // Build mentionedBrands array with URLs (includes both brands and competitors)
+        // Add brand URL if the brand name matches the user's brand
+        const mentionedBrands = Array.from(promptBrandNames).map(name => ({
+          name: name,
+          url: name.toLowerCase() === brandName.toLowerCase() ? brandUrl : competitorUrlMap.get(name) || null,
+          isOwner: name.toLowerCase() === brandName.toLowerCase()
+        }));
+        
         // Calculate averages across all LLM responses for this prompt
         const avgVisibilityScore = calculateAverage(responseMetrics.map(rm => rm.visibilityScore));
         const avgDepthOfMention = calculateAverage(responseMetrics.map(rm => rm.depthOfMention));
@@ -800,6 +905,9 @@ router.get('/dashboard', devAuth, async (req, res) => {
           text: group.prompt.text || 'N/A',
           queryType: group.prompt.queryType || 'N/A',
           totalTests: responseMetrics.length,
+          mentionedBrands: mentionedBrands,
+          // Keep mentionedCompetitors for backward compatibility
+          mentionedCompetitors: mentionedBrands.filter(b => !b.isOwner),
           metrics: {
             visibilityScore: avgVisibilityScore,
             depthOfMention: avgDepthOfMention,
@@ -833,18 +941,56 @@ router.get('/dashboard', devAuth, async (req, res) => {
         },
         prompts: rankedPrompts
       };
-    });
+    }));
     
     // Process personas data using existing calculated metrics from aggregatedmetrics
-    const processedPersonas = personas.map(persona => {
+    const processedPersonas = await Promise.all(personas.map(async (persona) => {
       // Find the aggregated metrics for this persona (scope: 'persona')
       const personaAggregatedMetrics = personaMetrics.find(m => m.scopeValue === persona.type);
-      const brandMetrics = personaAggregatedMetrics?.brandMetrics?.find(bm => bm.brandId === brandId);
+      
+      // Debug: Log available brandIds if metrics found
+      if (personaAggregatedMetrics && personaAggregatedMetrics.brandMetrics) {
+        const availableBrandIds = personaAggregatedMetrics.brandMetrics.map(bm => bm.brandId);
+        console.log(`🔍 [PROMPTS DASHBOARD] Persona "${persona.type}": Looking for brandId "${brandId}", available:`, availableBrandIds);
+      }
+      
+      // Try exact match first, then fallback to brandName match if brandId doesn't match
+      let brandMetrics = personaAggregatedMetrics?.brandMetrics?.find(bm => bm.brandId === brandId);
+      if (!brandMetrics && personaAggregatedMetrics?.brandMetrics) {
+        // Fallback: try matching by brandName (case-insensitive)
+        brandMetrics = personaAggregatedMetrics.brandMetrics.find(bm => 
+          bm.brandName && bm.brandName.toLowerCase().trim() === brandName.toLowerCase().trim()
+        );
+        if (brandMetrics) {
+          console.log(`✅ [PROMPTS DASHBOARD] Found brandMetrics for persona "${persona.type}" using brandName fallback`);
+        }
+      }
+      
+      if (!brandMetrics && personaAggregatedMetrics) {
+        console.log(`⚠️ [PROMPTS DASHBOARD] No brandMetrics found for persona "${persona.type}" with brandId "${brandId}" or brandName "${brandName}"`);
+        console.log(`   Available brandNames:`, personaAggregatedMetrics.brandMetrics.map(bm => bm.brandName));
+      }
       
       // Get all prompt tests for this persona to group by prompt
       const personaPromptTests = promptTests.filter(test => 
         test.personaId && test.personaId.type === persona.type
       );
+      
+      // Extract all unique competitors mentioned across all tests for this persona
+      const allCompetitorNames = new Set();
+      personaPromptTests.forEach(test => {
+        if (Array.isArray(test.brandMetrics)) {
+          test.brandMetrics.forEach(bm => {
+            // Competitors are brands that are mentioned but not the owner
+            if (bm.mentioned && bm.isOwner === false) {
+              allCompetitorNames.add(bm.brandName);
+            }
+          });
+        }
+      });
+      
+      // Batch fetch competitor URLs for this persona
+      const competitorUrlMap = await getCompetitorUrlsMap(userId, analysis._id.toString(), Array.from(allCompetitorNames));
       
       // Group by prompt ID to aggregate response-level metrics across LLMs
       const promptGroups = {};
@@ -871,6 +1017,27 @@ router.get('/dashboard', devAuth, async (req, res) => {
       const aggregatedPrompts = Object.values(promptGroups).map(group => {
         const responseMetrics = group.responseMetrics;
         
+        // Extract unique brands mentioned in this specific prompt across all tests (brands + competitors)
+        const promptBrandNames = new Set();
+        group.tests.forEach(test => {
+          if (Array.isArray(test.brandMetrics)) {
+            test.brandMetrics.forEach(bm => {
+              // Include ALL mentioned brands (both user's brand and competitors)
+              if (bm.mentioned) {
+                promptBrandNames.add(bm.brandName);
+              }
+            });
+          }
+        });
+        
+        // Build mentionedBrands array with URLs (includes both brands and competitors)
+        // Add brand URL if the brand name matches the user's brand
+        const mentionedBrands = Array.from(promptBrandNames).map(name => ({
+          name: name,
+          url: name.toLowerCase() === brandName.toLowerCase() ? brandUrl : competitorUrlMap.get(name) || null,
+          isOwner: name.toLowerCase() === brandName.toLowerCase()
+        }));
+        
         // Calculate averages across all LLM responses for this prompt
         const avgVisibilityScore = calculateAverage(responseMetrics.map(rm => rm.visibilityScore));
         const avgDepthOfMention = calculateAverage(responseMetrics.map(rm => rm.depthOfMention));
@@ -883,6 +1050,9 @@ router.get('/dashboard', devAuth, async (req, res) => {
           text: group.prompt.text || 'N/A',
           queryType: group.prompt.queryType || 'N/A',
           totalTests: responseMetrics.length,
+          mentionedBrands: mentionedBrands,
+          // Keep mentionedCompetitors for backward compatibility
+          mentionedCompetitors: mentionedBrands.filter(b => !b.isOwner),
           metrics: {
             visibilityScore: avgVisibilityScore,
             depthOfMention: avgDepthOfMention,
@@ -916,7 +1086,7 @@ router.get('/dashboard', devAuth, async (req, res) => {
         },
         prompts: rankedPrompts
       };
-    });
+    }));
     
     // Combine and sort all items
     const allItems = [...processedTopics, ...processedPersonas]

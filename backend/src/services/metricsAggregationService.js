@@ -347,6 +347,10 @@ class MetricsAggregationService {
     // ✅ Step 6: Calculate ranks for each metric
     this.assignRanks(brandMetrics);
 
+    // Debug log to verify isOwner is set correctly
+    console.log('🔍 [calculateBrandMetrics] User brand name:', userBrandName);
+    console.log('🔍 [calculateBrandMetrics] Brand metrics with isOwner:', brandMetrics.map(b => ({ name: b.brandName, isOwner: b.isOwner })));
+
     return brandMetrics;
   }
 
@@ -556,6 +560,7 @@ class MetricsAggregationService {
     return {
       brandId: brandData.brandId,
       brandName: brandData.brandName,
+      isOwner: brandData.brandName === userBrandName, // Mark user's brand
 
       // Visibility Score (primary metric)
       visibilityScore,

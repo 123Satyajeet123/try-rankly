@@ -14,26 +14,23 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useEffect } from 'react'
 import apiService from '@/services/api'
 import { cn } from '@/lib/utils'
+import { useTheme } from 'next-themes'
 
 const llmPlatforms = [
   {
     name: 'ChatGPT',
-    favicon: 'https://chat.openai.com/favicon.ico',
     description: 'OpenAI\'s conversational AI'
   },
   {
     name: 'Perplexity',
-    favicon: 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=32',
     description: 'AI-powered search engine'
   },
   {
     name: 'Gemini',
-    favicon: 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
     description: 'Google\'s AI assistant'
   },
   {
     name: 'Claude',
-    favicon: 'https://www.google.com/s2/favicons?domain=claude.ai&sz=32',
     description: 'Anthropic\'s AI assistant'
   },
 ]
@@ -42,10 +39,23 @@ export default function LLMPlatformsPage() {
   const router = useRouter()
   const { data, updateData } = useOnboarding()
   const { isAuthenticated, isLoading } = useAuth()
+  const { theme } = useTheme()
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>(['ChatGPT', 'Gemini'])
   const [isGenerating, setIsGenerating] = useState(false)
   const [buttonText, setButtonText] = useState('Generate Prompts')
   const [showResults, setShowResults] = useState(false)
+
+  // Use the same favicon function as TopNav to ensure consistency
+  const getFaviconUrl = (platformName: string) => {
+    const isDarkMode = theme === 'dark'
+    const faviconMap = {
+      'ChatGPT': 'https://chat.openai.com/favicon.ico',
+      'Claude': 'https://claude.ai/favicon.ico',
+      'Gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
+      'Perplexity': 'https://www.perplexity.ai/favicon.ico',
+    }
+    return faviconMap[platformName as keyof typeof faviconMap] || `https://www.google.com/s2/favicons?domain=${platformName.toLowerCase()}.com&sz=32`
+  }
   
   // Redirect to signin if not authenticated or if analysis not completed
   useEffect(() => {
@@ -290,25 +300,11 @@ export default function LLMPlatformsPage() {
                         <div className="relative">
                           <div className="w-12 h-12 rounded-full bg-card flex items-center justify-center shadow-lg">
                             <img
-                              src={platform.favicon}
+                              src={getFaviconUrl(platform.name)}
                               alt={`${platform.name} favicon`}
                               className="w-7 h-7"
                               onError={(e) => {
-                                const target = e.target as HTMLImageElement
-                                target.style.display = 'none'
-                                const parent = target.parentElement
-                                if (parent) {
-                                  // Create fallback based on platform
-                                  let bgColor = 'bg-blue-500'
-                                  const text = platform.name[0]
-                                  
-                                  if (platform.name === 'ChatGPT') bgColor = 'bg-teal-500'
-                                  else if (platform.name === 'Gemini') bgColor = 'bg-blue-600'
-                                  else if (platform.name === 'Claude') bgColor = 'bg-orange-500'
-                                  else if (platform.name === 'Perplexity') bgColor = 'bg-purple-500'
-                                  
-                                  parent.innerHTML = `<div class="w-7 h-7 rounded-full ${bgColor} text-white flex items-center justify-center font-bold text-sm">${text}</div>`
-                                }
+                                e.currentTarget.src = `https://www.google.com/s2/favicons?domain=${platform.name.toLowerCase()}.com&sz=32`
                               }}
                             />
                           </div>
@@ -331,25 +327,11 @@ export default function LLMPlatformsPage() {
                         <div className="relative">
                           <div className="w-12 h-12 rounded-full bg-card flex items-center justify-center shadow-lg">
                             <img
-                              src={platform.favicon}
+                              src={getFaviconUrl(platform.name)}
                               alt={`${platform.name} favicon`}
                               className="w-7 h-7"
                               onError={(e) => {
-                                const target = e.target as HTMLImageElement
-                                target.style.display = 'none'
-                                const parent = target.parentElement
-                                if (parent) {
-                                  // Create fallback based on platform
-                                  let bgColor = 'bg-blue-500'
-                                  const text = platform.name[0]
-                                  
-                                  if (platform.name === 'ChatGPT') bgColor = 'bg-teal-500'
-                                  else if (platform.name === 'Gemini') bgColor = 'bg-blue-600'
-                                  else if (platform.name === 'Claude') bgColor = 'bg-orange-500'
-                                  else if (platform.name === 'Perplexity') bgColor = 'bg-purple-500'
-                                  
-                                  parent.innerHTML = `<div class="w-7 h-7 rounded-full ${bgColor} text-white flex items-center justify-center font-bold text-sm">${text}</div>`
-                                }
+                                e.currentTarget.src = `https://www.google.com/s2/favicons?domain=${platform.name.toLowerCase()}.com&sz=32`
                               }}
                             />
                           </div>

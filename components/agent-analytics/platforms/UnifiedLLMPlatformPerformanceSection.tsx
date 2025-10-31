@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Info, TrendingUp, TrendingDown } from 'lucide-react'
 import { ModernTrendUp, ModernTrendDown } from '@/components/ui/modern-arrows'
+import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
 
 // Function to get the domain for each LLM platform for favicon fetching
 function getLLMDomain(platform: string): string {
@@ -343,16 +344,22 @@ function UnifiedLLMPlatformPerformanceSection({ realLLMData, dateRange = '30 day
                       <TableCell className="sticky left-0 bg-background z-10 py-2 px-3">
                         <div className="flex items-center gap-2">
                           <img
-                            src={`https://www.google.com/s2/favicons?domain=${getLLMDomain(item.name)}&sz=16`}
+                            src={getDynamicFaviconUrl(getLLMDomain(item.name), 16)}
                             alt={`${item.name} favicon`}
                             className="w-4 h-4 rounded-sm"
+                            data-favicon-identifier={item.name}
+                            data-favicon-size="16"
                             onError={(e) => {
+                              handleFaviconError(e as any)
+                              // Also apply custom fallback for visual consistency
                               const target = e.target as HTMLImageElement
-                              target.style.display = 'none'
-                              const fallback = document.createElement('div')
-                              fallback.className = 'w-4 h-4 rounded-full'
-                              fallback.style.backgroundColor = item.color
-                              target.parentNode?.insertBefore(fallback, target)
+                              if (!target.src.includes('fetchfavicon') && !target.src.includes('google.com')) {
+                                target.style.display = 'none'
+                                const fallback = document.createElement('div')
+                                fallback.className = 'w-4 h-4 rounded-full'
+                                fallback.style.backgroundColor = item.color
+                                target.parentNode?.insertBefore(fallback, target)
+                              }
                             }}
                           />
                           <span className="font-normal text-foreground text-xs">{item.name}</span>

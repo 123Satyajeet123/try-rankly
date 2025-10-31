@@ -90,11 +90,19 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
       return []
     }
 
-    const currentChartData = dashboardData.metrics.averagePosition.data.map((item: any, index: number) => ({
-      name: item.name,
-      score: parseFloat(formatToTwoDecimals(item.value)), // Format to 2 decimal places
-      color: brandColors[index % brandColors.length] // Always use our diverse color palette
-    }))
+    const currentChartData = dashboardData.metrics.averagePosition.data.map((item: any, index: number) => {
+      // Find if this item has isOwner info from competitors data
+      const competitorData = dashboardData?.metrics?.competitorsByPosition?.find((c: any) => c.name === item.name) ||
+                           dashboardData?.metrics?.competitors?.find((c: any) => c.name === item.name);
+      const isOwner = competitorData?.isOwner || false;
+      
+      return {
+        name: item.name,
+        score: parseFloat(formatToTwoDecimals(item.value)), // Format to 2 decimal places
+        color: isOwner ? '#3B82F6' : brandColors[(index + 1) % brandColors.length], // User's brand in blue, others from palette
+        isOwner: isOwner // Store for other uses
+      };
+    })
 
     console.log('📊 [AveragePosition] Transformed chart data:', currentChartData)
     return currentChartData
@@ -112,7 +120,7 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
     return positionCompetitors.map((competitor: any, index: number) => ({
       rank: competitor.rank, // ✅ Now uses avgPositionRank from backend
       name: competitor.name,
-      isOwner: competitor.isOwner || index === 0, // Use isOwner from backend or first as primary
+      isOwner: competitor.isOwner || false, // Use isOwner from backend
       rankChange: 0, // TODO: Calculate from historical data
       score: competitor.score // ✅ Now uses avgPosition value
     }))
@@ -175,6 +183,10 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
   // Get filtered data
   const { chartData: currentChartData, rankings: currentRankings, trendData } = getFilteredData()
   const hasData = currentChartData.length > 0 && currentRankings.length > 0
+  
+  // ✅ Find user's brand from chart data to ensure we display correct metrics
+  const userBrandFromChart = currentChartData.find(item => item.isOwner === true)
+  const userBrandValue = userBrandFromChart?.score || dashboardData?.metrics?.averagePosition?.value || 0
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
   const [chartType, setChartType] = useState('donut')
   const [activePlatform, setActivePlatform] = useState(currentChartData[0]?.name || '')
@@ -336,7 +348,7 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
             <div className="space-y-2">
               <h3 className="text-foreground">Average Position</h3>
               <div className="metric text-xl font-semibold text-foreground">
-                {formatToTwoDecimals(dashboardData?.metrics?.averagePosition?.value || 0)}
+                {formatToTwoDecimals(userBrandValue)}
               </div>
             </div>
 
@@ -389,7 +401,7 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
                         {/* Company name below bars */}
                         <div className="w-16 h-6 flex items-center justify-center">
                           <img 
-                            src={getDynamicFaviconUrl(bar.name)} 
+                            src={getDynamicFaviconUrl((bar as any).url || bar.name)} 
                             alt={bar.name}
                             className="w-4 h-4 rounded-sm"
                             onError={handleFaviconError}
@@ -484,7 +496,7 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
                           style={{ backgroundColor: item.color }}
                         />
                         <img
-                          src={getDynamicFaviconUrl(item.name)}
+                          src={getDynamicFaviconUrl((item as any).url || item.name)}
                           alt={item.name}
                           className="w-4 h-4 rounded-sm"
                           onError={handleFaviconError}
@@ -570,7 +582,7 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
                           style={{ backgroundColor: item.color }}
                         />
                         <img
-                          src={getDynamicFaviconUrl(item.name)}
+                          src={getDynamicFaviconUrl((item as any).url || item.name)}
                           alt={item.name}
                           className="w-4 h-4 rounded-sm"
                           onError={handleFaviconError}
@@ -637,7 +649,7 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
                       <TableCell className="py-3 px-0">
                         <div className="flex items-center gap-2">
                           <img
-                            src={getDynamicFaviconUrl(item.name)}
+                            src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name)}
                             alt={item.name}
                             className="w-4 h-4 rounded-sm"
                             onError={handleFaviconError}
@@ -710,7 +722,7 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
                             <TableCell className="py-3 px-0">
                               <div className="flex items-center gap-2">
                                 <img
-                                  src={getDynamicFaviconUrl(item.name)}
+                                  src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name)}
                                   alt={item.name}
                                   className="w-4 h-4 rounded-sm"
                                   onError={handleFaviconError}

@@ -16,30 +16,14 @@ import { Info } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { getPages, getConversionEvents, getDateRange } from '@/services/ga4Api'
 import { PagesSkeleton } from '@/components/ui/pages-skeleton'
+import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
 
 // Function to get the favicon URL for each LLM platform
 function getLLMFaviconUrl(platform: string): string {
   const platformLower = platform.toLowerCase()
   
-  // Use direct favicon URLs for better reliability
-  if (platformLower.includes('chatgpt') || platformLower.includes('openai')) {
-    return 'https://chat.openai.com/favicon.ico'
-  }
-  if (platformLower.includes('claude') || platformLower.includes('anthropic')) {
-    return 'https://www.google.com/s2/favicons?domain=claude.ai&sz=32'
-  }
-  if (platformLower.includes('gemini')) {
-    return 'https://www.google.com/s2/favicons?domain=gemini.google.com&sz=32'
-  }
-  if (platformLower.includes('perplexity')) {
-    return 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=32'
-  }
-  if (platformLower.includes('google')) {
-    return 'https://www.google.com/s2/favicons?domain=google.com&sz=32'
-  }
-  
-  // Fallback to domain-based favicon
-  return `https://www.google.com/s2/favicons?domain=${getLLMDomain(platform)}&sz=32`
+  const domain = getLLMDomain(platformLower)
+  return getDynamicFaviconUrl(domain, 32)
 }
 
 // Function to get the domain for each LLM platform for favicon fetching (kept for fallback)
@@ -419,21 +403,26 @@ export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoadin
                                     src={getLLMFaviconUrl(platform)}
                                     alt={`${platform} favicon`}
                                     className="w-5 h-5"
+                                    data-favicon-identifier={platform}
+                                    data-favicon-size="32"
                                     onError={(e) => {
-                                      // Fallback to colored circle if favicon fails to load
+                                      handleFaviconError(e as any)
+                                      // Also apply custom fallback for visual consistency
                                       const target = e.target as HTMLImageElement;
-                                      target.style.display = 'none';
-                                      const fallback = document.createElement('div');
-                                      fallback.className = 'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold';
-                                      fallback.style.backgroundColor = platform.toLowerCase() === 'chatgpt' ? '#10a37f' :
-                                                                       platform.toLowerCase() === 'gemini' ? '#4285f4' :
-                                                                       platform.toLowerCase() === 'claude' ? '#ff6b35' :
-                                                                       platform.toLowerCase() === 'perplexity' ? '#fca5a5' :
-                                                                       platform.toLowerCase() === 'google' ? '#34d399' :
-                                                                       '#94a3b8';
-                                      fallback.style.color = 'white';
-                                      fallback.textContent = platform.charAt(0).toUpperCase();
-                                      target.parentNode?.insertBefore(fallback, target);
+                                      if (!target.src.includes('fetchfavicon') && !target.src.includes('google.com')) {
+                                        target.style.display = 'none';
+                                        const fallback = document.createElement('div');
+                                        fallback.className = 'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold';
+                                        fallback.style.backgroundColor = platform.toLowerCase() === 'chatgpt' ? '#10a37f' :
+                                                                         platform.toLowerCase() === 'gemini' ? '#4285f4' :
+                                                                         platform.toLowerCase() === 'claude' ? '#ff6b35' :
+                                                                         platform.toLowerCase() === 'perplexity' ? '#fca5a5' :
+                                                                         platform.toLowerCase() === 'google' ? '#34d399' :
+                                                                         '#94a3b8';
+                                        fallback.style.color = 'white';
+                                        fallback.textContent = platform.charAt(0).toUpperCase();
+                                        target.parentNode?.insertBefore(fallback, target);
+                                      }
                                     }}
                                   />
                                   <span className="text-xs text-muted-foreground">{sessions as number}</span>

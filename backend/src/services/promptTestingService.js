@@ -22,7 +22,7 @@ class PromptTestingService {
     };
 
     // Default prompt testing configuration
-    this.maxPromptsToTest = 20;
+    this.maxPromptsToTest = 5; // Reduced from 20 to 5 for faster testing/debugging
     
     // Default parallelization setting
     this.aggressiveParallelization = true;

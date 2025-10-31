@@ -42,7 +42,7 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
     setStart(true)
     for (let i = 0; i < loaderSteps.length; i++) {
       setCurrentStep(i) // Use 0-based indexing: 0, 1, 2, 3
-      await new Promise((resolve) => setTimeout(resolve, 1800))
+      await new Promise((resolve) => setTimeout(resolve, 2500))
     }
     // After all loaders complete, set currentStep to 4 to show all as completed
     setCurrentStep(4)

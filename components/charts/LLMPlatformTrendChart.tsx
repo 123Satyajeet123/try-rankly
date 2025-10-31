@@ -158,7 +158,7 @@ export function LLMPlatformTrendChart({ dateRange }: LLMPlatformTrendChartProps)
           return (
             <div key={key} className="flex items-center gap-1">
               <img
-                src={`https://www.google.com/s2/favicons?domain=${getLLMDomain(key)}&sz=16`}
+                src={getFaviconUrlForDomain(getLLMDomain(key), 16)}
                 alt={`${config.label} favicon`}
                 className="w-4 h-4 rounded-sm"
                 onError={(e) => {

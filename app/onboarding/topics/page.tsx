@@ -196,21 +196,21 @@ export default function TopicsPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="w-full max-w-[400px] relative z-10"
+        className="w-full max-w-4xl relative z-10"
       >
-        <Card className="w-full rounded-lg p-6 sm:p-8 relative">
+        <Card className="w-full overflow-hidden rounded-lg h-[600px] relative">
           {/* Navigation Arrows */}
           <NavigationArrows 
             previousPath="/onboarding/competitors"
             nextPath="/onboarding/personas"
           />
-          <CardContent className="space-y-6">
+          <CardContent className="p-6 sm:p-8 h-full flex flex-col">
             {/* Header */}
-            <div className="text-center space-y-1">
-              <h1 className="text-xl font-semibold tracking-tight text-foreground mb-1">
+            <div className="text-center space-y-1 mb-6">
+              <h1 className="mb-1 text-xl font-semibold tracking-tight text-foreground">
                 Select Your Topics
               </h1>
-              <p className="text-sm font-normal leading-[1.4] text-muted-foreground">
+              <p className="text-center text-sm font-normal leading-[1.4] text-muted-foreground px-4">
                 Click to select up to {MAX_TOPICS} topics for analysis
               </p>
               <p className="text-xs text-muted-foreground">
@@ -218,69 +218,71 @@ export default function TopicsPage() {
               </p>
             </div>
 
-            {/* Topic Selection Grid */}
-            <div className="space-y-2 max-h-[300px] overflow-y-auto">
+            {/* Topic Selection Grid - Scrollable area */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-2">
               {topics.map((topic) => (
                 <div
                   key={topic.id}
-                  className={`flex items-center space-x-3 rounded-md p-3 transition-all duration-200 ${
+                  className={`bg-muted/50 rounded-md p-4 transition-all duration-200 ${
                     topic.selected
                       ? 'bg-primary/20 border-2 border-primary/50'
-                      : 'bg-muted/50 border-2 border-transparent hover:bg-muted/70'
+                      : 'border-2 border-transparent hover:bg-muted/70'
                   }`}
                 >
-                  {/* Selection Checkbox - Clickable */}
-                  <div 
-                    onClick={() => toggleTopic(topic.id)}
-                    className={`w-5 h-5 rounded border-2 flex items-center justify-center cursor-pointer ${
-                      topic.selected
-                        ? 'bg-primary border-primary'
-                        : 'border-muted-foreground/50'
-                    }`}
-                  >
-                    {topic.selected && (
-                      <svg className="w-3 h-3 text-primary-foreground" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </div>
-                  
-                  {/* Topic Info - Clickable */}
-                  <div 
-                    onClick={() => toggleTopic(topic.id)}
-                    className="flex-1 min-w-0 cursor-pointer"
-                  >
-                    <p className="text-sm font-medium text-foreground truncate">
-                      {topic.name}
-                    </p>
-                    {topic.description && (
-                      <p className="text-xs text-muted-foreground truncate">
-                        {topic.description}
-                      </p>
-                    )}
-                  </div>
-                  
-                  {/* Delete button for custom topics */}
-                  {topic.id.startsWith('custom-') && (
-                    <button
-                      type="button"
-                      onClick={() => removeTopic(topic.id)}
-                      className="flex-shrink-0 w-6 h-6 rounded-full bg-destructive/10 hover:bg-destructive/20 flex items-center justify-center text-destructive transition-colors"
+                  <div className="flex items-start space-x-3">
+                    {/* Selection Checkbox - Clickable */}
+                    <div 
+                      onClick={() => toggleTopic(topic.id)}
+                      className={`w-5 h-5 rounded border-2 flex items-center justify-center mt-1 flex-shrink-0 cursor-pointer ${
+                        topic.selected
+                          ? 'bg-primary border-primary'
+                          : 'border-muted-foreground/50'
+                      }`}
                     >
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                  
-                  {/* Selection Status */}
-                  {topic.selected && !topic.id.startsWith('custom-') && (
-                    <div className="text-primary">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
+                      {topic.selected && (
+                        <svg className="w-3 h-3 text-primary-foreground" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
                     </div>
-                  )}
+                    
+                    {/* Topic Info - Clickable */}
+                    <div 
+                      onClick={() => toggleTopic(topic.id)}
+                      className="flex-1 min-w-0 cursor-pointer"
+                    >
+                      <h3 className="text-sm font-medium text-foreground mb-1">
+                        {topic.name}
+                      </h3>
+                      {topic.description && (
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {topic.description}
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Delete button for custom topics */}
+                    {topic.id.startsWith('custom-') && (
+                      <button
+                        type="button"
+                        onClick={() => removeTopic(topic.id)}
+                        className="flex-shrink-0 w-6 h-6 rounded-full bg-destructive/10 hover:bg-destructive/20 flex items-center justify-center text-destructive transition-colors"
+                      >
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                    
+                    {/* Selection Status */}
+                    {topic.selected && !topic.id.startsWith('custom-') && (
+                      <div className="text-primary flex-shrink-0">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -291,7 +293,7 @@ export default function TopicsPage() {
                 type="button"
                 onClick={() => setIsAddingCustom(true)}
                 variant="outline"
-                className="w-full h-10 font-medium"
+                className="w-[400px] h-10 font-medium"
                 disabled={isSaving}
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -300,7 +302,7 @@ export default function TopicsPage() {
                 Add Custom Topic
               </Button>
             ) : (
-              <div className="space-y-3 p-4 bg-muted/30 rounded-md border-2 border-dashed border-muted-foreground/30">
+              <div className="space-y-3 p-4 bg-muted/30 rounded-md border-2 border-dashed border-muted-foreground/30 w-[400px]">
                 <Input
                   type="text"
                   value={customTopicName}
@@ -308,12 +310,11 @@ export default function TopicsPage() {
                   placeholder="Topic name (e.g., AI Technology)"
                   className="h-9 text-sm"
                 />
-                <Input
-                  type="text"
+                <textarea
                   value={customTopicDescription}
                   onChange={(e) => setCustomTopicDescription(e.target.value)}
-                  placeholder="Description (optional)"
-                  className="h-9 text-sm"
+                  placeholder="Describe this topic..."
+                  className="w-full h-20 text-sm bg-background border border-border text-foreground rounded-md px-3 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
                 <div className="flex space-x-2">
                   <Button
@@ -339,21 +340,24 @@ export default function TopicsPage() {
               </div>
             )}
 
-            {/* Continue Button */}
-            <Button
-              onClick={handleContinue}
-              className="w-full h-10 font-semibold"
-              disabled={isSaving || selectedCount === 0}
-            >
-              {isSaving ? 'Saving...' : `Continue with ${selectedCount} Topic${selectedCount !== 1 ? 's' : ''}`}
-            </Button>
+            {/* Bottom section with continue button */}
+            <div className="mt-6 space-y-4 flex flex-col items-center">
+              {/* Continue Button */}
+              <Button
+                onClick={handleContinue}
+                className="w-[400px] h-10 font-semibold"
+                disabled={isSaving || selectedCount === 0}
+              >
+                {isSaving ? 'Saving...' : `Continue with ${selectedCount} Topic${selectedCount !== 1 ? 's' : ''}`}
+              </Button>
 
-            {/* Selection Status */}
-            {selectedCount > 0 && (
-              <p className="text-center text-xs font-normal text-muted-foreground">
-                {selectedCount} topic{selectedCount !== 1 ? 's' : ''} selected
-              </p>
-            )}
+              {/* Selection Status */}
+              {selectedCount > 0 && (
+                <p className="text-center text-xs font-normal text-muted-foreground">
+                  {selectedCount} topic{selectedCount !== 1 ? 's' : ''} selected
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
       </motion.div>

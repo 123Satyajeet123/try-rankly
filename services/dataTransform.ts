@@ -33,6 +33,7 @@ interface BackendBrandMetric {
   count2nd: number
   count3rd: number
   totalAppearances: number
+  isOwner?: boolean // Whether this is the user's brand
 }
 
 interface BackendAggregatedMetrics {
@@ -179,6 +180,7 @@ export function transformBrandMetricsToCompetitors(
       rank,
       change: 0, // TODO: Calculate change from previous period
       trend: 'stable' as const,
+      isOwner: brand.isOwner || false, // Whether this is the user's brand
       // ✅ Include sentiment data for sentiment analysis
       sentimentScore: brand.sentimentScore,
       sentimentBreakdown: brand.sentimentBreakdown || { positive: 0, neutral: 0, negative: 0, mixed: 0 },
@@ -217,11 +219,15 @@ export function transformBrandMetricsToMetric(
   const primaryBrand = brandMetrics[0] // Assuming first brand is the primary brand
   
   // Create chart data from actual brand metrics
-  const chartData: ChartDataPoint[] = brandMetrics.slice(0, 5).map((brand, index) => ({
-    name: brand.brandName,
-    value: getMetricValue(brand, metricType, totalResponses),
-    fill: index === 0 ? '#3b82f6' : '#e5e7eb' // Primary brand in blue, others in gray
-  }))
+  const chartData: ChartDataPoint[] = brandMetrics.slice(0, 5).map((brand, index) => {
+    // Use isOwner to determine if this is the user's brand
+    const isOwner = brand.isOwner || false;
+    return {
+      name: brand.brandName,
+      value: getMetricValue(brand, metricType, totalResponses),
+      fill: isOwner ? '#3b82f6' : '#e5e7eb' // User's brand in blue, others in gray
+    };
+  })
   
   console.log(`📊 [ChartData] Using actual chart data from API:`, chartData.map(d => ({ name: d.name, value: d.value })))
 

@@ -62,7 +62,8 @@ const getChartDataFromDashboard = (dashboardData: any) => {
       social: Math.round(social * 10) / 10,
       earned: Math.round(earned * 10) / 10,
       color: brandColors[index % brandColors.length], // Always use our diverse color palette
-      comparisonScore: competitor.score || 0 // For now, use same value for comparison
+      comparisonScore: competitor.score || 0, // For now, use same value for comparison
+      isOwner: competitor.isOwner || false // ✅ Store isOwner flag for filtering
     }
   })
   
@@ -81,7 +82,7 @@ const getRankingsFromDashboard = (dashboardData: any) => {
     .map((competitor: any) => ({
       rank: competitor.rank || 1, // This is citationRank from backend
       name: competitor.name,
-      isOwner: competitor.isOwner || competitor.name === userBrandName || competitor.rank === 1,
+      isOwner: competitor.isOwner || false, // Use isOwner from backend data
       rankChange: competitor.change || 0, // TODO: Calculate from historical data when available
       citationShare: competitor.score || 0, // This is citationShare from backend
       computedScore: competitor.score || 0
@@ -192,14 +193,23 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
 
   const { chartData, trendData: filteredTrendData, allRankings: filteredRankings } = getFilteredData()
   const rankings = getDisplayRankings(filteredRankings)
+  
+  // ✅ Find user's brand from chart data to ensure we display correct metrics
+  const userBrandFromChart = chartData.find(item => item.isOwner === true)
+  const userBrandValue = userBrandFromChart?.score || chartData[0]?.score || 0
 
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
   const [chartType, setChartType] = useState('donut')
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [comparisonDate, setComparisonDate] = useState<Date | undefined>(undefined)
-  const [activePlatform, setActivePlatform] = useState(chartData[0]?.name || '')
+  // ✅ Default to user's brand instead of first item
+  const [activePlatform, setActivePlatform] = useState(userBrandFromChart?.name || chartData[0]?.name || '')
   const [showExpandedRankings, setShowExpandedRankings] = useState(false)
-  const [activeIndex, setActiveIndex] = useState(0)
+  const [activeIndex, setActiveIndex] = useState(() => {
+    // ✅ Set initial active index to user's brand
+    const userBrandIndex = chartData.findIndex(item => item.isOwner === true)
+    return userBrandIndex >= 0 ? userBrandIndex : 0
+  })
   const [selectedCitationType, setSelectedCitationType] = useState('brand')
 
   // Skeleton loading - only show when data is actually loading
@@ -393,7 +403,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
             <div className="space-y-2">
               <h3 className="text-foreground">Citation Share</h3>
               <div className="flex items-baseline gap-3">
-                <div className="metric text-xl font-semibold text-foreground">{chartData[0]?.score || 0}%</div>
+                <div className="metric text-xl font-semibold text-foreground">{userBrandValue}%</div>
                 {showComparison && (
                   <Badge variant="outline" className="caption h-5 px-2 border-green-500 text-green-500 bg-green-500/10">
                     +2.3%
@@ -479,7 +489,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                         {/* Company name below bars */}
                         <div className="w-16 h-6 flex items-center justify-center">
                           <img 
-                            src={getDynamicFaviconUrl(bar.name)} 
+                            src={getDynamicFaviconUrl((bar as any).url || bar.name)} 
                             alt={bar.name}
                             className="w-4 h-4 rounded-sm"
                             onError={handleFaviconError}
@@ -529,7 +539,9 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                         <Label
                           content={({ viewBox }) => {
                             if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                              const activeData = chartData[activeIndex] || chartData[0]
+                              // ✅ Default to user's brand if no active index, not just first item
+                              const userBrandData = chartData.find(item => item.isOwner === true)
+                              const activeData = chartData[activeIndex] || userBrandData || chartData[0]
                               return (
                                 <text
                                   x={viewBox.cx}
@@ -593,7 +605,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                           style={{ backgroundColor: item.color }}
                         />
                         <img
-                          src={getDynamicFaviconUrl(item.name)}
+                          src={getDynamicFaviconUrl((item as any).url || item.name)}
                           alt={item.name}
                           className="w-4 h-4 rounded-sm"
                           onError={handleFaviconError}
@@ -717,7 +729,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                           style={{ backgroundColor: item.color }}
                         />
                         <img
-                          src={getDynamicFaviconUrl(item.name)}
+                          src={getDynamicFaviconUrl((item as any).url || item.name)}
                           alt={item.name}
                           className="w-4 h-4 rounded-sm"
                           onError={handleFaviconError}
@@ -824,7 +836,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                             <div className="flex items-center gap-3">
                               <div className="flex items-center gap-2">
                                 <img
-                                  src={getDynamicFaviconUrl(item.name)}
+                                  src={getDynamicFaviconUrl((item as any).url || item.name)}
                                   alt={item.name}
                                   className="w-4 h-4 rounded-sm"
                                   onError={handleFaviconError}
@@ -911,7 +923,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                         <div className="flex items-center gap-3">
                           <div className="flex items-center gap-2">
                             <img
-                              src={getDynamicFaviconUrl(item.name)}
+                              src={getDynamicFaviconUrl((item as any).url || item.name)}
                               alt={item.name}
                               className="w-4 h-4 rounded-sm"
                               onError={handleFaviconError}

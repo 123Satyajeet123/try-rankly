@@ -62,12 +62,20 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
       return []
     }
 
-    const chartData = dashboardData.metrics.depthOfMention.data.map((item: any, index: number) => ({
-      name: item.name,
-      score: parseFloat(formatToTwoDecimals(item.value)), // Format to 2 decimal places
-      color: brandColors[index % brandColors.length], // Always use our diverse color palette
-      comparisonScore: parseFloat(formatToTwoDecimals(item.value)) // For now, use same value for comparison
-    }))
+    const chartData = dashboardData.metrics.depthOfMention.data.map((item: any, index: number) => {
+      // Find if this item has isOwner info from competitors data
+      const competitorData = dashboardData?.metrics?.competitorsByDepth?.find((c: any) => c.name === item.name) ||
+                           dashboardData?.metrics?.competitors?.find((c: any) => c.name === item.name);
+      const isOwner = competitorData?.isOwner || false;
+      
+      return {
+        name: item.name,
+        score: parseFloat(formatToTwoDecimals(item.value)), // Format to 2 decimal places
+        color: isOwner ? '#3B82F6' : brandColors[(index + 1) % brandColors.length], // User's brand in blue, others from palette
+        comparisonScore: parseFloat(formatToTwoDecimals(item.value)), // For now, use same value for comparison
+        isOwner: isOwner // Store for other uses
+      };
+    })
 
     console.log('📊 [DepthOfMention] Transformed chart data:', chartData)
     return chartData
@@ -85,7 +93,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
     return depthCompetitors.map((competitor: any, index: number) => ({
       rank: competitor.rank, // ✅ Now uses depthRank from backend
       name: competitor.name,
-      isOwner: competitor.isOwner || index === 0, // Use isOwner from backend or first as primary
+      isOwner: competitor.isOwner || false, // Use isOwner from backend
       rankChange: 0, // TODO: Calculate from historical data
       score: competitor.score // ✅ Now uses depthOfMention score
     }))
@@ -148,6 +156,10 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
   // Get filtered data
   const { chartData: currentChartData, rankings: currentRankings, trendData } = getFilteredData()
   const hasData = currentChartData.length > 0 && currentRankings.length > 0
+  
+  // ✅ Find user's brand from chart data to ensure we display correct metrics
+  const userBrandFromChart = currentChartData.find(item => item.isOwner === true)
+  const userBrandValue = userBrandFromChart?.score || dashboardData?.metrics?.depthOfMention?.value || 0
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
   const [chartType, setChartType] = useState('donut')
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
@@ -358,7 +370,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
             <div className="space-y-2">
               <h3 className="text-foreground">Depth of Mention</h3>
               <div className="text-xl font-semibold text-foreground">
-                {formatToTwoDecimals(dashboardData?.metrics?.depthOfMention?.value || 0)}
+                {formatToTwoDecimals(userBrandValue)}
               </div>
             </div>
 
@@ -436,7 +448,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                         {/* Company name below bars */}
                         <div className="w-16 h-6 flex items-center justify-center">
                           <img 
-                            src={getDynamicFaviconUrl(bar.name)} 
+                            src={getDynamicFaviconUrl((bar as any).url || bar.name)} 
                             alt={bar.name}
                             className="w-4 h-4 rounded-sm"
                             onError={handleFaviconError}
@@ -550,7 +562,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                           style={{ backgroundColor: item.color }}
                         />
                         <img
-                          src={getDynamicFaviconUrl(item.name)}
+                          src={getDynamicFaviconUrl((item as any).url || item.name)}
                           alt={item.name}
                           className="w-4 h-4 rounded-sm"
                           onError={handleFaviconError}
@@ -646,7 +658,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                           style={{ backgroundColor: item.color }}
                         />
                         <img
-                          src={getDynamicFaviconUrl(item.name)}
+                          src={getDynamicFaviconUrl((item as any).url || item.name)}
                           alt={item.name}
                           className="w-4 h-4 rounded-sm"
                           onError={handleFaviconError}
@@ -725,7 +737,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                         <div className="flex items-center gap-3">
                           <div className="flex items-center gap-2">
                             <img
-                              src={getDynamicFaviconUrl(item.name)}
+                              src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name)}
                               alt={item.name}
                               className="w-4 h-4 rounded-sm"
                               onError={handleFaviconError}
@@ -812,7 +824,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                               <div className="flex items-center gap-3">
                                 <div className="flex items-center gap-2">
                                   <img
-                                    src={getDynamicFaviconUrl(item.name)}
+                                    src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name)}
                                     alt={item.name}
                                     className="w-4 h-4 rounded-sm"
                                     onError={handleFaviconError}

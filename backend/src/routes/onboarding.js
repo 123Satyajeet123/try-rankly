@@ -504,6 +504,7 @@ router.get('/latest-analysis', devAuth, async (req, res) => {
     res.json({
       success: true,
       data: {
+        urlAnalysisId: latestAnalysis._id.toString(), // Add urlAnalysisId at top level for dashboard
         analysis: {
           id: latestAnalysis._id,
           url: latestAnalysis.url,

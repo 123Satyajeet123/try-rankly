@@ -21,6 +21,7 @@ import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
 import { useTheme } from 'next-themes'
 import ReactMarkdown from 'react-markdown'
+import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
 import { 
   ChevronDown, 
   ChevronRight, 
@@ -80,6 +81,8 @@ interface TopicPersonaMetrics {
   depthRank: number
   avgPosition: number
   avgPositionRank: number
+  citationShare?: number
+  citationShareRank?: number
 }
 
 interface TopicPersonaItem {
@@ -431,6 +434,8 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
         
         if (response.data) {
           console.log('✅ [PromptsSection] Fetched prompts data:', response.data.summary)
+          console.log('🔍 [PromptsSection] Sample prompt with competitors:', 
+            response.data.items?.[0]?.prompts?.[0]?.mentionedCompetitors)
           setRealPromptsData(response.data)
         } else {
           throw new Error(response.error || 'Failed to fetch prompts dashboard data')
@@ -699,12 +704,14 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
             avgPosition: prompt.metrics.avgPosition,
             citationShare: prompt.metrics.citationShare,
             brandMentionRate: prompt.metrics.brandMentionRate,
-            totalTests: prompt.totalTests,
+            totalTests: (prompt as any).totalTests || 0,
             visibilityRank: prompt.metrics.visibilityRank,
             depthRank: prompt.metrics.depthRank,
             avgPositionRank: prompt.metrics.avgPositionRank,
             citationShareRank: prompt.metrics.citationShareRank
-          }
+          },
+          // Pass through competitor data from backend
+          mentionedCompetitors: (prompt as any).mentionedCompetitors || []
         })),
         visibilityRank: `#${item.metrics.visibilityRank}`,
         visibilityScore: `${item.metrics.visibilityScore}%`,
@@ -723,15 +730,37 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
           position: { score: 4, summary: 'Position analysis from actual test results.' },
           clickProbability: { score: 4, summary: 'Engagement likelihood based on visibility metrics.' },
           diversity: { score: 3, summary: 'Response diversity across different LLM platforms.' }
-        }
+        },
+        // Extract unique brands from all prompts in this group (includes both user's brand and competitors)
+        groupBrands: (() => {
+          const brandSet = new Map<string, { name: string; url: string | null; isOwner?: boolean }>();
+          item.prompts.forEach((prompt: any) => {
+            // Prefer mentionedBrands if available, fallback to mentionedCompetitors for backward compatibility
+            const brandsToProcess = prompt.mentionedBrands || prompt.mentionedCompetitors || [];
+            if (Array.isArray(brandsToProcess)) {
+              brandsToProcess.forEach((brand: { name: string; url: string | null; isOwner?: boolean }) => {
+                if (brand && brand.name && !brandSet.has(brand.name)) {
+                  brandSet.set(brand.name, brand);
+                }
+              });
+            }
+          });
+          const brands = Array.from(brandSet.values());
+          if (brands.length > 0) {
+            console.log(`🔍 [GroupBrands] ${item.name}: Found ${brands.length} unique brands`, brands);
+          }
+          return brands;
+        })()
       }))
     }
     
     // No real data available, return empty array
     return []
     
+    /* Dead code - unreachable after return statement above
     // For "All" case, we need to create a custom grouping that shows both topics and personas
     if (sortBy === 'all') {
+      const filtered: any[] = []
       const topicPrompts = filtered.filter(prompt => prompt.id <= 10)
       const personaPrompts = filtered.filter(prompt => prompt.id >= 11)
       
@@ -808,7 +837,8 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
         groupLabel = 'Topic'
     }
     
-    const grouped = filtered.reduce((acc, prompt) => {
+    const filtered: any[] = [] // Dead code variable
+    const grouped = filtered.reduce((acc: any, prompt: any) => {
       const groupValue = prompt[groupKey as keyof typeof prompt] as string
       if (!acc[groupValue]) {
         acc[groupValue] = []
@@ -934,6 +964,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
     }
 
     return result
+    */ // End of dead code block
   }
 
   const filteredPrompts = getFilteredPrompts()
@@ -1428,12 +1459,13 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
   }
 
   return (
-    <SkeletonWrapper
-      show={showSkeleton}
-      isVisible={isVisible}
-      skeleton={<UnifiedCardSkeleton type="table" tableColumns={8} tableRows={10} />}
-    >
-      <div className="w-full space-y-4">
+    <TooltipProvider>
+      <SkeletonWrapper
+        show={showSkeleton}
+        isVisible={isVisible}
+        skeleton={<UnifiedCardSkeleton type="table" tableColumns={8} tableRows={10} />}
+      >
+        <div className="w-full space-y-4">
       {/* Header Section - Outside the box */}
       <div className="flex items-center justify-between">
         <div>
@@ -1528,6 +1560,11 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                       >
                         {sortBy === 'all' ? 'All' : (groupedData[0]?.groupLabel || 'Topic')}
                         {getSortIcon('topic')}
+                      </div>
+                    </TableHead>
+                    <TableHead className="text-center">
+                      <div className="flex items-center justify-center">
+                        Brand Mentioned
                       </div>
                     </TableHead>
                     <TableHead className="text-right">
@@ -1635,11 +1672,53 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                         </Badge>
                               </div>
                               <span className="text-sm text-muted-foreground">
-                                {group.prompts.length} prompt{group.prompts.length !== 1 ? 's' : ''}
+                                {Array.isArray(group.prompts) ? group.prompts.length : 0} prompt{Array.isArray(group.prompts) && group.prompts.length !== 1 ? 's' : ''}
                               </span>
                             </div>
                       </TableCell>
-                          <TableCell className="text-right">{group.visibilityScore}</TableCell>
+                          <TableCell className="text-center">
+                            {/* Brand favicons (includes both user's brand and competitors) */}
+                            {(group as any).groupBrands && Array.isArray((group as any).groupBrands) && (group as any).groupBrands.length > 0 && (
+                              <div className="flex items-center justify-center gap-1">
+                                {(group as any).groupBrands.slice(0, 6).map((brand: any, idx: number) => (
+                                  <Tooltip key={`${brand.name}-${idx}`}>
+                                    <TooltipTrigger asChild>
+                                      <img
+                                        src={getDynamicFaviconUrl(brand.url ? { url: brand.url, name: brand.name } : brand.name, 16)}
+                                        alt={brand.name}
+                                        className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
+                                        data-favicon-identifier={brand.url || brand.name}
+                                        data-favicon-size="16"
+                                        onError={handleFaviconError}
+                                      />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>{brand.name}{brand.isOwner ? ' (Your Brand)' : ''}</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                ))}
+                                {(group as any).groupBrands.length > 6 && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <span className="text-xs text-muted-foreground px-1.5 py-0.5 bg-muted rounded border border-border/50">
+                                        +{(group as any).groupBrands.length - 6}
+                                      </span>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <div className="space-y-1">
+                                        {(group as any).groupBrands.slice(6).map((brand: any) => (
+                                          <p key={brand.name}>{brand.name}{brand.isOwner ? ' (Your Brand)' : ''}</p>
+                                        ))}
+                                      </div>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <span>{group.visibilityScore}</span>
+                          </TableCell>
                           <TableCell className="font-mono text-right">{group.visibilityRank} -</TableCell>
                           <TableCell className="text-right">
                             <Badge variant="default" className="text-xs">
@@ -1660,7 +1739,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                                 if (firstPrompt?.id) {
                                   setSelectedPrompt({
                                     ...group,
-                                    promptPreview: firstPrompt.text || firstPrompt.prompt || 'N/A',
+                                    promptPreview: (firstPrompt as any).text || firstPrompt.prompt || 'N/A',
                                     promptId: firstPrompt.id
                                   })
                                   fetchPromptDetails(firstPrompt.id)
@@ -1675,11 +1754,58 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                         </TableRow>
 
                         {/* Expanded Prompts */}
-                        {isExpanded && group.prompts.map((prompt, promptIndex) => (
+                        {isExpanded && Array.isArray(group.prompts) && group.prompts.map((prompt: any, promptIndex: number) => (
                           <TableRow key={`prompt-${prompt.id}`} className="bg-muted/20 hover:bg-muted/40">
                             <TableCell></TableCell>
                             <TableCell className="text-muted-foreground">
                               <span className="text-sm">{prompt.text || prompt.prompt}</span>
+                            </TableCell>
+                            <TableCell className="text-center">
+                              {/* Brand favicons for this specific prompt (includes both user's brand and competitors) */}
+                              {(() => {
+                                // Prefer mentionedBrands if available, fallback to mentionedCompetitors for backward compatibility
+                                const brands = (prompt as any).mentionedBrands || (prompt as any).mentionedCompetitors || [];
+                                if (brands.length > 0) {
+                                  return (
+                                    <div className="flex items-center justify-center gap-1.5">
+                                      {brands.slice(0, 8).map((brand: any, idx: number) => (
+                                        <Tooltip key={`prompt-${prompt.id}-brand-${idx}`}>
+                                          <TooltipTrigger asChild>
+                                            <img
+                                              src={getDynamicFaviconUrl(brand.url ? { url: brand.url, name: brand.name } : brand.name, 16)}
+                                              alt={brand.name}
+                                              className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
+                                              data-favicon-identifier={brand.url || brand.name}
+                                              data-favicon-size="16"
+                                              onError={handleFaviconError}
+                                            />
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <p>{brand.name}{brand.isOwner ? ' (Your Brand)' : ''}</p>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      ))}
+                                      {brands.length > 8 && (
+                                        <Tooltip>
+                                          <TooltipTrigger asChild>
+                                            <span className="text-xs text-muted-foreground px-1.5 py-0.5 bg-muted rounded border border-border/50">
+                                              +{brands.length - 8}
+                                            </span>
+                                          </TooltipTrigger>
+                                          <TooltipContent>
+                                            <div className="space-y-1">
+                                              {brands.slice(8).map((brand: any) => (
+                                                <p key={brand.name}>{brand.name}{brand.isOwner ? ' (Your Brand)' : ''}</p>
+                                              ))}
+                                            </div>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      )}
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </TableCell>
                             <TableCell className="text-sm text-right">
                               {prompt.promptMetrics && prompt.promptMetrics.visibilityScore > 0 
@@ -1881,18 +2007,52 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                                                   {platformResponse.response}
                                                 </ReactMarkdown>
                                               </div>
-                                              {/* NEW: Brands/Competitors mentioned */}
+                                              {/* NEW: Brands/Competitors mentioned with favicons */}
                                               {platformResponse.mentionedEntities && (
-                                                <div className="flex flex-wrap gap-2 text-xs text-primary-foreground bg-primary/20 px-2 py-1 rounded-sm">
-                                                  {platformResponse.mentionedEntities.brands && platformResponse.mentionedEntities.brands.length > 0 && (
-                                                    <span><b>Brands mentioned:</b> {platformResponse.mentionedEntities.brands.join(', ')}</span>
-                                                  )}
-                                                  {platformResponse.mentionedEntities.competitors && platformResponse.mentionedEntities.competitors.length > 0 && (
-                                                    <span><b>Competitors:</b> {platformResponse.mentionedEntities.competitors.join(', ')}</span>
-                                                  )}
-                                                  {(!platformResponse.mentionedEntities.brands?.length && !platformResponse.mentionedEntities.competitors?.length) && (
-                                                    <span className="italic text-muted-foreground">No brand or competitor mention detected in this answer</span>
-                                                  )}
+                                                <div className="flex items-center gap-2 text-xs bg-primary/10 px-2 py-1.5 rounded-sm border border-primary/20">
+                                                  <span className="font-semibold text-muted-foreground">Brands Mentioned:</span>
+                                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                                    {/* Brands */}
+                                                    {platformResponse.mentionedEntities.brands && platformResponse.mentionedEntities.brands.length > 0 && (
+                                                      platformResponse.mentionedEntities.brands.map((brand: string, idx: number) => (
+                                                        <Tooltip key={`brand-${idx}`}>
+                                                          <TooltipTrigger asChild>
+                                                            <img
+                                                              src={getDynamicFaviconUrl(brand, 16)}
+                                                              alt={brand}
+                                                              className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
+                                                              onError={handleFaviconError}
+                                                            />
+                                                          </TooltipTrigger>
+                                                          <TooltipContent side="top" className="text-xs">
+                                                            {brand}
+                                                          </TooltipContent>
+                                                        </Tooltip>
+                                                      ))
+                                                    )}
+                                                    {/* Competitors */}
+                                                    {platformResponse.mentionedEntities.competitors && platformResponse.mentionedEntities.competitors.length > 0 && (
+                                                      platformResponse.mentionedEntities.competitors.map((competitor: string, idx: number) => (
+                                                        <Tooltip key={`competitor-${idx}`}>
+                                                          <TooltipTrigger asChild>
+                                                            <img
+                                                              src={getDynamicFaviconUrl(competitor, 16)}
+                                                              alt={competitor}
+                                                              className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
+                                                              onError={handleFaviconError}
+                                                            />
+                                                          </TooltipTrigger>
+                                                          <TooltipContent side="top" className="text-xs">
+                                                            {competitor}
+                                                          </TooltipContent>
+                                                        </Tooltip>
+                                                      ))
+                                                    )}
+                                                    {/* Empty state */}
+                                                    {(!platformResponse.mentionedEntities.brands?.length && !platformResponse.mentionedEntities.competitors?.length) && (
+                                                      <span className="italic text-muted-foreground">No brands mentioned</span>
+                                                    )}
+                                                  </div>
                                                 </div>
                                               )}
                                             </div>
@@ -2107,8 +2267,9 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
 
                           </SheetContent>
                         </Sheet>
-    </div>
-    </SkeletonWrapper>
+        </div>
+      </SkeletonWrapper>
+    </TooltipProvider>
   )
 }
 

@@ -11,61 +11,7 @@ const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 // Use centralized configuration
-// Removed perQueryType - now using percentage-based distribution
-
-// Helper functions for query types
-function getQueryTypePurpose(type) {
-  const purposes = {
-    'Informational': 'Learning, understanding, education',
-    'Navigational': 'Finding information or resources',
-    'Commercial': 'Research and evaluation (but TOFU-level, not deep comparison)',
-    'Transactional': 'Action-oriented (but still TOFU - getting started)'
-  };
-  return purposes[type] || 'General inquiry';
-}
-
-function getQueryTypeExamples(type) {
-  const examples = {
-    'Informational': [
-      '- "What is [category] and how does it work?"',
-      '- "Benefits of using [category]"',
-      '- "Guide to [category]"',
-      '- "How to [solve problem with category]"',
-      '- "Everything you need to know about [category]"'
-    ],
-    'Navigational': [
-      '- "Where to find [category] information"',
-      '- "Best [category] resources"',
-      '- "[Category] providers near me"',
-      '- "Top [category] companies"',
-      '- "Leading [category] platforms"'
-    ],
-    'Commercial': [
-      '- "Best [category] for [use case]"',
-      '- "Top [category] options in 2025"',
-      '- "[Category] reviews"',
-      '- "Compare different [category] types"',
-      '- "Which [category] is best for beginners"'
-    ],
-    'Transactional': [
-      '- "How to get started with [category]"',
-      '- "Sign up for [category]"',
-      '- "Apply for [category]"',
-      '- "Get [category]"',
-      '- "Try [category]"'
-    ]
-  };
-  return examples[type] || ['- "General [category] inquiry"'];
-}
-
-function getBrandedExamples(type) {
-  return [
-    '- "What is [Brand]?"',
-    '- "How does [Brand] work?"',
-    '- "Sign up for [Brand]"',
-    '- "Try [Brand]"'
-  ];
-}
+// NOTE: All prompts are now 100% Commercial TOFU with buying intent only
 
 /**
  * Generate prompts for all topic-persona combinations
@@ -109,9 +55,20 @@ async function generatePrompts({
     const allPrompts = [];
 
     // Generate prompts for each topic-persona combination
+    // Ensure equal number of prompts per combination
+    const promptsPerCombination = totalPrompts; // This is the count per combination
+    // Over-generate by 50% to account for duplicates during deduplication
+    const overGenerationFactor = 1.5;
+    const promptsToGenerate = Math.ceil(promptsPerCombination * overGenerationFactor);
+    
+    let combinationCount = 0;
+    const totalCombinations = topics.length * personas.length;
+    
     for (const topic of topics) {
       for (const persona of personas) {
-        console.log(`Generating prompts for: ${topic.name} × ${persona.type} (${totalPrompts} total prompts)`);
+        combinationCount++;
+        console.log(`[${combinationCount}/${totalCombinations}] Generating prompts for: ${topic.name} × ${persona.type}`);
+        console.log(`   Target: ${promptsPerCombination} prompts for this combination (generating ${promptsToGenerate} to account for duplicates)`);
         console.log('🔍 Topic object:', { _id: topic._id, name: topic.name });
         console.log('🔍 Persona object:', { _id: persona._id, type: persona.type });
         
@@ -123,24 +80,133 @@ async function generatePrompts({
           websiteUrl,
           brandContext,
           competitors,
-          totalPrompts,
+          totalPrompts: promptsToGenerate, // Over-generate to account for duplicates
           options
         });
+
+        console.log(`   ✅ Generated ${prompts.length} prompts for ${topic.name} × ${persona.type} (will select ${promptsPerCombination} after deduplication)`);
+        
+        // Ensure we have enough - if fewer than target, log warning
+        if (prompts.length < promptsPerCombination) {
+          console.warn(`   ⚠️  Only got ${prompts.length} prompts but need ${promptsPerCombination} - may need to adjust`);
+        }
 
         allPrompts.push(...prompts);
       }
     }
+    
+    console.log(`\n📊 Generation Summary:`);
+    console.log(`   Total combinations processed: ${combinationCount}`);
+    console.log(`   Prompts per combination: ${promptsPerCombination}`);
+    console.log(`   Total prompts before deduplication: ${allPrompts.length}`);
 
-    // Global cross-combo deduplication
-    const seen = [];
-    const uniquePrompts = [];
+    // Group prompts by topic-persona combination
+    const promptsByCombination = {};
     for (const promptData of allPrompts) {
-      const normText = normalizePromptText(promptData.promptText);
-      if (seen.some(p => isNearDuplicate(p, normText))) continue;
-      seen.push(normText);
-      uniquePrompts.push(promptData);
+      const key = `${promptData.topicId}_${promptData.personaId}`;
+      if (!promptsByCombination[key]) {
+        promptsByCombination[key] = [];
+      }
+      promptsByCombination[key].push(promptData);
     }
-    console.log(`✅ Generated ${uniquePrompts.length} unique prompts successfully`);
+    
+    // Log distribution per combination
+    console.log(`\n📋 Prompts per combination (before deduplication):`);
+    Object.entries(promptsByCombination).forEach(([key, prompts]) => {
+      const topic = topics.find(t => t._id === prompts[0].topicId);
+      const persona = personas.find(p => p._id === prompts[0].personaId);
+      console.log(`   ${topic?.name || 'Unknown'} × ${persona?.type || 'Unknown'}: ${prompts.length} prompts`);
+    });
+
+    // Step 1: Deduplicate WITHIN each combination first (per-combination deduplication)
+    const deduplicatedByCombination = {};
+    for (const [key, prompts] of Object.entries(promptsByCombination)) {
+      const seen = [];
+      const unique = [];
+      for (const prompt of prompts) {
+        const normText = normalizePromptText(prompt.promptText);
+        if (seen.some(p => isNearDuplicate(p, normText))) continue;
+        seen.push(normText);
+        unique.push(prompt);
+      }
+      deduplicatedByCombination[key] = unique;
+    }
+    
+    // Step 2: Cross-combination deduplication with deterministic equal distribution
+    // We'll ensure each combination gets exactly promptsPerCombination prompts
+    const finalPromptsByCombination = {};
+    const globalSeen = new Set(); // Track globally seen prompts (normalized text)
+    
+    // Process combinations in a fixed order (deterministic)
+    const combinationKeys = Object.keys(deduplicatedByCombination).sort();
+    
+    for (const key of combinationKeys) {
+      const prompts = deduplicatedByCombination[key];
+      finalPromptsByCombination[key] = [];
+      let added = 0;
+      
+      // Add prompts from this combination, skipping global duplicates
+      for (const prompt of prompts) {
+        if (added >= promptsPerCombination) break; // We have enough
+        
+        const normText = normalizePromptText(prompt.promptText);
+        const isGlobalDuplicate = Array.from(globalSeen).some(seenText => 
+          isNearDuplicate(seenText, normText)
+        );
+        
+        if (!isGlobalDuplicate) {
+          globalSeen.add(normText);
+          finalPromptsByCombination[key].push(prompt);
+          added++;
+        }
+      }
+      
+      // If we don't have enough prompts after deduplication, use remaining prompts from this combination
+      // (even if they're duplicates with other combinations, prioritize keeping this combination full)
+      if (added < promptsPerCombination) {
+        for (const prompt of prompts) {
+          if (added >= promptsPerCombination) break;
+          
+          const normText = normalizePromptText(prompt.promptText);
+          const alreadyInThisCombo = finalPromptsByCombination[key].some(p => 
+            normalizePromptText(p.promptText) === normText
+          );
+          
+          if (!alreadyInThisCombo) {
+            // Add even if it's a global duplicate - maintain combination count
+            finalPromptsByCombination[key].push(prompt);
+            added++;
+          }
+        }
+      }
+    }
+    
+    // Flatten to final array
+    const uniquePrompts = [];
+    for (const prompts of Object.values(finalPromptsByCombination)) {
+      uniquePrompts.push(...prompts);
+    }
+    
+    // Log final distribution
+    console.log(`\n📋 Prompts per combination (after deterministic deduplication):`);
+    let allEqual = true;
+    Object.entries(finalPromptsByCombination).forEach(([key, prompts]) => {
+      const topic = topics.find(t => t._id === prompts[0].topicId);
+      const persona = personas.find(p => p._id === prompts[0].personaId);
+      const count = prompts.length;
+      const expected = promptsPerCombination;
+      const status = count === expected ? '✅' : count < expected ? '⚠️' : '✅';
+      if (count !== expected) allEqual = false;
+      console.log(`   ${status} ${topic?.name || 'Unknown'} × ${persona?.type || 'Unknown'}: ${count} prompts (expected: ${expected})`);
+    });
+    
+    if (allEqual) {
+      console.log(`\n✅ All combinations have exactly ${promptsPerCombination} prompts - uniform distribution achieved!`);
+    } else {
+      console.warn(`\n⚠️  Some combinations don't have the expected count - may need over-generation`);
+    }
+    
+    console.log(`\n✅ Generated ${uniquePrompts.length} unique prompts successfully`);
     return uniquePrompts;
 
   } catch (error) {
@@ -190,6 +256,9 @@ async function generatePromptsForCombination({
 
     console.log(`🔍 Prompt generation context for ${topic.name} × ${persona.type}:`);
     console.log(`   Brand: ${brandContext?.companyName || 'Unknown'}`);
+    console.log(`   Topic Description: ${topic.description ? topic.description.substring(0, 100) + '...' : 'None provided'}`);
+    console.log(`   Persona Description: ${persona.description ? persona.description.substring(0, 100) + '...' : 'None provided'}`);
+    console.log(`   Brand Context Fields: ${brandContext && typeof brandContext === 'object' ? Object.keys(brandContext).join(', ') : 'None'}`);
     console.log(`   URL: ${websiteUrl}`);
     console.log(`   Total prompts: ${totalPrompts}`);
 
@@ -279,97 +348,116 @@ async function generatePromptsForCombination({
  */
 function buildSystemPrompt(totalPrompts = 20, options = null) {
   // Use override options if provided, otherwise use defaults
-  // 80% commercial prompts, 20% branded prompts for optimal SEO effectiveness
-  const brandedPercentage = options?.brandedPercentage ?? 20; // 20% branded
-  const queryTypeDistribution = options?.queryTypeDistribution ?? {
-    Commercial: 80, // 80% commercial intent for better conversion potential
-    Informational: 10,
-    Transactional: 5,
-    Navigational: 5
-  };
+  const brandedPercentage = options?.brandedPercentage ?? 15; // 15% branded (reduced from 20% for better TOFU balance)
   
   const brandedCount = Math.max(1, Math.round(totalPrompts * brandedPercentage));
   const nonBrandedCount = totalPrompts - brandedCount;
-  
-  // Calculate prompts per type based on percentage distribution
-  const promptsPerType = {};
-  const distribution = queryTypeDistribution;
-  
-  // Calculate exact prompts for each type based on percentages
-  for (const [type, percentage] of Object.entries(distribution)) {
-    promptsPerType[type] = Math.round(totalPrompts * (percentage / 100));
-  }
-  
-  // Adjust for rounding differences to ensure total matches
-  const totalCalculated = Object.values(promptsPerType).reduce((sum, count) => sum + count, 0);
-  const difference = totalPrompts - totalCalculated;
-  
-  // Add the difference to the largest type (Commercial) to maintain 80% focus
-  if (difference !== 0) {
-    promptsPerType['Commercial'] = (promptsPerType['Commercial'] || 0) + difference;
-  }
-  
-  // Build dynamic query type sections
-  const queryTypes = [
-    { name: 'Commercial', description: 'Commercial intent queries' },
-    { name: 'Informational', description: 'Informational queries' },
-    { name: 'Transactional', description: 'Transactional queries' },
-    { name: 'Navigational', description: 'Navigational queries' }
-  ];
-  const queryTypeSections = queryTypes.map((type, index) => {
-    const promptsForThisType = promptsPerType[type.name];
-    return `${index + 1}. **${type.name.toUpperCase()} QUERIES** (${promptsForThisType} prompts)
-   Purpose: ${getQueryTypePurpose(type.name)}
-   
-   NON-BRANDED examples:
-   ${getQueryTypeExamples(type.name).join('\n   ')}
-   
-   BRANDED (only ${brandedCount} total across all types):
-   ${getBrandedExamples(type.name).join('\n   ')}`;
-  }).join('\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n');
 
   return `You are an expert at creating natural, human-like TOFU (Top of Funnel) search queries for Answer Engine Optimization (AEO) analysis.
 
-Your task is to generate ${totalPrompts} diverse, realistic TOFU-focused prompts that test brand visibility in LLM responses (ChatGPT, Claude, Gemini, Perplexity).
+Your task is to generate EXACTLY ${totalPrompts} diverse, realistic fanned out TOFU prompts that test brand visibility in LLM responses (ChatGPT, Claude, Gemini, Perplexity) for users researching this product/service.
 
-CRITICAL REQUIREMENTS:
+CRITICAL: Each prompt MUST be unique with different angles, focus areas, and wording. NO duplicates or near-duplicates allowed.
 
-1. BRANDED RATIO: 
-   - ${nonBrandedCount} prompts (${Math.round((1 - brandedPercentage) * 100)}%) must be NON-BRANDED (generic category/problem queries)
+🚨 CRITICAL REQUIREMENTS - YOU MUST FOLLOW THESE STRICTLY:
+
+1. ALL PROMPTS MUST BE COMMERCIAL ONLY WITH BUYING INTENT:
+   - EVERY single prompt must have commercial intent and buying intent
+   - Every prompt should indicate users are researching to buy/evaluate/solve a problem with intent to take action
+   - ZERO informational queries (no "What is", "How does", "Why" educational content)
+   - ZERO navigational queries (no "Where to find", "Best resources")
+   - ZERO transactional queries (no "Sign up", "Try", "Apply")
+   - ONLY commercial evaluation queries that show buying/research intent
+
+2. TOFU FOCUS - TOP OF FUNNEL ONLY:
+   - ALL prompts must target awareness/discovery stage users
+   - Users researching solutions, evaluating options, comparing alternatives
+   - Early research phase - NOT purchase-ready, NOT educational only
+   - Buying intent: users want to solve a problem, find the best solution, evaluate options before buying
+
+3. BRANDED RATIO: 
+   - ${nonBrandedCount} prompts (${Math.round((1 - brandedPercentage) * 100)}%) MUST be NON-BRANDED (generic category/problem queries with buying intent)
    - ${brandedCount} prompt (${Math.round(brandedPercentage * 100)}%) can be BRANDED (mentioning specific brand name)
 
-2. NO COMPETITOR MENTIONS:
+4. NO COMPETITOR MENTIONS:
    - NEVER mention competitor brand names in any prompt
-   - Use generic terms like "alternatives", "options", "solutions" instead
+   - Use generic terms like "alternatives", "options", "solutions", "providers" instead
    - Generic comparisons only (e.g., "best personal loan options" NOT "Brand A vs Brand B")
 
-3. TOFU FOCUS:
-   - All queries should target awareness/discovery stage users
-   - Focus on education, information, and problem-solving
-   - Avoid deep product details, pricing, or purchase-ready queries
+5. FAN OUT - SHORT & DIVERSIFIED ANGLES:
+   - Vary starting words: Use diverse openings - "Best", "Top", "Compare", "Which", "Should", "Is", "Options for", "Looking for", "Recommend", "Consider"
+   - Vary research angles: "best for [use case]", "top options", "compare", "which [category]", "should I [action]", "options for [scenario]"
+   - Vary buying contexts: different pain points, scenarios, use cases, user segments, urgency levels
+   - Each prompt must be UNIQUE with completely different focus/depth/angle/wording
+   - Each prompt must be SHORT: 5-12 words maximum
+   - Avoid repetitive patterns - if you use "Is X worth it for Y" once, use different structure for others
+   - Examples of DIVERSE prompts: "Best credit cards for travel rewards", "Which loan options suit debt consolidation", "Compare investment platforms for beginners", "Should I get a rewards card for online shopping"
 
-Generate EXACTLY ${totalPrompts} prompts using these 4 query types:
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-${queryTypeSections}
+EXAMPLE COMMERCIAL TOFU QUERIES WITH BUYING INTENT (NON-BRANDED) - DIVERSE SHORT PROMPTS:
+- Best credit cards for travel rewards
+- Top loan options for debt consolidation
+- Compare investment platforms for beginners
+- Which credit cards offer the best cashback
+- Options for debt consolidation loans
+- Looking for credit cards with no annual fee
+- Recommend credit cards for online shopping
+- Credit cards suitable for students
+- Best rewards programs for everyday spending
+- Which credit card rewards travel purchases most
+
+
+EXAMPLE COMMERCIAL TOFU QUERIES WITH BUYING INTENT (BRANDED) - SHORT PROMPTS:
+- Should I consider [Brand] for travel rewards
+- Is [Brand] good for students
+- [Brand] cashback benefits review
+- Compare [Brand] with other options
+- Is [Brand] worth it for online shopping
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❌ NEVER GENERATE THESE (NOT COMMERCIAL TOFU OR TOO LONG):
+- "What is [category]?" (informational, no buying intent)
+- "How does [category] work?" (educational, no buying intent)
+- "Where to find [category]?" (navigational, no buying intent)
+- "Sign up for [category]" (transactional, NOT TOFU)
+- "Apply for [category]" (transactional, NOT TOFU)
+- "Buy [category]" (transactional, NOT TOFU)
+- "Purchase [category]" (transactional, NOT TOFU)
+- "Try [category]" (transactional, NOT TOFU)
+- "Order [category]" (transactional, NOT TOFU)
+- "What are the top features to consider when choosing a membership rewards card?" (TOO LONG - 12 words)
+- "Looking for alternatives to American Express SmartEarn™ Credit Card for reward points?" (TOO LONG - 14 words)
+
+🚫 STRICTLY PROHIBITED TRANSACTIONAL PATTERNS:
+- Any phrase containing: "sign up", "apply", "buy", "purchase", "order", "try now", "get started"
+- These indicate purchase intent, not research/evaluation intent (TOFU stage)
+
+✅ ONLY GENERATE SHORT COMMERCIAL QUERIES WITH BUYING INTENT (5-12 words):
+- Users researching to solve a specific problem
+- Users evaluating options before deciding
+- Users comparing different solutions
+- Users looking for recommendations for their situation
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 DISTRIBUTION RULES:
+- ALL ${totalPrompts} prompts MUST be COMMERCIAL with BUYING INTENT
+- ALL ${totalPrompts} prompts MUST be TOFU (awareness/discovery stage)
+- ALL ${totalPrompts} prompts MUST be SHORT: 5-12 words maximum
 - Write from the persona's perspective (their role, challenges, context)
 - Make prompts conversational and natural (like real human queries)
-- Each prompt should be 1-2 sentences long and UNIQUE
-- Vary phrasing, angle, and specificity within each query type
-- Place your ${brandedCount} branded prompt(s) in any category
-- Use provided brand name, topic, and persona context
+- Each prompt must be UNIQUE
+- Fan out across different buying scenarios, use cases, pain points
+- ${nonBrandedCount} non-branded + ${brandedCount} branded
 - DO NOT mention any competitor brand names
 
 OUTPUT FORMAT:
-Return ONLY a JSON array of ${totalPrompts} prompt strings in this exact order:
-${Object.entries(promptsPerType).map(([type, count]) => `${count} ${type.toLowerCase()}`).join(', ')}
+Return ONLY a JSON array of EXACTLY ${totalPrompts} SHORT commercial prompt strings (5-12 words each).
 
-Example structure: ${Object.entries(promptsPerType).map(([type, count]) => `"${type.toLowerCase()}1", "${type.toLowerCase()}2"${count > 2 ? ', ...' : ''}`).join(', ')}`;
+Example: ["Best credit cards for travel rewards", "Top loan options for students", "Compare investment platforms"]`;
 }
 
 /**
@@ -385,26 +473,16 @@ function buildUserPrompt({
   websiteUrl,
   brandContext,
   competitors, // Will ignore this
-  totalPrompts = 20,
+  totalPrompts = 80,
   options = null
 }) {
   // Use override options if provided, otherwise use defaults
-  const brandedPercentage = options?.brandedPercentage ?? 20; // 20% branded
-  const queryTypeDistribution = options?.queryTypeDistribution ?? {
-    commercial: 80,
-    informational: 10,
-    transactional: 5,
-    navigational: 5
-  };
+  const brandedPercentage = options?.brandedPercentage ?? 15; // 15% branded (aligned with system prompt)
   
   const brandedCount = Math.max(1, Math.round(totalPrompts * brandedPercentage));
   const nonBrandedCount = totalPrompts - brandedCount;
   
-  // Calculate distribution from queryTypeDistribution override or config
-  const informationalCount = Math.round(totalPrompts * queryTypeDistribution.Informational);
-  const commercialCount = Math.round(totalPrompts * queryTypeDistribution.Commercial);
-  const transactionalCount = Math.round(totalPrompts * queryTypeDistribution.Transactional);
-  const navigationalCount = totalPrompts - informationalCount - commercialCount - transactionalCount;
+  // ALL prompts are now Commercial TOFU type with buying intent
 
   // Extract brand name
   let brandName = 'the brand';
@@ -417,87 +495,140 @@ function buildUserPrompt({
     } catch (e) {}
   }
 
-  // Build brand info without competitors
+  // Build comprehensive brand info for better prompt generation
   let brandInfo = '';
   if (brandContext) {
     if (typeof brandContext === 'object') {
       const parts = [];
       if (brandContext.companyName) parts.push(`Company: ${brandContext.companyName}`);
       if (brandContext.industry) parts.push(`Industry: ${brandContext.industry}`);
-      if (brandContext.valueProposition) parts.push(`Value: ${brandContext.valueProposition}`);
-      if (parts.length > 0) brandInfo = `\n\nBrand Context: ${parts.join(', ')}`;
+      if (brandContext.businessModel) parts.push(`Business Model: ${brandContext.businessModel}`);
+      if (brandContext.valueProposition) parts.push(`Value Proposition: ${brandContext.valueProposition}`);
+      if (brandContext.keyServices && Array.isArray(brandContext.keyServices)) {
+        parts.push(`Key Services: ${brandContext.keyServices.join(', ')}`);
+      }
+      if (brandContext.targetMarket) parts.push(`Target Market: ${brandContext.targetMarket}`);
+      if (brandContext.brandTone) parts.push(`Brand Tone: ${brandContext.brandTone}`);
+      if (parts.length > 0) brandInfo = `\n\nBRAND ANALYSIS DATA:\n${parts.join('\n')}`;
     }
   }
 
-  // NO COMPETITOR CONTEXT - removed entirely
+  return `Generate EXACTLY ${totalPrompts} COMMERCIAL TOFU prompts for brand visibility testing:
 
-  return `Generate ${totalPrompts} TOFU-focused AEO prompts for brand visibility testing:
-
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BRAND INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 BRAND: ${brandName}${websiteUrl ? ` (${websiteUrl})` : ''}${brandInfo}
 
-TOPIC/CATEGORY: ${topic.name}
-${topic.description ? `Description: ${topic.description}` : ''}
-${topic.keywords ? `Keywords: ${topic.keywords.join(', ')}` : ''}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOPIC/CATEGORY INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+TOPIC: ${topic.name}
+${topic.description ? `Description: ${topic.description}` : 'Description: Not provided'}
+${topic.keywords && topic.keywords.length > 0 ? `Keywords: ${topic.keywords.join(', ')}` : 'Keywords: Not provided'}
 
-USER PERSONA: ${persona.type}
-${persona.description ? `Description: ${persona.description}` : ''}
-${persona.painPoints ? `Pain Points: ${persona.painPoints.join(', ')}` : ''}
-${persona.goals ? `Goals: ${persona.goals.join(', ')}` : ''}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+USER PERSONA INFORMATION
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PERSONA: ${persona.type}
+${persona.description ? `Description: ${persona.description}` : 'Description: Not provided'}
+${persona.painPoints && persona.painPoints.length > 0 ? `Pain Points: ${persona.painPoints.join(', ')}` : 'Pain Points: Not provided'}
+${persona.goals && persona.goals.length > 0 ? `Goals: ${persona.goals.join(', ')}` : 'Goals: Not provided'}
 
 TARGET: ${region}, ${language}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-CRITICAL REQUIREMENTS:
+🚨 MANDATORY REQUIREMENTS - YOU MUST FOLLOW THESE EXACTLY:
 
-1. TOFU FOCUS (Top of Funnel - Awareness Stage):
-   - ${Math.round((1 - brandedPercentage) * 100)}% of queries should be problem/category-focused, NOT brand-specific
-   - Queries for users in discovery/learning phase
-   - Educational and informational focus
-   - Generic, not product-specific
+1. ALL ${totalPrompts} PROMPTS MUST BE COMMERCIAL ONLY WITH BUYING INTENT:
+   ✓ EVERY prompt must show commercial intent and buying intent
+   ✓ Users researching to solve specific problems with intent to take action
+   ✓ Users evaluating options before making a decision
+   ✗ ZERO informational queries (no "What is", "How does", "Why", "Guide to")
+   ✗ ZERO navigational queries (no "Where to find", "Best resources")
+   ✗ ZERO transactional queries (no "Sign up", "Try", "Apply")
+   ✓ ONLY commercial evaluation queries that show buying/research intent
 
-2. BRANDED RATIO:
+2. ALL ${totalPrompts} PROMPTS MUST BE TOFU (Top of Funnel):
+   ✓ Awareness/discovery stage users - early research phase
+   ✓ Users researching solutions, evaluating options, comparing alternatives
+   ✗ NOT purchase-ready (too far down funnel)
+   ✗ NOT educational only (no learning focus)
+   ✓ Buying intent: users want to solve a problem, find best solutions, evaluate options
+
+3. BRANDED RATIO:
    - ${nonBrandedCount} prompts (${Math.round((1 - brandedPercentage) * 100)}%) MUST be NON-BRANDED
+     → Generic category/problem queries with commercial buying intent
    - ${brandedCount} prompt (${Math.round(brandedPercentage * 100)}%) can mention ${brandName}
-   - Place branded prompt(s) in Transactional category
+     → User evaluating/considering the specific brand
 
-3. NO COMPETITOR MENTIONS:
-   - DO NOT mention any competitor brand names
-   - Use generic terms: "alternatives", "options", "solutions", "providers"
-   - Generic comparisons only (e.g., "best ${topic.name} options")
-   ❌ NEVER: "Brand A vs Brand B", "alternatives to [Competitor]"
-   ✅ ALWAYS: "best ${topic.name} options", "compare ${topic.name} types"
+4. NO COMPETITOR MENTIONS:
+   ✗ NEVER mention competitor brand names
+   ✓ Use generic terms: "alternatives", "options", "solutions", "providers", "companies"
+   ✓ Generic comparisons only (e.g., "best ${topic.name} options" NOT "Brand A vs Brand B")
 
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-Generate EXACTLY ${totalPrompts} prompts distributed as:
-
-1. INFORMATIONAL: ${informationalCount} prompts (${Math.round(queryTypeDistribution.Informational * 100)}%)
-   - Generic learning about ${topic.name}
-   - "What is", "How does", "Why", "Guide to" ${topic.name}
-   - ALL non-branded
-
-2. NAVIGATIONAL: ${navigationalCount} prompts (${Math.round(queryTypeDistribution.Navigational * 100)}%)
-   - Finding ${topic.name} resources/providers
-   - "Where to find", "Best resources for" ${topic.name}
-   - ALL non-branded
-
-3. COMMERCIAL: ${commercialCount} prompts (${Math.round(queryTypeDistribution.Commercial * 100)}%)
-   - Researching/evaluating ${topic.name} options
-   - "Best ${topic.name} for", "Compare ${topic.name} types"
-   - ALL non-branded
-   - NO SPECIFIC BRAND NAMES IN COMPARISONS
-
-4. TRANSACTIONAL: ${transactionalCount} prompts (${Math.round(queryTypeDistribution.Transactional * 100)}%)
-   - Getting started with ${topic.name}
-   - ${transactionalCount - brandedCount} non-branded: "How to get started with ${topic.name}"
-   - ${brandedCount} branded: "Sign up for ${brandName}" or "Try ${brandName}"
+5. FAN OUT - SHORT & DIVERSIFIED ANGLES:
+   - Vary research angles: "best for [use case]", "top options", "compare", "recommendations", "reviews"
+   - Vary buying contexts: different pain points, scenarios, use cases, budgets, urgency
+   - Each prompt MUST be unique with different focus/depth/angle
+   - Each prompt MUST be SHORT: 5-12 words maximum
+   - Cover different stages: initial research → comparison → selection criteria
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXAMPLE COMMERCIAL TOFU QUERIES WITH BUYING INTENT - SHORT PROMPTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Write from ${persona.type}'s perspective considering their pain points and goals.
-Make each prompt unique, natural, and conversational.
-Return ONLY the JSON array of ${totalPrompts} prompts in order: [informational..., navigational..., commercial..., transactional...]`;
+NON-BRANDED (${nonBrandedCount} prompts) - SHORT:
+✓ "Best ${topic.name} options for ${persona.type}s"
+✓ "Top ${topic.name} for travel rewards"
+✓ "Compare investment platforms for beginners"
+✓ "Loan options for debt consolidation"
+✓ "Credit cards with best cashback"
+✓ "Travel insurance for frequent flyers"
+
+BRANDED (${brandedCount} prompt only) - SHORT:
+✓ "Should I consider ${brandName} for ${topic.name}"
+✓ "${brandName} cashback comparison"
+✓ "Is ${brandName} good for students"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+NEVER GENERATE THESE (NOT COMMERCIAL TOFU OR TOO LONG)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✗ "What is ${topic.name}?" (informational, no buying intent)
+✗ "How does ${topic.name} work?" (educational, no buying intent)
+✗ "Guide to ${topic.name}" (tutorial, no buying intent)
+✗ "Where to find ${topic.name}?" (navigational, no buying intent)
+✗ "Sign up for ${topic.name}" (transactional, not TOFU)
+✗ "Try ${topic.name}" (transactional, not TOFU)
+✗ "What are the top features to consider when choosing a membership rewards card?" (TOO LONG - 12 words)
+✗ "Looking for alternatives to American Express SmartEarn™ Credit Card for reward points?" (TOO LONG - 14 words)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DISTRIBUTION RULES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- ALL ${totalPrompts} prompts: COMMERCIAL + TOFU + BUYING INTENT
+- ALL ${totalPrompts} prompts: SHORT (5-12 words maximum)
+- Write from ${persona.type}'s perspective: ${persona.description ? `consider their description ("${persona.description.substring(0, 80)}${persona.description.length > 80 ? '...' : ''}")` : 'their role and needs'}
+  ${persona.painPoints && persona.painPoints.length > 0 ? `- Incorporate their pain points: ${persona.painPoints.slice(0, 3).join(', ')}${persona.painPoints.length > 3 ? '...' : ''}` : ''}
+  ${persona.goals && persona.goals.length > 0 ? `- Align with their goals: ${persona.goals.slice(0, 3).join(', ')}${persona.goals.length > 3 ? '...' : ''}` : ''}
+- Focus on the topic: ${topic.name} ${topic.description ? `(${topic.description.substring(0, 80)}${topic.description.length > 80 ? '...' : ''})` : ''}
+  ${topic.keywords && topic.keywords.length > 0 ? `- Use relevant keywords: ${topic.keywords.slice(0, 5).join(', ')}` : ''}
+- Incorporate the brand's value proposition and services when relevant
+  ${brandContext && typeof brandContext === 'object' && brandContext.companyName ? `- Brand focus: ${brandContext.companyName}${brandContext.valueProposition ? ` - ${brandContext.valueProposition.substring(0, 80)}${brandContext.valueProposition.length > 80 ? '...' : ''}` : ''}` : ''}
+  ${brandContext && typeof brandContext === 'object' && brandContext.keyServices && brandContext.keyServices.length > 0 ? `- Brand services: ${brandContext.keyServices.slice(0, 3).join(', ')}${brandContext.keyServices.length > 3 ? '...' : ''}` : ''}
+- Make prompts natural, conversational (like real user queries)
+- Each prompt: UNIQUE, varied angles, SHORT
+- Fan out: different use cases, scenarios, buying contexts
+- ${nonBrandedCount} non-branded + ${brandedCount} branded
+- NO competitor brand mentions
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+OUTPUT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Return ONLY a JSON array of EXACTLY ${totalPrompts} SHORT commercial prompt strings (5-12 words each).
+
+Example: ["Best credit cards for travel rewards", "Top loan options for students", "Compare investment platforms"]`;
 }
 
 /**
@@ -524,42 +655,14 @@ function parsePromptsFromResponse(content, topic, persona, totalPrompts = 20) {
       console.warn(`⚠️  Expected ${totalPrompts} prompts, got ${promptTexts.length}. Using available prompts.`);
     }
 
-    // Calculate distribution based on actual prompt count using percentage-based distribution
+    // ALL prompts are now Commercial type - assign all as Commercial
     const actualPromptCount = promptTexts.length;
-    // Note: This function doesn't have access to options override,
-    // so it uses config defaults. This is OK as it's just for parsing/assigning query types.
-    const queryTypeDistribution = {
-      commercial: 80,
-      informational: 10,
-      transactional: 5,
-      navigational: 5
-    };
     
-    // Calculate exact prompts for each type based on percentages
-    const promptsPerType = {};
-    for (const [type, percentage] of Object.entries(queryTypeDistribution)) {
-      promptsPerType[type] = Math.round(actualPromptCount * percentage / 100);
-    }
-    
-    // Adjust for rounding differences to ensure total matches
-    const totalCalculated = Object.values(promptsPerType).reduce((sum, count) => sum + count, 0);
-    const difference = actualPromptCount - totalCalculated;
-    
-    // Add the difference to the largest type (commercial)
-    if (difference !== 0) {
-      promptsPerType['commercial'] += difference;
-    }
-
-    // Create query types array based on percentage distribution
+    // Since all prompts are commercial TOFU, assign all as 'Commercial' type
     const queryTypes = [];
-    ['commercial', 'informational', 'transactional', 'navigational'].forEach((type) => {
-      const promptsForThisType = promptsPerType[type];
-      for (let i = 0; i < promptsForThisType; i++) {
-        // Convert to proper case for the Prompt model
-        const properCaseType = type.charAt(0).toUpperCase() + type.slice(1);
-        queryTypes.push(properCaseType);
-      }
-    });
+    for (let i = 0; i < actualPromptCount; i++) {
+      queryTypes.push('Commercial');
+    }
 
     // Create prompt objects
     const prompts = promptTexts.map((text, index) => ({
@@ -573,10 +676,12 @@ function parsePromptsFromResponse(content, topic, persona, totalPrompts = 20) {
     }));
 
     // Calculate distribution counts for logging
-    const distribution = {};
-    ['commercial', 'informational', 'transactional', 'navigational'].forEach((type) => {
-      distribution[type] = promptsPerType[type];
-    });
+    const distribution = {
+      Commercial: actualPromptCount,
+      Informational: 0,
+      Transactional: 0,
+      Navigational: 0
+    };
 
     console.log('🔍 Generated prompts for topic-persona combination:', {
       topicId: topic._id,
@@ -621,5 +726,6 @@ function isNearDuplicate(a, b) {
 }
 
 module.exports = {
-  generatePrompts
+  generatePrompts,
+  normalizePromptText
 };

@@ -62,7 +62,7 @@ const getCitationDataFromDashboard = (dashboardData: any) => {
       earned: Math.round(earned * 10) / 10,
       total: totalCitations > 0 ? 100 : 0,
       color: brandColors[index % brandColors.length], // Always use our diverse color palette
-      isOwner: competitor.isOwner || index === 0,
+      isOwner: competitor.isOwner || false, // Use isOwner from backend data
       comparisonBrand: brand,
       comparisonSocial: social,
       comparisonEarned: earned,
@@ -97,13 +97,21 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
   
   const filteredCitationData = getFilteredData()
   
+  // ✅ Find user's brand from citation data to ensure we display correct metrics
+  const userBrandFromData = filteredCitationData.find(item => item.isOwner === true)
+  
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
   const [chartType, setChartType] = useState('donut')
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [comparisonDate, setComparisonDate] = useState<Date | undefined>(undefined)
-  const [activePlatform, setActivePlatform] = useState(filteredCitationData[0]?.name || '')
+  // ✅ Default to user's brand instead of first item
+  const [activePlatform, setActivePlatform] = useState(userBrandFromData?.name || filteredCitationData[0]?.name || '')
   const [showExpandedRankings, setShowExpandedRankings] = useState(false)
-  const [activeIndex, setActiveIndex] = useState(0)
+  const [activeIndex, setActiveIndex] = useState(() => {
+    // ✅ Set initial active index to user's brand
+    const userBrandIndex = filteredCitationData.findIndex(item => item.isOwner === true)
+    return userBrandIndex >= 0 ? userBrandIndex : 0
+  })
   const [selectedCitationType, setSelectedCitationType] = useState('brand')
 
   // Skeleton loading - only show when data is actually loading
@@ -431,7 +439,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                           {/* Type name below bars */}
                           <div className="w-16 h-6 flex items-center justify-center">
                             <img 
-                              src={getDynamicFaviconUrl(brand.name)} 
+                              src={getDynamicFaviconUrl((brand as any).url || brand.name)} 
                               alt={brand.name}
                               className="w-4 h-4 rounded-sm"
                               onError={handleFaviconError}
@@ -479,7 +487,8 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                             <Label
                               content={({ viewBox }) => {
                                 if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                                  const activeData = filteredCitationData[activeIndex] || filteredCitationData[0]
+                                  // ✅ Default to user's brand if no active index, not just first item
+                                  const activeData = filteredCitationData[activeIndex] || userBrandFromData || filteredCitationData[0]
                                   return (
                                     <text
                                       x={viewBox.cx}
@@ -543,7 +552,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                       style={{ backgroundColor: item.color }}
                             />
                             <img
-                              src={getDynamicFaviconUrl(item.name)}
+                              src={getDynamicFaviconUrl((item as any).url || item.name)}
                               alt={item.name}
                               className="w-4 h-4 rounded-sm"
                               onError={handleFaviconError}
@@ -673,7 +682,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                               style={{ backgroundColor: item.color }}
                             />
                             <img
-                              src={getDynamicFaviconUrl(item.name)}
+                              src={getDynamicFaviconUrl((item as any).url || item.name)}
                               alt={item.name}
                               className="w-4 h-4 rounded-sm"
                               onError={handleFaviconError}
@@ -798,7 +807,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                             <div className="flex items-center gap-3">
                               <div className="flex items-center gap-2">
                                 <img
-                                  src={getDynamicFaviconUrl(item.name)}
+                                  src={getDynamicFaviconUrl((item as any).url || item.name)}
                                   alt={item.name}
                                   className="w-4 h-4 rounded-sm"
                                   onError={handleFaviconError}
@@ -885,7 +894,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                                   <div className="flex items-center gap-3">
                   <div className="flex items-center gap-2">
                     <img
-                      src={getDynamicFaviconUrl(item.name)}
+                      src={getDynamicFaviconUrl((item as any).url || item.name)}
                       alt={item.name}
                       className="w-4 h-4 rounded-sm"
                       onError={handleFaviconError}

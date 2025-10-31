@@ -85,7 +85,7 @@ const getSentimentDataFromDashboard = (dashboardData: any, filterContext?: any) 
       neutral: Math.round(neutral * 10) / 10,
       total: 100,
       color: competitor.color || CHART_COLORS[index % CHART_COLORS.length],
-      isOwner: index === 0
+      isOwner: competitor.isOwner || false // Use isOwner from backend data
     }
   })
   
@@ -420,7 +420,7 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                           {/* X-axis labels */}
                           <div className="w-16 h-6 flex items-center justify-center mt-2">
                             <img
-                              src={getDynamicFaviconUrl(brand.name)}
+                              src={getDynamicFaviconUrl((brand as any).url || brand.name)}
                               alt={brand.name}
                               className="w-4 h-4 rounded-sm"
                               onError={handleFaviconError}
@@ -507,7 +507,7 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                             style={{ backgroundColor: item.color }}
                           />
                           <img
-                            src={getDynamicFaviconUrl(item.name)}
+                            src={getDynamicFaviconUrl((item as any).url || item.name)}
                             alt={item.name}
                             className="w-4 h-4 rounded-sm"
                             onError={handleFaviconError}
@@ -528,7 +528,7 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                             style={{ backgroundColor: item.color }}
                           />
                           <img
-                            src={getDynamicFaviconUrl(item.name)}
+                            src={getDynamicFaviconUrl((item as any).url || item.name)}
                             alt={item.name}
                             className="w-4 h-4 rounded-sm"
                             onError={handleFaviconError}
@@ -600,7 +600,7 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                             <div className="flex items-center gap-3">
                               <div className="flex items-center gap-2">
                                 <img
-                                  src={getDynamicFaviconUrl(item.name)}
+                                  src={getDynamicFaviconUrl((item as any).url || item.name)}
                                   alt={item.name}
                                   className="w-4 h-4 rounded-sm"
                                   onError={handleFaviconError}
@@ -684,20 +684,24 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <img
-                        src={getDynamicFaviconUrl(item.name)}
+                        src={getDynamicFaviconUrl((item as any).url || item.name)}
                         alt={item.name}
                         className="w-4 h-4 rounded-sm"
                         onError={handleFaviconError}
                       />
                       <span 
-                        className={item.isOwner ? 'font-bold text-[#2563EB]' : 'text-foreground'}
+                        className="text-foreground"
+                        style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
                       >
                         {truncateForRanking(item.name)}
                       </span>
                     </div>
                   </TableCell>
                   <TableCell className="text-right">
-                    <span className={item.isOwner ? 'font-bold text-[#2563EB]' : 'text-foreground'}>
+                    <span 
+                      className="text-foreground"
+                      style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
+                    >
                       {item.total}
                     </span>
                   </TableCell>

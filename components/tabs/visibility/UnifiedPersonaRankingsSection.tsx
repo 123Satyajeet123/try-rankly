@@ -119,9 +119,11 @@ function UnifiedPersonaRankingsSection({ filterContext, dashboardData }: Unified
                           <div className="w-20 h-8 flex items-center justify-center rounded-full px-2 cursor-help">
                             <div className="flex items-center gap-1">
                               <img
-                                src={getDynamicFaviconUrl(ranking.name)}
+                                src={getDynamicFaviconUrl((ranking as any).url ? { url: (ranking as any).url, name: ranking.name } : ranking.name)}
                                 alt={ranking.name}
                                 className="w-3 h-3 rounded-sm"
+                                data-favicon-identifier={(ranking as any).url || ranking.name}
+                                data-favicon-size="16"
                                 onError={handleFaviconError}
                               />
                               <span 

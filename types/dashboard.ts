@@ -8,6 +8,7 @@ export interface Competitor {
   rank: number
   change: number // percentage change
   trend: 'up' | 'down' | 'stable'
+  isOwner?: boolean // Whether this is the user's brand
   // ✅ Sentiment data for sentiment analysis
   sentimentScore?: number
   sentimentBreakdown?: {

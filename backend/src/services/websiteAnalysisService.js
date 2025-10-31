@@ -273,7 +273,37 @@ class WebsiteAnalysisService {
       resultKeys = ['brandContext', 'competitors', 'topics', 'personas'];
     }
 
-    const results = await Promise.all(analysisTasks);
+    let results = await Promise.all(analysisTasks);
+
+    // ✅ Retry competitor finding if no competitors found (max 2 retries)
+    const MAX_COMPETITOR_RETRIES = 2;
+    let competitorRetries = 0;
+    let competitorsResult = results[1];
+    
+    while ((!competitorsResult.competitors || competitorsResult.competitors.length === 0) && competitorRetries < MAX_COMPETITOR_RETRIES) {
+      competitorRetries++;
+      console.log(`⚠️ No competitors found, retrying competitor detection (attempt ${competitorRetries}/${MAX_COMPETITOR_RETRIES})...`);
+      
+      // Retry the competitor finding task
+      if (analysisLevel === 'product') {
+        competitorsResult = await this.findProductCompetitors(websiteData, originalUrl, contextData);
+      } else if (analysisLevel === 'category') {
+        competitorsResult = await this.findCategoryCompetitors(websiteData, originalUrl, contextData);
+      } else {
+        competitorsResult = await this.findCompetitors(websiteData, originalUrl);
+      }
+      
+      // Update results array with retried competitor result
+      results[1] = competitorsResult;
+      
+      if (competitorsResult.competitors && competitorsResult.competitors.length > 0) {
+        console.log(`✅ Found ${competitorsResult.competitors.length} competitors on retry attempt ${competitorRetries}`);
+      }
+    }
+    
+    if (!competitorsResult.competitors || competitorsResult.competitors.length === 0) {
+      console.log(`⚠️ Still no competitors found after ${MAX_COMPETITOR_RETRIES} retries. Continuing with empty competitors array.`);
+    }
 
     // Build results object dynamically based on analysis level
     const analysisResults = {
@@ -393,7 +423,7 @@ Search for actual competitors with similar business metrics and provide real URL
   // Task 3: Extract topics
   async extractTopics(websiteData) {
     const prompt = `
-Analyze this website content and extract the main topics and themes that would be relevant for content marketing and SEO.
+Analyze this website content and extract the main topics and themes that would be relevant for those type of users for whome the product has been made and who would show buying intent for the product/brand.
 
 Website Content:
 - Title: ${websiteData.title}
@@ -401,8 +431,9 @@ Website Content:
 - Main Content: ${websiteData.paragraphs.slice(0, 10).join(' ')}
 - Services: ${websiteData.businessInfo.services.join(', ')}
 
-Extract 6-8 main topics that this business should focus on for content marketing:
+Extract 8-10 short quality topics
 
+Example: if topic name should be short and crisp
 {
   "topics": [
     {
@@ -585,7 +616,7 @@ Focus on PRODUCT-LEVEL competition with similar business metrics and features.
   // Product Task 3: Extract product topics
   async extractProductTopics(websiteData, productData) {
     const prompt = `
-Analyze this SPECIFIC PRODUCT PAGE and extract product-specific topics for content marketing.
+Analyze this SPECIFIC PRODUCT PAGE and extract product-specific topics that would be relevant for those type of users for whome the product has been made and who would show buying intent for the product/brand.
 
 IMPORTANT: Extract topics relevant to THIS SPECIFIC PRODUCT, not general business topics.
 
@@ -597,7 +628,9 @@ Product Content:
 - Use Cases: ${productData?.useCases.slice(0, 5).join(', ') || 'Not specified'}
 - Page Title: ${websiteData.title}
 
-Extract 6-8 PRODUCT-SPECIFIC topics:
+Extract 8-10 short quality PRODUCT-SPECIFIC topics
+
+Example: if topic name should be short and crisp
 {
   "topics": [
     {
@@ -608,13 +641,6 @@ Extract 6-8 PRODUCT-SPECIFIC topics:
     }
   ]
 }
-
-Focus on:
-- Product feature topics
-- Product comparison topics
-- Product use case topics
-- Product education topics
-- Product problem-solution topics
 `;
 
     return await this.callOpenRouter(prompt, 'perplexity/sonar', 'productTopics');
@@ -752,12 +778,14 @@ Search for actual competitors with similar business metrics in this category.
   // Category Task 3: Extract category topics
   async extractCategoryTopics(websiteData, categoryData) {
     const prompt = `
-Extract topics relevant to THIS PRODUCT CATEGORY.
+Extract topics relevant to THIS PRODUCT CATEGORY that would be relevant for those type of users for whome products in this category have been made and who would show buying intent.
 
 Category: ${categoryData?.categoryName || 'Unknown Category'}
 Subcategories: ${categoryData?.subcategories.slice(0, 10).join(', ') || 'Not specified'}
 
-Extract 6-8 category-level topics:
+Extract 8-10 short quality category-level topics
+
+Example: if topic name should be short and crisp
 {
   "topics": [
     {

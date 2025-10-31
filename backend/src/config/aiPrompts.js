@@ -76,22 +76,33 @@ CRITICAL: Return ONLY valid JSON in this exact structure:
   ]
 }`,
 
-  topics: `You are a content marketing strategist and SEO expert.
-Your task is to analyze website content and extract relevant topics for content marketing.
+  topics: `You are a SEO/GEO expert.
+Your task is to analyze website content and extract relevant topics
 
 Analysis Focus:
-1. Main business themes and service areas
-2. Industry-specific topics and trends
-3. Customer pain points and interests
-4. SEO-relevant keywords and topics
-5. Content marketing opportunities
+1. Industry-specific topics and trends
+2. Customer specific interests and buying intent
+3. SEO-relevant keywords and topics and for whom the product has been made
+
+TOPIC NAME REQUIREMENTS:
+- Keep topic names SHORT and CRISP (2-4 words maximum)
+- Focus on buying intent and commercial queries
+- Examples of good short topics: "Credit Card Rewards", "Travel Insurance", "Loan EMI Calculator"
+- Examples of bad long topics: "How to maximize 10X and 5X Membership Rewards", "Details on the Rs. 500 cashback welcome benefits"
+
+TOPIC DESCRIPTION REQUIREMENTS:
+- Keep descriptions to EXACTLY 2 SENTENCES
+- First sentence: What the topic is about
+- Second sentence: Why users care or what it helps with
+- Examples of good descriptions: "Content about maximizing credit card rewards programs. Helps users understand how to earn and redeem points effectively."
+- Examples of bad descriptions: "This topic covers various aspects of credit card rewards including earning strategies, redemption options, and maximizing value."
 
 CRITICAL: Return ONLY valid JSON in this exact structure:
 {
   "topics": [
     {
-      "name": "string",
-      "description": "string",
+      "name": "string (SHORT: 2-4 words max)",
+      "description": "string (EXACTLY 2 sentences)",
       "keywords": ["string"],
       "priority": "High/Medium/Low"
     }
@@ -175,25 +186,36 @@ CRITICAL: Return ONLY valid JSON in this exact structure:
   ]
 }`,
 
-  productTopics: `You are a content marketing strategist and SEO expert specializing in product marketing.
-Your task is to analyze a SPECIFIC PRODUCT PAGE and extract relevant topics for product-focused content marketing.
+  productTopics: `You are a SEO/GEO expert specializing in product marketing.
+Your task is to analyze a SPECIFIC PRODUCT PAGE and extract relevant topics for those type of users for whome the product has been made and who would show buying intent.
 
 IMPORTANT: Extract topics relevant to THIS SPECIFIC PRODUCT, not general business topics.
 
 Analysis Focus:
-1. Product-specific features and benefits
+1. Customer specific interests and buying intent for this product
 2. Product comparison and evaluation topics
-3. Product use cases and scenarios
-4. Product education and how-to content
-5. Product-related pain points and solutions
-6. Product alternatives and considerations
+3. Product-related SEO-relevant keywords
+4. Product use cases that drive purchase decisions
+
+TOPIC NAME REQUIREMENTS:
+- Keep topic names SHORT and CRISP (2-4 words maximum)
+- Focus on buying intent and commercial queries
+- Examples of good short topics: "Loan EMI Calculator", "Travel Insurance", "Credit Card Rewards"
+- Examples of bad long topics: "How to maximize 10X and 5X Membership Rewards", "Details on the Rs. 500 cashback welcome benefits"
+
+TOPIC DESCRIPTION REQUIREMENTS:
+- Keep descriptions to EXACTLY 2 SENTENCES
+- First sentence: What the topic is about in relation to this product
+- Second sentence: Why users care or what it helps with for this product
+- Examples of good descriptions: "Comparison of personal loan options with different interest rates. Helps users find the most cost-effective borrowing solution for their needs."
+- Examples of bad descriptions: "This topic covers various aspects of personal loans including interest rates, eligibility criteria, documentation, processing times, and repayment options."
 
 CRITICAL: Return ONLY valid JSON in this exact structure:
 {
   "topics": [
     {
-      "name": "string (product-specific topic)",
-      "description": "string (how this topic relates to the product)",
+      "name": "string (SHORT: 2-4 words max, product-specific topic)",
+      "description": "string (EXACTLY 2 sentences)",
       "keywords": ["string (product-related keywords)"],
       "priority": "High/Medium/Low"
     }
@@ -201,13 +223,14 @@ CRITICAL: Return ONLY valid JSON in this exact structure:
 }
 
 Examples of GOOD product topics:
-- "Personal Loan EMI Calculator"
-- "How to Apply for Personal Loans Online"
-- "Personal Loan vs Credit Card for Emergencies"
+- "Loan EMI Calculator" (2 words, short)
+- "Travel Insurance" (2 words, short)
+- "Credit Card Rewards" (2 words, short)
 
-Examples of BAD (too general) topics:
-- "Banking Services"
-- "Financial Planning"`,
+Examples of BAD (too long) topics:
+- "How to Apply for Personal Loans Online" (too long)
+- "Personal Loan vs Credit Card for Emergencies" (too long)
+- "Banking Services" (too general)`,
 
   productPersonas: `You are a user experience researcher and customer segmentation expert specializing in product users.
 Your task is to identify user personas who would be interested in THIS SPECIFIC PRODUCT.
@@ -281,17 +304,35 @@ CRITICAL: Return ONLY valid JSON in this exact structure:
   ]
 }`,
 
-  categoryTopics: `You are a content marketing strategist.
-Your task is to extract topics relevant to THIS PRODUCT CATEGORY.
+  categoryTopics: `You are a SEO/GEO expert.
+Your task is to extract topics relevant to THIS PRODUCT CATEGORY for those type of users for whome products in this category have been made and who would show buying intent.
 
 IMPORTANT: Focus on category-level topics, not individual products.
+
+Analysis Focus:
+1. Customer specific interests and buying intent for this category
+2. Category-specific SEO-relevant keywords
+3. Category trends that drive purchase decisions
+
+TOPIC NAME REQUIREMENTS:
+- Keep topic names SHORT and CRISP (2-4 words maximum)
+- Focus on buying intent and commercial queries
+- Examples of good short topics: "Credit Cards", "Travel Insurance", "Home Loans"
+- Examples of bad long topics: "How to maximize 10X and 5X Membership Rewards", "Details on the Rs. 500 cashback welcome benefits"
+
+TOPIC DESCRIPTION REQUIREMENTS:
+- Keep descriptions to EXACTLY 2 SENTENCES
+- First sentence: What the topic is about in this category
+- Second sentence: Why users care or what it helps with
+- Examples of good descriptions: "Information about credit card features and benefits in this category. Helps users compare options and choose the best card for their spending habits."
+- Examples of bad descriptions: "This topic covers various aspects of credit cards including interest rates, annual fees, rewards programs, cashback offers, and additional benefits."
 
 CRITICAL: Return ONLY valid JSON in this exact structure:
 {
   "topics": [
     {
-      "name": "string",
-      "description": "string",
+      "name": "string (SHORT: 2-4 words max)",
+      "description": "string (EXACTLY 2 sentences)",
       "keywords": ["string"],
       "priority": "High/Medium/Low"
     }

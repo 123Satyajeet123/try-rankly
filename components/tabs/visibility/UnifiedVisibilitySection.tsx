@@ -76,12 +76,19 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
       return []
     }
 
-    const chartData = dashboardData.metrics.visibilityScore.data.map((item: any, index: number) => ({
-      name: item.name,
-      score: parseFloat(formatToTwoDecimals(item.value)), // Format to 2 decimal places
-      color: brandColors[index % brandColors.length], // Always use our diverse color palette
-      comparisonScore: parseFloat(formatToTwoDecimals(item.value)) // For now, use same value for comparison
-    }))
+    const chartData = dashboardData.metrics.visibilityScore.data.map((item: any, index: number) => {
+      // Find if this item has isOwner info from competitors data
+      const competitorData = dashboardData?.metrics?.competitors?.find((c: any) => c.name === item.name);
+      const isOwner = competitorData?.isOwner || false;
+      
+      return {
+        name: item.name,
+        score: parseFloat(formatToTwoDecimals(item.value)), // Format to 2 decimal places
+        color: isOwner ? '#3B82F6' : brandColors[(index + 1) % brandColors.length], // User's brand in blue, others from palette
+        comparisonScore: parseFloat(formatToTwoDecimals(item.value)), // For now, use same value for comparison
+        isOwner: isOwner // Store for other uses
+      };
+    })
 
     console.log('📊 [VisibilityChart] Transformed chart data:', chartData)
     return chartData
@@ -97,7 +104,7 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
     return dashboardData.metrics.competitors.map((competitor: any, index: number) => ({
       rank: competitor.rank || (index + 1), // Uses visibilityRank from backend
       name: competitor.name,
-      isOwner: index === 0, // First competitor is the primary brand
+      isOwner: competitor.isOwner || false, // Use isOwner from backend
       rankChange: competitor.change || 0,
       score: competitor.score // Uses visibilityScore from backend
     }))
@@ -133,13 +140,22 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
   const { chartData: filteredChartData, trendData: filteredTrendData, allRankings: filteredRankings } = getFilteredData()
   const rankings = getDisplayRankings(filteredRankings)
 
+  // ✅ Find user's brand from chart data to ensure we display correct metrics
+  const userBrandFromChart = filteredChartData.find(item => item.isOwner === true)
+  const userBrandValue = userBrandFromChart?.score || dashboardData?.metrics?.visibilityScore?.value || 0
+
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
   const [chartType, setChartType] = useState('donut')
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
   const [comparisonDate, setComparisonDate] = useState<Date | undefined>(undefined)
-  const [activePlatform, setActivePlatform] = useState(filteredChartData[0]?.name || '')
+  // ✅ Default to user's brand instead of first item
+  const [activePlatform, setActivePlatform] = useState(userBrandFromChart?.name || filteredChartData[0]?.name || '')
+  const [activeIndex, setActiveIndex] = useState(() => {
+    // ✅ Set initial active index to user's brand
+    const userBrandIndex = filteredChartData.findIndex(item => item.isOwner === true)
+    return userBrandIndex >= 0 ? userBrandIndex : 0
+  })
   const [showExpandedRankings, setShowExpandedRankings] = useState(false)
-  const [activeIndex, setActiveIndex] = useState(0)
 
   // Skeleton loading state
   const [isDataLoading, setIsDataLoading] = useState(false)
@@ -344,7 +360,7 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
               <h3 className="text-foreground">Visibility Score</h3>
               <div className="flex items-baseline gap-3">
                 <div className="metric text-xl font-semibold text-foreground">
-                  {formatPercentage(dashboardData?.metrics?.visibilityScore?.value || 0)}
+                  {formatPercentage(userBrandValue)}
                 </div>
                 {showComparison && (
                   <Badge variant="outline" className="caption h-5 px-2 border-green-500 text-green-500 bg-green-500/10">
@@ -428,9 +444,11 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
                         {/* Company name below bars */}
                         <div className="w-16 h-6 flex items-center justify-center">
                           <img 
-                            src={getDynamicFaviconUrl(bar.name)} 
+                            src={getDynamicFaviconUrl((bar as any).url ? { url: (bar as any).url, name: bar.name } : bar.name)} 
                             alt={bar.name}
                             className="w-4 h-4 rounded-sm"
+                            data-favicon-identifier={(bar as any).url || bar.name}
+                            data-favicon-size="16"
                             onError={handleFaviconError}
                           />
                         </div>
@@ -478,7 +496,9 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
                         <Label
                           content={({ viewBox }) => {
                             if (viewBox && "cx" in viewBox && "cy" in viewBox) {
-                              const activeData = filteredChartData[activeIndex] || filteredChartData[0]
+                              // ✅ Default to user's brand if no active index, not just first item
+                              const userBrandData = filteredChartData.find(item => item.isOwner === true)
+                              const activeData = filteredChartData[activeIndex] || userBrandData || filteredChartData[0]
                               return (
                                 <text
                                   x={viewBox.cx}
@@ -542,7 +562,7 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
                           style={{ backgroundColor: item.color }}
                         />
                         <img
-                          src={getDynamicFaviconUrl(item.name)}
+                          src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name)}
                           alt={item.name}
                           className="w-4 h-4 rounded-sm"
                           onError={handleFaviconError}
@@ -639,7 +659,7 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
                           style={{ backgroundColor: item.color }}
                         />
                         <img
-                          src={getDynamicFaviconUrl(item.name)}
+                          src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name)}
                           alt={item.name}
                           className="w-4 h-4 rounded-sm"
                           onError={handleFaviconError}
@@ -718,9 +738,11 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
                             <div className="flex items-center gap-3">
                               <div className="flex items-center gap-2">
                                 <img
-                                  src={getDynamicFaviconUrl(item.name)}
+                                  src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name)}
                                   alt={item.name}
                                   className="w-4 h-4 rounded-sm"
+                                  data-favicon-identifier={(item as any).url || item.name}
+                                  data-favicon-size="16"
                                   onError={handleFaviconError}
                                 />
                                 <span 
@@ -805,7 +827,7 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
                                   <div className="flex items-center gap-3">
                                     <div className="flex items-center gap-2">
                                       <img
-                                        src={getDynamicFaviconUrl(item.name)}
+                                        src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name)}
                                         alt={item.name}
                                         className="w-4 h-4 rounded-sm"
                                         onError={handleFaviconError}

@@ -28,10 +28,10 @@ export const frontendConfig = {
   animations: {
     // Card animation delays (milliseconds)
     cardDelays: {
-      card1: 500,
-      card2: 3500,
-      card3: 6500,
-      card4: 9500
+      card1: 2000,
+      card2: 4500,
+      card3: 8000,
+      card4: 12000
     },
     
     // Step completion delays (milliseconds)
