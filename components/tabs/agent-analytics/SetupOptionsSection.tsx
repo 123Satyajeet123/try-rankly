@@ -34,7 +34,7 @@ export function SetupOptionsSection({ onSetupComplete }: SetupOptionsSectionProp
     setConnectionStep('connecting')
     
     try {
-      // Redirect to Google OAuth
+      // Redirect to GA4 OAuth (separate from main Google auth)
       initiateGA4OAuth()
     } catch (error) {
       console.error('Error initiating OAuth:', error)

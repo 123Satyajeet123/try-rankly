@@ -34,6 +34,7 @@ export function GA4AgentAnalyticsTab({
   const [realDeviceData, setRealDeviceData] = useState<any>(null)
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [selectedDateRange, setSelectedDateRange] = useState(externalDateRange)
+  const [selectedConversionEvent, setSelectedConversionEvent] = useState('conversions')
 
   // Sync external activeTab with internal state
   useEffect(() => {
@@ -50,18 +51,41 @@ export function GA4AgentAnalyticsTab({
     checkConnectionStatus()
   }, [])
 
-  // Fetch data when connected and tab/date range changes
+  // Fetch data when connected and date range/conversion event changes (but NOT on tab switch)
+  // Use a cache key to avoid refetching when switching tabs
+  const getCacheKey = (tab: string, dateRange: string, conversionEvent: string) => {
+    return `${tab}_${dateRange}_${conversionEvent}`
+  }
+
+  // Track which data has been fetched
+  const [fetchedCacheKeys, setFetchedCacheKeys] = useState<Set<string>>(new Set())
+
+  // Fetch data when connected and date range/conversion event changes (but NOT on tab switch if data exists)
   useEffect(() => {
-    if (isConnected) {
+    if (!isConnected) return
+    
+    const cacheKey = getCacheKey(activeTab, selectedDateRange, selectedConversionEvent)
+    
+    // Only fetch if we don't have this data cached yet
+    if (!fetchedCacheKeys.has(cacheKey)) {
+      console.log('🔄 [GA4AgentAnalyticsTab] Fetching data for cache key:', cacheKey)
       fetchGA4Data()
+      setFetchedCacheKeys(prev => new Set([...prev, cacheKey]))
+    } else {
+      console.log('✅ [GA4AgentAnalyticsTab] Using cached data for:', cacheKey)
     }
-  }, [isConnected, activeTab, selectedDateRange])
+  }, [isConnected, activeTab, selectedDateRange, selectedConversionEvent])
 
   // Fetch fresh data when refresh trigger changes (sync now button)
+  // This clears cache and forces fresh fetch
   useEffect(() => {
     if (isConnected && refreshTrigger > 0) {
-      console.log('🔄 Refresh triggered, fetching fresh data...')
+      console.log('🔄 Refresh triggered, clearing cache and fetching fresh data...')
+      setFetchedCacheKeys(new Set()) // Clear all cached keys
       fetchGA4Data()
+      // Mark current cache key as fetched after refresh
+      const cacheKey = getCacheKey(activeTab, selectedDateRange, selectedConversionEvent)
+      setFetchedCacheKeys(prev => new Set([...prev, cacheKey]))
     }
   }, [refreshTrigger])
 
@@ -94,8 +118,8 @@ export function GA4AgentAnalyticsTab({
       // Fetch based on active tab
       if (activeTab === 'platform') {
         const [platformSplitResponse, llmPlatformsResponse] = await Promise.all([
-          getPlatformSplit(startDate, endDate),
-          getLLMPlatforms(startDate, endDate)
+          getPlatformSplit(startDate, endDate, selectedDateRange, selectedConversionEvent),
+          getLLMPlatforms(startDate, endDate, selectedDateRange, selectedConversionEvent)
         ])
 
         console.log('📊 Platform data received:', {
@@ -153,7 +177,7 @@ export function GA4AgentAnalyticsTab({
       }
 
       if (activeTab === 'pages') {
-        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange)
+        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange, selectedConversionEvent, false)
         console.log('📄 Pages data received:', pagesResponse)
         if (pagesResponse.success) {
           setRealPagesData(pagesResponse)
@@ -176,7 +200,8 @@ export function GA4AgentAnalyticsTab({
       }
 
       if (activeTab === 'journey') {
-        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange)
+        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange, selectedConversionEvent, false)
+        console.log('📄 Journey data received:', pagesResponse)
         if (pagesResponse.success) {
           setRealPagesData(pagesResponse)
         }
@@ -228,6 +253,8 @@ export function GA4AgentAnalyticsTab({
             realPlatformData={realPlatformData}
             dateRange={selectedDateRange}
             isLoading={isLoadingData}
+            selectedConversionEvent={selectedConversionEvent}
+            onConversionEventChange={setSelectedConversionEvent}
           />
         )
       case 'pages':
@@ -237,6 +264,8 @@ export function GA4AgentAnalyticsTab({
             realPagesData={realPagesData}
             dateRange={selectedDateRange}
             isLoading={isLoadingData}
+            selectedConversionEvent={selectedConversionEvent}
+            onConversionEventChange={setSelectedConversionEvent}
           />
         )
       case 'journey':

@@ -5,7 +5,9 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
-import { CheckCircle, XCircle, RefreshCw, Trash2 } from 'lucide-react'
+import { CheckCircle, XCircle, RefreshCw, Trash2, AlertCircle } from 'lucide-react'
+import { checkGA4Connection, disconnectGA4, initiateGA4OAuth } from '@/services/ga4Api'
+import { toast } from 'sonner'
 
 interface SettingsModalProps {
   isOpen: boolean
@@ -16,22 +18,18 @@ interface SettingsModalProps {
 
 interface ConnectionStatus {
   isConnected: boolean
-  user?: {
-    email: string
-    name: string
-  }
-  ga4Property?: {
-    accountId: string
-    propertyId: string
-    accountName: string
-    propertyName: string
-  }
-  lastSynced?: string
+  isActive: boolean
+  propertyName?: string
+  accountName?: string
+  error?: string
 }
 
 export function SettingsModal({ isOpen, onClose, onDisconnect, lastSyncTime }: SettingsModalProps) {
-  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({ isConnected: false })
-  const [loading, setLoading] = useState(false) // Start as false for immediate popup
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>({ 
+    isConnected: false, 
+    isActive: false 
+  })
+  const [loading, setLoading] = useState(false)
   const [disconnecting, setDisconnecting] = useState(false)
 
   useEffect(() => {
@@ -44,30 +42,33 @@ export function SettingsModal({ isOpen, onClose, onDisconnect, lastSyncTime }: S
   const fetchConnectionStatus = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/auth/session')
-      const data = await response.json()
+      const response = await checkGA4Connection()
       
-      if (data.authenticated) {
+      console.log('🔍 [SettingsModal] Connection status response:', response)
+      
+      if (response.success && response.data) {
         setConnectionStatus({
-          isConnected: true,
-          user: {
-            email: data.user.email,
-            name: data.user.name
-          },
-          ga4Property: {
-            accountId: data.ga4Property.accountId,
-            propertyId: data.ga4Property.propertyId,
-            accountName: data.ga4Property.accountName,
-            propertyName: data.ga4Property.propertyName
-          },
-          lastSynced: lastSyncTime || new Date().toISOString()
+          isConnected: response.data.connected || false,
+          isActive: response.data.isActive || false,
+          propertyName: response.data.propertyName,
+          accountName: response.data.accountName,
+          error: undefined
         })
       } else {
-        setConnectionStatus({ isConnected: false })
+        // Connection check failed or not connected
+        setConnectionStatus({ 
+          isConnected: false, 
+          isActive: false,
+          error: response.error || 'Not connected to GA4'
+        })
       }
     } catch (error) {
-      console.error('Error fetching connection status:', error)
-      setConnectionStatus({ isConnected: false })
+      console.error('❌ [SettingsModal] Error fetching connection status:', error)
+      setConnectionStatus({ 
+        isConnected: false, 
+        isActive: false,
+        error: error instanceof Error ? error.message : 'Failed to check connection status'
+      })
     } finally {
       setLoading(false)
     }
@@ -77,36 +78,29 @@ export function SettingsModal({ isOpen, onClose, onDisconnect, lastSyncTime }: S
     try {
       setDisconnecting(true)
       
-      // Call disconnect API
-      const response = await fetch('/api/auth/disconnect', {
-        method: 'POST'
-      })
+      const response = await disconnectGA4()
       
-      if (response.ok) {
-        setConnectionStatus({ isConnected: false })
+      if (response.success) {
+        toast.success('Disconnected from GA4 successfully')
+        setConnectionStatus({ isConnected: false, isActive: false })
         onDisconnect()
         onClose()
       } else {
-        console.error('Failed to disconnect')
+        toast.error(response.error || 'Failed to disconnect from GA4')
+        console.error('❌ [SettingsModal] Failed to disconnect:', response.error)
       }
     } catch (error) {
-      console.error('Error disconnecting:', error)
+      console.error('❌ [SettingsModal] Error disconnecting:', error)
+      toast.error('Error disconnecting from GA4')
     } finally {
       setDisconnecting(false)
     }
   }
 
-  const formatLastSynced = (timestamp?: string) => {
-    if (!timestamp) return 'Never'
-    
-    const date = new Date(timestamp)
-    const now = new Date()
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
-    
-    if (diffInMinutes < 1) return 'Just now'
-    if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} hours ago`
-    return date.toLocaleDateString()
+  const handleConnect = () => {
+    // Close modal and redirect to GA4 OAuth
+    onClose()
+    initiateGA4OAuth()
   }
 
   return (
@@ -129,7 +123,7 @@ export function SettingsModal({ isOpen, onClose, onDisconnect, lastSyncTime }: S
           {/* Connection Status */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-medium">Connection Status</h3>
+              <h3 className="text-sm font-medium">GA4 Connection Status</h3>
               {loading ? (
                 <div className="flex items-center gap-2">
                   <RefreshCw className="h-3 w-3 animate-spin text-muted-foreground" />
@@ -137,51 +131,83 @@ export function SettingsModal({ isOpen, onClose, onDisconnect, lastSyncTime }: S
                 </div>
               ) : (
                 <Badge 
-                  variant={connectionStatus.isConnected ? "default" : "destructive"}
+                  variant={connectionStatus.isConnected && connectionStatus.isActive ? "default" : "destructive"}
                   className="flex items-center gap-1"
                 >
-                  {connectionStatus.isConnected ? (
+                  {connectionStatus.isConnected && connectionStatus.isActive ? (
                     <>
                       <CheckCircle className="h-3 w-3" />
                       Connected
                     </>
+                  ) : connectionStatus.isConnected && !connectionStatus.isActive ? (
+                    <>
+                      <AlertCircle className="h-3 w-3" />
+                      Not Active
+                    </>
                   ) : (
                     <>
                       <XCircle className="h-3 w-3" />
-                      Disconnected
+                      Not Connected
                     </>
                   )}
                 </Badge>
               )}
             </div>
 
-            {connectionStatus.isConnected && connectionStatus.user && (
-              <div className="space-y-3">
-                <div className="p-3 bg-muted/50 rounded-lg">
-                  <div className="space-y-2">
-                    <div>
-                      <span className="text-xs text-muted-foreground">Account</span>
-                      <p className="text-sm font-medium">{connectionStatus.user.email}</p>
-                      {connectionStatus.user.name && (
-                        <p className="text-xs text-muted-foreground">{connectionStatus.user.name}</p>
-                      )}
-                    </div>
+            {/* Error Message */}
+            {connectionStatus.error && !loading && (
+              <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-destructive mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm text-destructive font-medium">Connection Error</p>
+                    <p className="text-xs text-muted-foreground mt-1">{connectionStatus.error}</p>
                   </div>
                 </div>
+              </div>
+            )}
 
-                {connectionStatus.ga4Property && (
+            {/* Connected Info */}
+            {connectionStatus.isConnected && connectionStatus.isActive && (
+              <div className="space-y-3">
+                {connectionStatus.accountName && (
                   <div className="p-3 bg-muted/50 rounded-lg">
                     <div className="space-y-2">
                       <div>
-                        <span className="text-xs text-muted-foreground">GA4 Property</span>
-                        <p className="text-sm font-medium">{connectionStatus.ga4Property.propertyName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {connectionStatus.ga4Property.accountName} • {connectionStatus.ga4Property.propertyId}
-                        </p>
+                        <span className="text-xs text-muted-foreground">Account</span>
+                        <p className="text-sm font-medium">{connectionStatus.accountName}</p>
                       </div>
                     </div>
                   </div>
                 )}
+
+                {connectionStatus.propertyName && (
+                  <div className="p-3 bg-muted/50 rounded-lg">
+                    <div className="space-y-2">
+                      <div>
+                        <span className="text-xs text-muted-foreground">GA4 Property</span>
+                        <p className="text-sm font-medium">{connectionStatus.propertyName}</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Not Active Warning */}
+            {connectionStatus.isConnected && !connectionStatus.isActive && (
+              <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900/50 rounded-lg">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-500 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100">
+                      Connection Not Active
+                    </p>
+                    <p className="text-xs text-yellow-700 dark:text-yellow-300 mt-1">
+                      Your GA4 connection exists but no property is selected. Please reconnect to select a property.
+                    </p>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -189,31 +215,35 @@ export function SettingsModal({ isOpen, onClose, onDisconnect, lastSyncTime }: S
           <Separator />
 
           {/* Last Sync */}
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium">Last Synced</h3>
-            <div className="flex items-center gap-2">
-              <RefreshCw className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm text-muted-foreground">
-                {formatLastSynced(connectionStatus.lastSynced)}
-              </span>
-            </div>
-          </div>
-
-          <Separator />
+          {lastSyncTime && (
+            <>
+              <div className="space-y-2">
+                <h3 className="text-sm font-medium">Last Synced</h3>
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">
+                    {lastSyncTime}
+                  </span>
+                </div>
+              </div>
+              <Separator />
+            </>
+          )}
 
           {/* Actions */}
           <div className="space-y-3">
             <h3 className="text-sm font-medium">Actions</h3>
             
-            {connectionStatus.isConnected ? (
+            {connectionStatus.isConnected && connectionStatus.isActive ? (
               <div className="space-y-2">
                 <Button 
                   variant="outline" 
                   size="sm" 
                   className="w-full justify-start"
                   onClick={fetchConnectionStatus}
+                  disabled={loading}
                 >
-                  <RefreshCw className="mr-2 h-4 w-4" />
+                  <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
                   Refresh Connection Status
                 </Button>
                 
@@ -229,22 +259,34 @@ export function SettingsModal({ isOpen, onClose, onDisconnect, lastSyncTime }: S
                   ) : (
                     <Trash2 className="mr-2 h-4 w-4" />
                   )}
-                  {disconnecting ? 'Disconnecting...' : 'Disconnect Account'}
+                  {disconnecting ? 'Disconnecting...' : 'Disconnect GA4'}
                 </Button>
               </div>
             ) : (
-              <Button 
-                variant="default" 
-                size="sm" 
-                className="w-full justify-start"
-                onClick={() => {
-                  onClose()
-                  window.location.href = '/api/auth/google?returnUrl=/agent-analytics'
-                }}
-              >
-                <CheckCircle className="mr-2 h-4 w-4" />
-                Connect Google Analytics
-              </Button>
+              <div className="space-y-2">
+                <Button 
+                  variant="default" 
+                  size="sm" 
+                  className="w-full justify-start"
+                  onClick={handleConnect}
+                >
+                  <CheckCircle className="mr-2 h-4 w-4" />
+                  Connect to GA4 Analytics
+                </Button>
+                
+                {connectionStatus.isConnected && (
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full justify-start"
+                    onClick={fetchConnectionStatus}
+                    disabled={loading}
+                  >
+                    <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+                    Refresh Status
+                  </Button>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -252,3 +294,5 @@ export function SettingsModal({ isOpen, onClose, onDisconnect, lastSyncTime }: S
     </Dialog>
   )
 }
+
+

@@ -18,35 +18,100 @@ import { getPages, getConversionEvents, getDateRange } from '@/services/ga4Api'
 import { PagesSkeleton } from '@/components/ui/pages-skeleton'
 import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
 
-// Function to get the favicon URL for each LLM platform
-function getLLMFaviconUrl(platform: string): string {
-  const platformLower = platform.toLowerCase()
-  
-  const domain = getLLMDomain(platformLower)
-  return getDynamicFaviconUrl(domain, 32)
-}
 
-// Function to get the domain for each LLM platform for favicon fetching (kept for fallback)
+// Function to get the domain for each LLM platform for favicon fetching
+// Uses Google favicon service which automatically resolves domains for new platforms
 function getLLMDomain(platform: string): string {
-  const platformLower = platform.toLowerCase()
+  const platformLower = platform.toLowerCase().trim()
   
-  if (platformLower.includes('chatgpt') || platformLower.includes('openai')) {
-    return 'chatgpt.com'
+  // Comprehensive LLM platform mappings (matching Platform Tab)
+  // ChatGPT/OpenAI - Use official ChatGPT favicon
+  if (platformLower === 'chatgpt' || platformLower.includes('openai') || platformLower.includes('gpt')) {
+    return 'chat.openai.com' // Use chat.openai.com for ChatGPT logo
   }
-  if (platformLower.includes('claude') || platformLower.includes('anthropic')) {
+  // Claude/Anthropic
+  if (platformLower === 'claude' || platformLower.includes('anthropic')) {
     return 'claude.ai'
   }
-  if (platformLower.includes('gemini')) {
+  // Gemini/Bard
+  if (platformLower === 'gemini' || platformLower === 'bard' || platformLower.includes('bard')) {
     return 'gemini.google.com'
   }
-  if (platformLower.includes('perplexity')) {
+  // Perplexity
+  if (platformLower === 'perplexity') {
     return 'perplexity.ai'
   }
-  if (platformLower.includes('google')) {
+  // Poe
+  if (platformLower === 'poe') {
+    return 'poe.com'
+  }
+  // Microsoft Copilot
+  if (platformLower === 'copilot' || platformLower.includes('microsoft copilot') || platformLower.includes('bing chat')) {
+    return 'copilot.microsoft.com'
+  }
+  // Grok (X/Twitter)
+  if (platformLower === 'grok' || platformLower.includes('grok')) {
+    return 'x.com'
+  }
+  // Character.ai
+  if (platformLower === 'character' || platformLower.includes('character.ai') || platformLower === 'characterai') {
+    return 'character.ai'
+  }
+  // You.com
+  if (platformLower === 'you' || platformLower === 'you.com' || platformLower.includes('youcom')) {
+    return 'you.com'
+  }
+  // HuggingChat
+  if (platformLower === 'huggingchat' || platformLower.includes('hugging face') || platformLower === 'huggingface') {
+    return 'huggingface.co'
+  }
+  // Pi (Inflection)
+  if (platformLower === 'pi' || platformLower.includes('inflection') || platformLower === 'heypi') {
+    return 'heypi.com'
+  }
+  // Llama/Meta AI
+  if (platformLower === 'llama' || platformLower.includes('meta ai') || platformLower === 'metaai') {
+    return 'meta.ai'
+  }
+  // Mistral
+  if (platformLower === 'mistral') {
+    return 'mistral.ai'
+  }
+  // Cohere
+  if (platformLower === 'cohere') {
+    return 'cohere.com'
+  }
+  // Google/Direct
+  if (platformLower === 'google' || platformLower === 'direct') {
     return 'google.com'
   }
   
+  // For unknown platforms, construct domain from platform name
+  // Google favicon service will automatically resolve the correct favicon
+  // Format: platformname.com (remove spaces, special chars, lowercase)
+  const cleanPlatform = platformLower
+    .replace(/\s+/g, '') // Remove spaces
+    .replace(/[^a-z0-9]/g, '') // Remove special characters
+  
+  // Try common domain extensions for LLM platforms
+  if (cleanPlatform) {
+    return `${cleanPlatform}.com` // Google favicon service will handle resolution
+  }
+  
+  // Final fallback
   return 'google.com'
+}
+
+// Function to get platform color for fallback (matching Platform Tab)
+function getLLMPlatformColor(platformName: string): string {
+  const colors: Record<string, string> = {
+    'ChatGPT': '#00a67e',
+    'Claude': '#ff6b35',
+    'Gemini': '#4285f4',
+    'Perplexity': '#6366f1',
+    'Other LLM': '#6b7280'
+  }
+  return colors[platformName] || '#6b7280'
 }
 
 interface PagesTabProps {
@@ -54,12 +119,35 @@ interface PagesTabProps {
   realPagesData?: any
   dateRange?: string
   isLoading?: boolean
+  selectedConversionEvent?: string
+  onConversionEventChange?: (event: string) => void
 }
 
-export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoading = false }: PagesTabProps) {
+export function PagesTab({ 
+  range, 
+  realPagesData, 
+  dateRange = '30 days', 
+  isLoading = false,
+  selectedConversionEvent: propSelectedConversionEvent,
+  onConversionEventChange
+}: PagesTabProps) {
   const [conversionEvents, setConversionEvents] = useState<any[]>([])
-  const [selectedConversionEvent, setSelectedConversionEvent] = useState('conversions')
+  const [selectedConversionEvent, setSelectedConversionEvent] = useState(propSelectedConversionEvent || 'conversions')
   const [pagesData, setPagesData] = useState(realPagesData?.data?.pages || [])
+  const [isFetchingData, setIsFetchingData] = useState(false)
+
+  // Sync with prop if provided
+  useEffect(() => {
+    if (propSelectedConversionEvent && propSelectedConversionEvent !== selectedConversionEvent) {
+      setSelectedConversionEvent(propSelectedConversionEvent)
+    }
+  }, [propSelectedConversionEvent])
+
+  // Handle conversion event change
+  const handleConversionEventChange = (event: string) => {
+    setSelectedConversionEvent(event)
+    onConversionEventChange?.(event)
+  }
   
   // Debug: Log the data structure
   useEffect(() => {
@@ -92,11 +180,19 @@ export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoadin
     fetchConversionEvents()
   }, [])
 
-  // Fetch pages data when conversion event changes
+  // Only fetch pages data when conversion event changes AND realPagesData doesn't match
+  // Don't refetch if we already have data from parent (realPagesData)
   useEffect(() => {
+    // If we have realPagesData from parent, use it and don't fetch
+    if (realPagesData?.data?.pages && realPagesData.data.pages.length > 0) {
+      console.log('✅ [PagesTab] Using realPagesData from parent, skipping fetch')
+      return
+    }
+
     const fetchPagesData = async () => {
       if (!dateRange) return
       
+      setIsFetchingData(true)
       console.log('🔄 [PagesTab] Fetching pages data with conversion event:', selectedConversionEvent)
       
       try {
@@ -125,15 +221,23 @@ export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoadin
         }
       } catch (error) {
         console.error('❌ [PagesTab] Failed to fetch pages data:', error)
+      } finally {
+        setIsFetchingData(false)
       }
     }
     
-    // Always fetch when conversion event changes (don't rely on realPagesData)
+    // Only fetch if we don't have data from parent
     fetchPagesData()
-  }, [dateRange, selectedConversionEvent])
+  }, [dateRange, selectedConversionEvent, realPagesData])
 
-  // Show skeleton if no data and not loading
-  if ((!realPagesData || !realPagesData.data || !realPagesData.data.pages || realPagesData.data.pages.length === 0) && !isLoading) {
+  // Show skeleton when loading (prop or local state)
+  if (isLoading || isFetchingData) {
+    return <PagesSkeleton />
+  }
+
+  // Show skeleton if no data available (initial state before any data is fetched)
+  if ((!realPagesData || !realPagesData.data || !realPagesData.data.pages || realPagesData.data.pages.length === 0) && 
+      (!pagesData || pagesData.length === 0)) {
     return <PagesSkeleton />
   }
 
@@ -142,11 +246,15 @@ export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoadin
     dataStructure: realPagesData ? Object.keys(realPagesData) : null,
     dataDataStructure: realPagesData?.data ? Object.keys(realPagesData.data) : null,
     hasPages: realPagesData?.data?.pages ? realPagesData.data.pages.length : 0,
+    pagesDataLength: pagesData?.length || 0,
     pagesData: realPagesData?.data?.pages ? realPagesData.data.pages.slice(0, 2) : null
   })
 
-  // If no real data, show empty state
-  if (!realPagesData || !realPagesData.data?.pages || realPagesData.data.pages.length === 0) {
+  // Use pagesData (from internal fetch or prop) - prefer realPagesData if available
+  const pages = (realPagesData?.data?.pages || pagesData || [])
+
+  // If no data available after loading, show empty state
+  if (!pages || pages.length === 0) {
     return (
       <div>
         <UnifiedCard className="w-full">
@@ -164,8 +272,6 @@ export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoadin
       </div>
     )
   }
-
-  const pages = realPagesData.data?.pages || []
 
   return (
     <div>
@@ -196,7 +302,7 @@ export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoadin
                       </TooltipContent>
                     </Tooltip>
                   </div>
-                  <Select value={selectedConversionEvent} onValueChange={setSelectedConversionEvent}>
+                  <Select value={selectedConversionEvent} onValueChange={handleConversionEventChange}>
                     <SelectTrigger className="w-[200px]">
                       <SelectValue placeholder="Select conversion event" />
                     </SelectTrigger>
@@ -219,17 +325,50 @@ export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoadin
                 
                 {/* Summary Metrics - Single Line */}
                 <div className="flex items-center gap-4">
-                  <div className="text-sm text-muted-foreground">
-                    Total Sessions <span className="text-lg font-semibold text-foreground ml-1">
-                      {pagesData.reduce((sum: number, page: any) => sum + (page.sessions || 0), 0)}
+                  <div className="text-sm text-muted-foreground flex items-center gap-2">
+                    <span>Total Sessions</span>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <div className="max-w-xs space-y-2">
+                            <p className="text-sm font-semibold">Total LLM Sessions</p>
+                            <p className="text-sm">Total number of <strong>unique</strong> sessions from LLM providers</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Each session is counted once, regardless of how many pages it visits. This matches the Platform Tab's "Total LLM Sessions" for consistency.
+                            </p>
+                            <div className="mt-2 pt-2 border-t border-border/50">
+                              <p className="text-xs font-semibold mb-1">Note:</p>
+                              <p className="text-xs text-muted-foreground">
+                                The sum of page-level sessions in the table below may be higher than this total if some sessions visited multiple pages.
+                              </p>
+                            </div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                    <span className="text-lg font-semibold text-foreground ml-1">
+                      {realPagesData?.data?.summary?.totalSessions ?? 
+                        pagesData.reduce((sum: number, page: any) => sum + (page.sessions || 0), 0)}
                     </span>
                   </div>
                   <div className="text-sm text-muted-foreground">
                     Avg Session Quality <span className="text-lg font-semibold text-foreground ml-1">
-                      {pagesData.length > 0 
-                        ? (pagesData.reduce((sum: number, page: any) => sum + parseFloat(page.sqs || 0), 0) / pagesData.length).toFixed(1)
-                        : '0.0'
-                      }
+                      {(() => {
+                        // Use summary.avgSQS from backend if available (matches Platform Tab calculation)
+                        // Otherwise calculate weighted average SQS
+                        const totalSessions = realPagesData?.data?.summary?.totalSessions ?? 
+                          pagesData.reduce((sum: number, page: any) => sum + (page.sessions || 0), 0);
+                        const avgSQS = realPagesData?.data?.summary?.avgSQS ?? 
+                          (() => {
+                            const weightedSQS = pagesData.reduce((sum: number, page: any) => 
+                              sum + (parseFloat(page.sqs || 0) * (page.sessions || 0)), 0);
+                            return totalSessions > 0 ? (weightedSQS / totalSessions) : 0;
+                          })();
+                        return avgSQS.toFixed(2);
+                      })()}
                     </span>
                   </div>
                 </div>
@@ -252,42 +391,86 @@ export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoadin
                       <TableHead className="w-[150px] text-center">
                         <div className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
                           <span className="text-xs font-medium text-muted-foreground">LLM Sessions</span>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-xs text-center">
-                              <p>Number of sessions from LLM providers to this page</p>
-                            </TooltipContent>
-                          </Tooltip>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="max-w-xs space-y-2">
+                                  <p className="text-sm font-semibold">LLM Sessions (Page-Level)</p>
+                                  <p className="text-sm">Number of sessions from LLM providers to this specific page</p>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    This is a <strong>page-level count</strong>. If a session visits multiple pages, it will be counted once for each page it visits.
+                                  </p>
+                                  <div className="mt-2 pt-2 border-t border-border/50">
+                                    <p className="text-xs font-semibold mb-1">Note:</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      The sum of all page-level sessions may be higher than the "Total Sessions" shown in the summary, which counts each unique session only once.
+                                    </p>
+                                  </div>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </div>
                       </TableHead>
 
                       <TableHead className="w-[140px] text-center">
                         <div className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
                           <span className="text-xs font-medium text-muted-foreground">Platform</span>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>LLM platforms by session count (top 3)</p>
-                            </TooltipContent>
-                          </Tooltip>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="text-sm">LLM platforms driving traffic to this page</p>
+                                <p className="text-xs text-muted-foreground mt-1">Shows platforms by session count with favicons</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </div>
                       </TableHead>
 
                       <TableHead className="w-[200px] text-center">
                         <div className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
                           <span className="text-xs font-medium text-muted-foreground">Session Quality Score</span>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
-                            </TooltipTrigger>
-                            <TooltipContent className="max-w-xs text-center">
-                              <p>Measures engagement depth and page value</p>
-                            </TooltipContent>
-                          </Tooltip>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="max-w-xs space-y-2">
+                                  <p className="text-sm font-semibold">Session Quality Score (SQS)</p>
+                                  <p className="text-sm">
+                                    A composite metric (0-100) that evaluates session quality based on:
+                                  </p>
+                                  <ul className="text-xs space-y-1 ml-4 list-disc">
+                                    <li><strong>Engagement Rate</strong> × 0.4 (40% weight, max 40 points)</li>
+                                    <li><strong>Conversion Rate</strong> × 0.3 (30% weight, max 30 points)</li>
+                                    <li><strong>Pages per Session</strong> × 4, capped at 5 pages (20% weight, max 20 points)</li>
+                                    <li><strong>Session Duration</strong> (minutes) × 2, capped at 5 minutes (10% weight, max 10 points)</li>
+                                  </ul>
+                                  <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border/50">
+                                    <strong>Formula:</strong> SQS = (Engagement Rate × 0.4) + (Conversion Rate × 0.3) + (min(Pages, 5) × 4) + (min(Duration in min, 5) × 2)
+                                  </p>
+                                  <div className="mt-2 pt-2 border-t border-border/50">
+                                    <p className="text-xs font-semibold mb-1">Quality Levels:</p>
+                                    <ul className="text-xs space-y-0.5">
+                                      <li>• <span className="text-green-500">●</span> <strong>Good:</strong> 70-100</li>
+                                      <li>• <span className="text-yellow-500">●</span> <strong>Average:</strong> 50-69</li>
+                                      <li>• <span className="text-red-500">●</span> <strong>Poor:</strong> 0-49</li>
+                                    </ul>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    Higher scores indicate better-performing pages
+                                  </p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </div>
                       </TableHead>
 
@@ -308,42 +491,65 @@ export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoadin
                       <TableHead className="w-[160px] text-center">
                         <div className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
                           <span className="text-xs font-medium text-muted-foreground">Conversion Rate</span>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Percentage of LLM sessions that converted</p>
-                            </TooltipContent>
-                          </Tooltip>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="text-sm">Percentage of sessions that resulted in conversions (0-100%)</p>
+                                <p className="text-xs text-muted-foreground mt-1">Calculated as: (Conversions / Sessions) × 100%</p>
+                                <p className="text-xs text-muted-foreground mt-1">Based on the selected conversion event</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </div>
                       </TableHead>
 
                       <TableHead className="w-[140px] text-center">
                         <div className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
                           <span className="text-xs font-medium text-muted-foreground">Bounce Rate</span>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Single-page sessions without engagement</p>
-                            </TooltipContent>
-                          </Tooltip>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <div className="max-w-xs space-y-2">
+                                  <p className="text-sm font-semibold">Bounce Rate (GA4)</p>
+                                  <p className="text-sm">Percentage of sessions that were not engaged (0-100%)</p>
+                                  <p className="text-xs text-muted-foreground mt-1">In GA4, a session is considered bounced (not engaged) if it:</p>
+                                  <ul className="text-xs space-y-0.5 ml-4 list-disc">
+                                    <li>Did NOT last longer than 10 seconds, AND</li>
+                                    <li>Did NOT include a conversion event, AND</li>
+                                    <li>Did NOT have two or more page/screen views</li>
+                                  </ul>
+                                  <p className="text-xs text-muted-foreground mt-1 pt-1 border-t border-border/50">
+                                    Formula: Bounce Rate = 1 - Engagement Rate
+                                  </p>
+                                </div>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </div>
                       </TableHead>
 
                       <TableHead className="w-[150px] text-center">
                         <div className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
                           <span className="text-xs font-medium text-muted-foreground">Time on Page</span>
-                          <Tooltip>
-                            <TooltipTrigger asChild>
-                              <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
-                            </TooltipTrigger>
-                            <TooltipContent>
-                              <p>Average duration LLM users spend on page</p>
-                            </TooltipContent>
-                          </Tooltip>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="text-sm">Average time spent per session on this page</p>
+                                <p className="text-xs text-muted-foreground mt-1">Calculated as: Total Session Duration / Total Sessions</p>
+                                <p className="text-xs text-muted-foreground mt-1">Displayed in seconds</p>
+                                <p className="text-xs text-muted-foreground mt-1">Higher values indicate users are spending more time on this page</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </div>
                       </TableHead>
 
@@ -397,62 +603,75 @@ export function PagesTab({ range, realPagesData, dateRange = '30 days', isLoadin
                         <TableCell className="text-center align-middle">
                           <div className="flex items-center justify-center gap-2 flex-wrap">
                             {page.platformSessions && Object.keys(page.platformSessions).length > 0 ? (
-                              Object.entries(page.platformSessions).map(([platform, sessions]) => (
-                                <div key={platform} className="flex items-center gap-1" title={`${platform}: ${sessions} sessions`}>
-                                  <img
-                                    src={getLLMFaviconUrl(platform)}
-                                    alt={`${platform} favicon`}
-                                    className="w-5 h-5"
-                                    data-favicon-identifier={platform}
-                                    data-favicon-size="32"
-                                    onError={(e) => {
-                                      handleFaviconError(e as any)
-                                      // Also apply custom fallback for visual consistency
-                                      const target = e.target as HTMLImageElement;
-                                      if (!target.src.includes('fetchfavicon') && !target.src.includes('google.com')) {
-                                        target.style.display = 'none';
-                                        const fallback = document.createElement('div');
-                                        fallback.className = 'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold';
-                                        fallback.style.backgroundColor = platform.toLowerCase() === 'chatgpt' ? '#10a37f' :
-                                                                         platform.toLowerCase() === 'gemini' ? '#4285f4' :
-                                                                         platform.toLowerCase() === 'claude' ? '#ff6b35' :
-                                                                         platform.toLowerCase() === 'perplexity' ? '#fca5a5' :
-                                                                         platform.toLowerCase() === 'google' ? '#34d399' :
-                                                                         '#94a3b8';
-                                        fallback.style.color = 'white';
-                                        fallback.textContent = platform.charAt(0).toUpperCase();
-                                        target.parentNode?.insertBefore(fallback, target);
-                                      }
-                                    }}
-                                  />
-                                  <span className="text-xs text-muted-foreground">{sessions as number}</span>
-                                </div>
-                              ))
+                              Object.entries(page.platformSessions).map(([platform, sessions]) => {
+                                const platformColor = getLLMPlatformColor(platform);
+                                // Use official ChatGPT favicon URL for ChatGPT
+                                const platformLower = platform.toLowerCase();
+                                const faviconUrl = (platformLower === 'chatgpt' || platformLower.includes('openai') || platformLower.includes('gpt'))
+                                  ? 'https://chat.openai.com/favicon.ico'
+                                  : getDynamicFaviconUrl(getLLMDomain(platform), 32);
+                                
+                                return (
+                                  <div key={platform} className="flex items-center gap-1" title={`${platform}: ${sessions} sessions`}>
+                                    <img
+                                      src={faviconUrl}
+                                      alt={`${platform} favicon`}
+                                      className="w-5 h-5 rounded-sm"
+                                      data-favicon-identifier={platform}
+                                      data-favicon-size="32"
+                                      onError={(e) => {
+                                        handleFaviconError(e as any)
+                                        // Also apply custom fallback for visual consistency (matching Platform Tab)
+                                        const target = e.target as HTMLImageElement;
+                                        if (!target.src.includes('fetchfavicon') && !target.src.includes('google.com') && !target.src.includes('openai.com')) {
+                                          target.style.display = 'none';
+                                          const fallback = document.createElement('div');
+                                          fallback.className = 'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold';
+                                          fallback.style.backgroundColor = platformColor;
+                                          fallback.style.color = 'white';
+                                          fallback.textContent = platform.charAt(0).toUpperCase();
+                                          target.parentNode?.insertBefore(fallback, target);
+                                        }
+                                      }}
+                                    />
+                                    <span className="text-xs text-muted-foreground">{sessions as number}</span>
+                                  </div>
+                                );
+                              })
                             ) : (
                               // Fallback to show provider if platformSessions is not available
                               page.provider && (
                                 <div className="flex items-center gap-1" title={`${page.provider}: ${page.sessions} sessions`}>
-                                  <img
-                                    src={getLLMFaviconUrl(page.provider)}
-                                    alt={`${page.provider} favicon`}
-                                    className="w-5 h-5"
-                                    onError={(e) => {
-                                      // Fallback to colored circle if favicon fails to load
-                                      const target = e.target as HTMLImageElement;
-                                      target.style.display = 'none';
-                                      const fallback = document.createElement('div');
-                                      fallback.className = 'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold';
-                                      fallback.style.backgroundColor = page.provider.toLowerCase() === 'chatgpt' ? '#10a37f' :
-                                                                       page.provider.toLowerCase() === 'gemini' ? '#4285f4' :
-                                                                       page.provider.toLowerCase() === 'claude' ? '#ff6b35' :
-                                                                       page.provider.toLowerCase() === 'perplexity' ? '#fca5a5' :
-                                                                       page.provider.toLowerCase() === 'google' ? '#34d399' :
-                                                                       '#94a3b8';
-                                      fallback.style.color = 'white';
-                                      fallback.textContent = page.provider.charAt(0).toUpperCase();
-                                      target.parentNode?.insertBefore(fallback, target);
-                                    }}
-                                  />
+                                  {(() => {
+                                    const providerLower = page.provider.toLowerCase();
+                                    const faviconUrl = (providerLower.includes('chatgpt') || providerLower.includes('openai') || providerLower.includes('gpt'))
+                                      ? 'https://chat.openai.com/favicon.ico'
+                                      : getDynamicFaviconUrl(getLLMDomain(page.provider), 32);
+                                    return (
+                                      <img
+                                        src={faviconUrl}
+                                        alt={`${page.provider} favicon`}
+                                        className="w-5 h-5 rounded-sm"
+                                        data-favicon-identifier={page.provider}
+                                        data-favicon-size="32"
+                                        onError={(e) => {
+                                          handleFaviconError(e as any)
+                                          // Fallback to colored circle if favicon fails to load (matching Platform Tab)
+                                          const target = e.target as HTMLImageElement;
+                                          if (!target.src.includes('fetchfavicon') && !target.src.includes('google.com') && !target.src.includes('openai.com')) {
+                                            target.style.display = 'none';
+                                            const fallback = document.createElement('div');
+                                            fallback.className = 'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold';
+                                            const providerColor = getLLMPlatformColor(page.provider);
+                                            fallback.style.backgroundColor = providerColor;
+                                            fallback.style.color = 'white';
+                                            fallback.textContent = page.provider.charAt(0).toUpperCase();
+                                            target.parentNode?.insertBefore(fallback, target);
+                                          }
+                                        }}
+                                      />
+                                    );
+                                  })()}
                                   <span className="text-xs text-muted-foreground">{page.sessions}</span>
                                 </div>
                               )

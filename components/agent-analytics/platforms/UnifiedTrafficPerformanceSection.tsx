@@ -1,21 +1,47 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { UnifiedCard, UnifiedCardContent } from '@/components/ui/unified-card'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Info, TrendingUp, TrendingDown } from 'lucide-react'
 import { ModernTrendUp, ModernTrendDown } from '@/components/ui/modern-arrows'
+import { getConversionEvents } from '@/services/ga4Api'
 
 interface UnifiedTrafficPerformanceSectionProps {
   realPlatformData?: any
   dateRange?: string
   isLoading?: boolean
+  selectedConversionEvent?: string
+  onConversionEventChange?: (event: string) => void
 }
 
-function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 days', isLoading = false }: UnifiedTrafficPerformanceSectionProps) {
+function UnifiedTrafficPerformanceSection({ 
+  realPlatformData, 
+  dateRange = '30 days', 
+  isLoading = false,
+  selectedConversionEvent = 'conversions',
+  onConversionEventChange
+}: UnifiedTrafficPerformanceSectionProps) {
+  const [conversionEvents, setConversionEvents] = useState<any[]>([])
+  
+  // Fetch conversion events on mount
+  useEffect(() => {
+    const fetchConversionEvents = async () => {
+      try {
+        const response = await getConversionEvents()
+        if (response.success) {
+          setConversionEvents(response.data.events || [])
+        }
+      } catch (error) {
+        console.error('Failed to fetch conversion events:', error)
+      }
+    }
+    fetchConversionEvents()
+  }, [])
   // Use real traffic performance data from GA4
   console.log('🔍 UnifiedTrafficPerformanceSection received realPlatformData:', realPlatformData)
   const performanceDataRaw = realPlatformData?.data?.performanceData || []
@@ -30,6 +56,10 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
     name: platform.name,
     sessions: platform.sessions || 0,
     share: platform.percentage || 0,
+    sessionChange: platform.sessionChange || 0, // Session percentage change
+    shareChange: platform.shareChange || 0, // Share percentage change
+    absoluteChange: platform.absoluteChange || 0, // Absolute change in sessions
+    trend: platform.trend || 'neutral', // Trend based on share change
     sessionQualityScore: calculateSessionQualityScore(platform),
     engagementScore: calculateEngagementScore(platform),
     conversionRate: platform.conversionRate || 0,
@@ -45,18 +75,83 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
   console.log('🔍 Final transformed performance data:', performanceData)
   console.log('🔍 Performance data count:', performanceData.length)
 
-  // Calculate totals for comparison
-  const totalSessions = performanceData.reduce((sum: number, item: any) => sum + item.sessions, 0)
+  // Use backend totalSessions, with fallback to calculated total
+  const totalSessions = realPlatformData?.data?.totalSessions || 
+    performanceData.reduce((sum: number, item: any) => sum + item.sessions, 0)
+  
+  // Validate sessions add up
+  const calculatedTotal = performanceData.reduce((sum: number, item: any) => sum + item.sessions, 0)
+  if (Math.abs(calculatedTotal - totalSessions) > 1) {
+    console.warn('⚠️ [TrafficPerformance] Sessions mismatch:', {
+      calculatedTotal,
+      backendTotal: totalSessions,
+      difference: Math.abs(calculatedTotal - totalSessions)
+    })
+  }
+  
+  // Validate shares add up to 100%
+  const totalShare = performanceData.reduce((sum: number, item: any) => sum + item.share, 0)
+  if (Math.abs(totalShare - 100) > 0.1) {
+    console.warn('⚠️ [TrafficPerformance] Shares don\'t add up to 100%:', {
+      totalShare: totalShare.toFixed(2),
+      difference: Math.abs(totalShare - 100).toFixed(2)
+    })
+  }
+  
+  // Calculate and validate Avg Session Quality
+  const totalSessionsForAvg = performanceData.reduce((sum: number, item: any) => sum + item.sessions, 0)
+  const weightedSQS = performanceData.reduce((sum: number, item: any) => 
+    sum + (item.sessionQualityScore * item.sessions), 0)
+  const calculatedAvgSQS = totalSessionsForAvg > 0 ? (weightedSQS / totalSessionsForAvg) : 0
+  
+  // Log validation for debugging
+  console.log('🔍 [TrafficPerformance] SQS Validation:', {
+    platformSQS: performanceData.map(p => ({
+      name: p.name,
+      sessions: p.sessions,
+      sqs: p.sessionQualityScore.toFixed(2),
+      weightedSQS: (p.sessionQualityScore * p.sessions).toFixed(2)
+    })),
+    totalSessions: totalSessionsForAvg,
+    sumWeightedSQS: weightedSQS.toFixed(2),
+    calculatedAvgSQS: calculatedAvgSQS.toFixed(2),
+    displayedAvgSQS: (totalSessionsForAvg > 0 ? (weightedSQS / totalSessionsForAvg).toFixed(2) : '0.00')
+  })
 
   // Helper functions
   function calculateSessionQualityScore(platform: any): number {
-    // SQS = (Engagement Rate * 0.4) + (Conversion Rate * 0.3) + (Pages per Session * 0.2) + (Session Duration * 0.1)
-    const engagementRate = platform.engagementRate || 0
-    const conversionRate = platform.conversionRate || 0
-    const pagesPerSession = platform.pagesPerSession || 0
-    const avgSessionDuration = platform.avgSessionDuration || 0
+    // SQS formula as per tooltip:
+    // Engagement Rate (40%) + Conversion Rate (30%) + Pages per Session (20%) + Session Duration (10%)
+    // Cap values to ensure score stays within 0-100 range
+    const engagementRate = platform.engagementRate || 0 // Already in percentage (0-100)
+    const conversionRate = platform.conversionRate || 0 // Already in percentage (0-100)
+    const pagesPerSession = platform.pagesPerSession || 0 // Number, typically 1-10+
+    const avgSessionDuration = platform.avgSessionDuration || 0 // In seconds
     
-    return Math.round(((engagementRate * 0.4) + (conversionRate * 0.3) + (pagesPerSession * 0.2) + (avgSessionDuration / 60 * 0.1)) * 100) / 100
+    // Pages component: Cap at 5 pages, then scale to contribute up to 20% (max 20 points)
+    // If 5 pages = 20 points, then 1 page = 4 points
+    const pagesComponent = Math.min(pagesPerSession, 5) * 4 // Max 20 points
+    
+    // Duration component: Convert seconds to minutes, cap at 5 minutes, scale to contribute up to 10% (max 10 points)
+    // If 5 minutes = 10 points, then 1 minute = 2 points
+    const durationMinutes = avgSessionDuration / 60
+    const durationComponent = Math.min(durationMinutes, 5) * 2 // Max 10 points
+    
+    // Engagement component: 40% weight (max 40 points)
+    const engagementComponent = engagementRate * 0.4
+    
+    // Conversion component: 30% weight (max 30 points)
+    const conversionComponent = conversionRate * 0.3
+    
+    // Total SQS (capped at 100)
+    const sqs = Math.min(100, Math.max(0,
+      engagementComponent +
+      conversionComponent +
+      pagesComponent +
+      durationComponent
+    ))
+    
+    return Math.round(sqs * 100) / 100
   }
 
   function calculateEngagementScore(platform: any): number {
@@ -134,7 +229,7 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
               <p className="text-sm text-muted-foreground">Comprehensive performance metrics for all traffic sources</p>
             </div>
             
-            {/* Summary Stats */}
+            {/* Summary Stats and Conversion Event Selector */}
             <div className="flex items-center gap-6 text-sm">
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">Total Sessions:</span>
@@ -144,8 +239,45 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">Avg Session Quality:</span>
                 <span className="font-semibold text-foreground">
-                  {(performanceData.reduce((sum: number, item: any) => sum + item.sessionQualityScore, 0) / performanceData.length).toFixed(2)}
+                  {calculatedAvgSQS.toFixed(2)}
                 </span>
+              </div>
+              <div className="w-px h-4 bg-border/50"></div>
+              {/* Conversion Event Dropdown */}
+              <div className="flex items-center gap-2">
+                <span className="text-muted-foreground">Conversion Event:</span>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[300px]">
+                      <p className="text-sm">
+                        <strong>What does this filter do?</strong><br />
+                        By default, metrics show overall "conversions". Select a specific conversion event (like "purchases" or "sign_up") to see metrics filtered by that specific event. This helps you identify which traffic sources drive specific actions.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+                {onConversionEventChange && (
+                  <Select value={selectedConversionEvent} onValueChange={onConversionEventChange}>
+                    <SelectTrigger className="w-[180px] h-8 text-xs">
+                      <SelectValue placeholder="Select conversion event" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {conversionEvents.map((event) => (
+                        <SelectItem key={event.name} value={event.name}>
+                          <div className="flex items-center gap-2">
+                            <span>{event.displayName}</span>
+                            {event.category && (
+                              <span className="text-xs text-muted-foreground">({event.category})</span>
+                            )}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
               </div>
             </div>
           </div>
@@ -167,7 +299,8 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
                             <Info className="h-3 w-3 text-muted-foreground" />
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Total number of sessions from this source</p>
+                            <p className="text-sm">Total number of sessions from this traffic source</p>
+                            <p className="text-xs text-muted-foreground mt-1">A session is a period of user activity on your site</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -182,7 +315,8 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
                             <Info className="h-3 w-3 text-muted-foreground" />
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Percentage of total sessions</p>
+                            <p className="text-sm">Percentage share of total sessions from this traffic source</p>
+                            <p className="text-xs text-muted-foreground mt-1">Calculated as: (Platform Sessions / Total Sessions) × 100%</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -198,17 +332,28 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
                           </TooltipTrigger>
                           <TooltipContent>
                             <div className="max-w-xs space-y-2">
-                              <p className="font-semibold">Session Quality Score (SQS)</p>
+                              <p className="text-sm font-semibold">Session Quality Score (SQS)</p>
                               <p className="text-sm">
                                 A composite metric (0-100) that evaluates session quality based on:
                               </p>
-                              <ul className="text-sm space-y-1 ml-4">
-                                <li>• <strong>Engagement Rate</strong> (40% weight)</li>
-                                <li>• <strong>Conversion Rate</strong> (30% weight)</li>
-                                <li>• <strong>Pages per Session</strong> (20% weight)</li>
-                                <li>• <strong>Session Duration</strong> (10% weight)</li>
+                              <ul className="text-xs space-y-1 ml-4 list-disc">
+                                <li><strong>Engagement Rate</strong> × 0.4 (40% weight, max 40 points)</li>
+                                <li><strong>Conversion Rate</strong> × 0.3 (30% weight, max 30 points)</li>
+                                <li><strong>Pages per Session</strong> × 4, capped at 5 pages (20% weight, max 20 points)</li>
+                                <li><strong>Session Duration</strong> (minutes) × 2, capped at 5 minutes (10% weight, max 10 points)</li>
                               </ul>
-                              <p className="text-xs text-muted-foreground">
+                              <p className="text-xs text-muted-foreground mt-2 pt-2 border-t border-border/50">
+                                <strong>Formula:</strong> SQS = (Engagement Rate × 0.4) + (Conversion Rate × 0.3) + (min(Pages, 5) × 4) + (min(Duration in min, 5) × 2)
+                              </p>
+                              <div className="mt-2 pt-2 border-t border-border/50">
+                                <p className="text-xs font-semibold mb-1">Quality Levels:</p>
+                                <ul className="text-xs space-y-0.5">
+                                  <li>• <span className="text-green-500">●</span> <strong>Good:</strong> 70-100</li>
+                                  <li>• <span className="text-yellow-500">●</span> <strong>Average:</strong> 50-69</li>
+                                  <li>• <span className="text-red-500">●</span> <strong>Poor:</strong> 0-49</li>
+                                </ul>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
                                 Higher scores indicate better-performing traffic sources
                               </p>
                             </div>
@@ -226,7 +371,16 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
                             <Info className="h-3 w-3 text-muted-foreground" />
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Percentage of engaged sessions (0-100%)</p>
+                            <div className="max-w-xs space-y-2">
+                              <p className="text-sm font-semibold">Engagement Rate</p>
+                              <p className="text-sm">Percentage of sessions that were engaged (0-100%)</p>
+                              <p className="text-xs text-muted-foreground mt-1">A session is considered engaged if it meets at least one of:</p>
+                              <ul className="text-xs space-y-0.5 ml-4 list-disc">
+                                <li>Lasts longer than 10 seconds</li>
+                                <li>Includes a conversion event</li>
+                                <li>Has two or more page/screen views</li>
+                              </ul>
+                            </div>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -241,7 +395,9 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
                             <Info className="h-3 w-3 text-muted-foreground" />
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Percentage of sessions that resulted in conversions</p>
+                            <p className="text-sm">Percentage of sessions that resulted in conversions (0-100%)</p>
+                            <p className="text-xs text-muted-foreground mt-1">Calculated as: (Conversions / Sessions) × 100%</p>
+                            <p className="text-xs text-muted-foreground mt-1">Based on the selected conversion event</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -256,7 +412,19 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
                             <Info className="h-3 w-3 text-muted-foreground" />
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Percentage of single-page sessions</p>
+                            <div className="max-w-xs space-y-2">
+                              <p className="text-sm font-semibold">Bounce Rate (GA4)</p>
+                              <p className="text-sm">Percentage of sessions that were not engaged (0-100%)</p>
+                              <p className="text-xs text-muted-foreground mt-1">In GA4, a session is considered bounced (not engaged) if it:</p>
+                              <ul className="text-xs space-y-0.5 ml-4 list-disc">
+                                <li>Did NOT last longer than 10 seconds, AND</li>
+                                <li>Did NOT include a conversion event, AND</li>
+                                <li>Did NOT have two or more page/screen views</li>
+                              </ul>
+                              <p className="text-xs text-muted-foreground mt-1 pt-1 border-t border-border/50">
+                                Formula: Bounce Rate = 1 - Engagement Rate
+                              </p>
+                            </div>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -271,7 +439,10 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
                             <Info className="h-3 w-3 text-muted-foreground" />
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Average time spent per session</p>
+                            <p className="text-sm">Average time spent per session</p>
+                            <p className="text-xs text-muted-foreground mt-1">Calculated as: Total Session Duration / Total Sessions</p>
+                            <p className="text-xs text-muted-foreground mt-1">Displayed in minutes:seconds (MM:SS) format</p>
+                            <p className="text-xs text-muted-foreground mt-1">Higher values indicate users are spending more time on your site</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -286,7 +457,9 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
                             <Info className="h-3 w-3 text-muted-foreground" />
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Average pages viewed per session</p>
+                            <p className="text-sm">Average number of pages viewed per session</p>
+                            <p className="text-xs text-muted-foreground mt-1">Calculated as: Total Page Views / Total Sessions</p>
+                            <p className="text-xs text-muted-foreground mt-1">Higher values indicate users are exploring more pages</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -301,7 +474,9 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
                             <Info className="h-3 w-3 text-muted-foreground" />
                           </TooltipTrigger>
                           <TooltipContent>
-                            <p>Number of new users</p>
+                            <p className="text-sm">Number of new users from this traffic source</p>
+                            <p className="text-xs text-muted-foreground mt-1">Users visiting your site for the first time (first-time visitors)</p>
+                            <p className="text-xs text-muted-foreground mt-1">Returning users = Total Users - New Users</p>
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
@@ -311,9 +486,6 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
               </TableHeader>
               <TableBody>
                 {performanceData.map((item: any, index: number) => {
-                  const trend = item.trend || 'neutral'
-                  const change = Math.abs(item.change || 0)
-                  
                   return (
                     <TableRow 
                       key={item.id} 
@@ -326,23 +498,9 @@ function UnifiedTrafficPerformanceSection({ realPlatformData, dateRange = '30 da
 
                       {/* Sessions */}
                       <TableCell className="text-center py-2 px-3">
-                        <div className="flex items-center justify-center gap-2">
-                          <span className="font-normal text-foreground text-xs">
-                            {item.sessions.toLocaleString()}
-                          </span>
-                          <div className="flex items-center gap-1">
-                            {trend === 'up' ? (
-                              <ModernTrendUp className="w-3 h-3 text-green-500" />
-                            ) : (
-                              <ModernTrendDown className="w-3 h-3 text-red-500" />
-                            )}
-                            <span className={`text-xs font-medium ${
-                              trend === 'up' ? 'text-green-500' : 'text-red-500'
-                            }`}>
-                              {change.toFixed(2)}%
-                            </span>
-                          </div>
-                        </div>
+                        <span className="font-normal text-foreground text-xs">
+                          {item.sessions.toLocaleString()}
+                        </span>
                       </TableCell>
 
                       {/* Share */}

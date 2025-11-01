@@ -286,11 +286,15 @@ router.get('/data', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req, r
 router.get('/llm-platforms', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req, res) => {
   try {
     const { propertyId, accessToken } = req.ga4Connection;
-    const { startDate = '7daysAgo', endDate = 'today' } = req.query;
+    const { startDate = '7daysAgo', endDate = 'today', conversionEvent = 'conversions' } = req.query;
     const userId = req.session.userId;
 
     // Cache disabled for agent analytics - always fetch fresh data
     console.log('🔄 [llm-platforms] Fetching fresh data (cache disabled)');
+
+    // Convert conversion event to valid GA4 metric name
+    const conversionMetric = getConversionEventMetric(conversionEvent);
+    console.log('🎯 [llm-platforms] Using conversion event:', { conversionEvent, conversionMetric });
 
     // Use same dimensions as platform-split to catch all LLM traffic
     // Query all traffic, then detect LLMs from source/medium/referrer (not just referrer)
@@ -301,7 +305,7 @@ router.get('/llm-platforms', ga4SessionMiddleware, ga4ConnectionMiddleware, asyn
       metrics: [
         { name: 'sessions' },
         { name: 'engagementRate' },
-        { name: 'conversions' },
+        { name: conversionMetric }, // Dynamic conversion metric
         { name: 'bounceRate' },
         { name: 'averageSessionDuration' },
         { name: 'screenPageViewsPerSession' },
@@ -312,10 +316,144 @@ router.get('/llm-platforms', ga4SessionMiddleware, ga4ConnectionMiddleware, asyn
       limit: 10000
     };
 
-    const currentData = await runReport(accessToken, propertyId, reportConfig);
+    let currentData;
+    try {
+      currentData = await runReport(accessToken, propertyId, reportConfig);
+    } catch (apiError) {
+      console.error('❌ [llm-platforms] GA4 API call failed:', {
+        error: apiError.message,
+        conversionMetric,
+        reportConfig: {
+          metrics: reportConfig.metrics.map(m => m.name),
+          dimensions: reportConfig.dimensions.map(d => d.name)
+        }
+      });
+      throw apiError;
+    }
+    
+    // Log conversion data from sample rows to debug zero conversions
+    const sampleRowsWithConversions = (currentData.rows || []).slice(0, 5).map(row => {
+      const allMetrics = row.metricValues?.map((m, idx) => ({
+        index: idx,
+        value: m?.value || '0',
+        name: reportConfig.metrics[idx]?.name || 'unknown'
+      })) || [];
+      return {
+        dimensions: row.dimensionValues?.map(d => d.value) || [],
+        allMetrics: allMetrics,
+        conversionMetricValue: allMetrics.find(m => m.name === conversionMetric)?.value || '0'
+      };
+    });
+    
+    // Find the index of the conversion metric in the metrics array
+    const conversionMetricIndex = reportConfig.metrics.findIndex(m => m.name === conversionMetric);
+    console.log('🔍 [llm-platforms] Conversion metric lookup:', {
+      conversionMetric,
+      conversionMetricIndex,
+      metricsArray: reportConfig.metrics.map((m, idx) => ({ index: idx, name: m.name })),
+      metricFound: conversionMetricIndex !== -1
+    });
+    
+    // Calculate total conversions from all rows using the correct index
+    const totalConversionsInResponse = conversionMetricIndex !== -1 
+      ? (currentData.rows || []).reduce((sum, row) => {
+          return sum + parseFloat(row.metricValues?.[conversionMetricIndex]?.value || '0');
+        }, 0)
+      : 0;
+    
+    // Find all rows with conversions to see where they came from
+    const rowsWithConversions = conversionMetricIndex !== -1
+      ? (currentData.rows || [])
+          .filter(row => parseFloat(row.metricValues?.[conversionMetricIndex]?.value || '0') > 0)
+          .map(row => ({
+            source: row.dimensionValues?.[0]?.value || '',
+            medium: row.dimensionValues?.[1]?.value || '',
+            referrer: row.dimensionValues?.[2]?.value?.substring(0, 80) || '',
+            sessions: row.metricValues?.[0]?.value || '0',
+            conversions: row.metricValues?.[conversionMetricIndex]?.value || '0',
+            conversionMetricIndex: conversionMetricIndex
+          }))
+      : [];
+    
+    // Check if any conversions are from LLM platforms
+    const LLM_PATTERNS = {
+      'ChatGPT': /chatgpt|openai/i,
+      'Claude': /claude|anthropic/i,
+      'Gemini': /gemini|bard/i,
+      'Perplexity': /perplexity/i,
+      'Poe': /poe/i
+    };
+    
+    const llmRowsWithConversions = rowsWithConversions.filter(row => {
+      const referrer = row.referrer.toLowerCase();
+      const source = row.source.toLowerCase();
+      for (const [platform, pattern] of Object.entries(LLM_PATTERNS)) {
+        if (pattern.test(referrer) || pattern.test(source)) {
+          return true;
+        }
+      }
+      return false;
+    });
+    
+    // Log detailed metric information
+    const firstRowMetrics = currentData.rows?.[0]?.metricValues?.map((m, idx) => ({
+      index: idx,
+      value: m?.value || '0',
+      metricName: reportConfig.metrics[idx]?.name || 'unknown'
+    })) || [];
+    
+    // Check if GA4 returned column headers (metadata about metrics)
+    const metricHeaders = currentData.metricHeaders?.map((h, idx) => ({
+      index: idx,
+      name: h.name,
+      type: h.type,
+      expectedName: reportConfig.metrics[idx]?.name
+    })) || [];
+    
+    console.log('📊 [llm-platforms] Current data fetched:', {
+      rowCount: currentData.rows?.length || 0,
+      startDate,
+      endDate,
+      conversionEvent,
+      conversionMetric,
+      conversionMetricIndex,
+      totalConversionsInResponse,
+      rowsWithConversionsCount: rowsWithConversions.length,
+      llmRowsWithConversionsCount: llmRowsWithConversions.length,
+      rowsWithConversions: rowsWithConversions.slice(0, 3), // Limit to 3 for readability
+      llmRowsWithConversions: llmRowsWithConversions,
+      sampleRowsWithConversions: sampleRowsWithConversions.slice(0, 2), // Limit to 2 for readability
+      metricNames: reportConfig.metrics.map(m => m.name),
+      metricHeaders: metricHeaders,
+      firstRowMetricBreakdown: firstRowMetrics,
+      hasAPIWarnings: !!(currentData.warningMessages && currentData.warningMessages.length > 0),
+      apiWarnings: currentData.warningMessages || []
+    });
     
     // Calculate comparison date range
     const { comparisonStartDate, comparisonEndDate } = calculateComparisonDates(startDate, endDate);
+    
+    // Calculate period length for logging
+    let periodLength = 0;
+    try {
+      const end = endDate === 'today' ? new Date() : new Date(endDate);
+      const start = startDate.includes('daysAgo') 
+        ? new Date(Date.now() - parseInt(startDate) * 24 * 60 * 60 * 1000)
+        : new Date(startDate);
+      periodLength = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+    } catch (e) {
+      console.warn('Could not calculate period length:', e);
+    }
+    
+    console.log('📊 [llm-platforms] Comparison dates calculated:', {
+      comparisonStartDate,
+      comparisonEndDate,
+      currentStartDate: startDate,
+      currentEndDate: endDate,
+      periodLengthDays: periodLength,
+      comparisonPeriod: `${comparisonStartDate} to ${comparisonEndDate}`,
+      currentPeriod: `${startDate} to ${endDate}`
+    });
     
     // Fetch comparison period data
     const comparisonConfig = {
@@ -324,6 +462,21 @@ router.get('/llm-platforms', ga4SessionMiddleware, ga4ConnectionMiddleware, asyn
     };
     
     const comparisonData = await runReport(accessToken, propertyId, comparisonConfig);
+    console.log('📊 [llm-platforms] Comparison data fetched:', {
+      rowCount: comparisonData.rows?.length || 0,
+      hasData: (comparisonData.rows?.length || 0) > 0,
+      comparisonStartDate,
+      comparisonEndDate,
+      sampleRows: comparisonData.rows?.slice(0, 5) || []
+    });
+    
+    // Check if GA4 API returned any errors or warnings
+    if (currentData.error) {
+      console.error('❌ [llm-platforms] GA4 API error:', currentData.error);
+    }
+    if (currentData.warningMessages && currentData.warningMessages.length > 0) {
+      console.warn('⚠️ [llm-platforms] GA4 API warnings:', currentData.warningMessages);
+    }
     
     // Transform with comparison
     const platforms = transformToLLMPlatforms(currentData, comparisonData);
@@ -331,10 +484,12 @@ router.get('/llm-platforms', ga4SessionMiddleware, ga4ConnectionMiddleware, asyn
     // Cache disabled - don't save to cache
     // await setCachedData(userId, propertyId, 'llm-platforms', startDate, endDate, platforms);
 
-    console.log('✅ LLM platforms response:', {
+    console.log('✅ [llm-platforms] LLM platforms response:', {
       platformsCount: platforms.platforms?.length || 0,
       performanceDataCount: platforms.performanceData?.length || 0,
-      totalLLMSessions: platforms.summary?.totalLLMSessions || 0
+      totalLLMSessions: platforms.summary?.totalLLMSessions || 0,
+      samplePlatform: platforms.platforms?.[0] || null,
+      hasComparisonData: (comparisonData.rows?.length || 0) > 0
     });
 
     res.json({
@@ -395,11 +550,15 @@ router.get('/llm-platform-trends', ga4SessionMiddleware, ga4ConnectionMiddleware
 router.get('/platform-split', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req, res) => {
   try {
     const { propertyId, accessToken } = req.ga4Connection;
-    const { startDate = '7daysAgo', endDate = 'today' } = req.query;
+    const { startDate = '7daysAgo', endDate = 'today', conversionEvent = 'conversions' } = req.query;
     const userId = req.session.userId;
 
     // Cache disabled for agent analytics - always fetch fresh data
     console.log('🔄 [platform-split] Fetching fresh data (cache disabled)');
+
+    // Convert conversion event to valid GA4 metric name
+    const conversionMetric = getConversionEventMetric(conversionEvent);
+    console.log('🎯 [platform-split] Using conversion event:', { conversionEvent, conversionMetric });
 
     const reportConfig = {
       dateRanges: [{ startDate, endDate }],
@@ -407,7 +566,7 @@ router.get('/platform-split', ga4SessionMiddleware, ga4ConnectionMiddleware, asy
       metrics: [
         { name: 'sessions' },
         { name: 'engagementRate' },
-        { name: 'conversions' },
+        { name: conversionMetric }, // Dynamic conversion metric
         { name: 'bounceRate' },
         { name: 'averageSessionDuration' },
         { name: 'screenPageViewsPerSession' },
@@ -418,10 +577,77 @@ router.get('/platform-split', ga4SessionMiddleware, ga4ConnectionMiddleware, asy
       limit: 10000
     };
 
-    const currentData = await runReport(accessToken, propertyId, reportConfig);
+    let currentData;
+    try {
+      currentData = await runReport(accessToken, propertyId, reportConfig);
+    } catch (apiError) {
+      console.error('❌ [platform-split] GA4 API call failed:', {
+        error: apiError.message,
+        conversionMetric,
+        reportConfig: {
+          metrics: reportConfig.metrics.map(m => m.name),
+          dimensions: reportConfig.dimensions.map(d => d.name)
+        }
+      });
+      throw apiError;
+    }
+    
+    // Check if GA4 API returned any errors or warnings
+    if (currentData.error) {
+      console.error('❌ [platform-split] GA4 API error:', currentData.error);
+    }
+    if (currentData.warningMessages && currentData.warningMessages.length > 0) {
+      console.warn('⚠️ [platform-split] GA4 API warnings:', currentData.warningMessages);
+    }
+    
+    // Log conversion data from sample rows
+    const conversionMetricIndex = reportConfig.metrics.findIndex(m => m.name === conversionMetric);
+    const totalConversionsInResponse = conversionMetricIndex !== -1 
+      ? (currentData.rows || []).reduce((sum, row) => {
+          return sum + parseFloat(row.metricValues?.[conversionMetricIndex]?.value || '0');
+        }, 0)
+      : 0;
+    
+    const rowsWithConversions = conversionMetricIndex !== -1
+      ? (currentData.rows || [])
+          .filter(row => parseFloat(row.metricValues?.[conversionMetricIndex]?.value || '0') > 0)
+          .slice(0, 5)
+          .map(row => ({
+            source: row.dimensionValues?.[0]?.value || '',
+            medium: row.dimensionValues?.[1]?.value || '',
+            sessions: row.metricValues?.[0]?.value || '0',
+            conversions: row.metricValues?.[conversionMetricIndex]?.value || '0'
+          }))
+      : [];
+    
+    const metricHeaders = currentData.metricHeaders?.map((h, idx) => ({
+      index: idx,
+      name: h.name,
+      type: h.type,
+      expectedName: reportConfig.metrics[idx]?.name
+    })) || [];
+    
+    console.log('📊 [platform-split] Current data fetched:', {
+      rowCount: currentData.rows?.length || 0,
+      startDate,
+      endDate,
+      conversionEvent,
+      conversionMetric,
+      conversionMetricIndex,
+      totalConversionsInResponse,
+      rowsWithConversionsCount: rowsWithConversions.length,
+      sampleRowsWithConversions: rowsWithConversions,
+      metricHeaders: metricHeaders
+    });
     
     // Calculate comparison date range
     const { comparisonStartDate, comparisonEndDate } = calculateComparisonDates(startDate, endDate);
+    console.log('📊 [platform-split] Comparison dates calculated:', {
+      comparisonStartDate,
+      comparisonEndDate,
+      currentStartDate: startDate,
+      currentEndDate: endDate
+    });
     
     // Fetch comparison period data
     const comparisonConfig = {
@@ -430,9 +656,20 @@ router.get('/platform-split', ga4SessionMiddleware, ga4ConnectionMiddleware, asy
     };
     
     const comparisonData = await runReport(accessToken, propertyId, comparisonConfig);
+    console.log('📊 [platform-split] Comparison data fetched:', {
+      rowCount: comparisonData.rows?.length || 0,
+      hasData: (comparisonData.rows?.length || 0) > 0,
+      comparisonStartDate,
+      comparisonEndDate
+    });
     
     // Transform with comparison
     const transformed = transformToPlatformSplit(currentData, comparisonData);
+    console.log('📊 [platform-split] Transformation complete:', {
+      platformCount: transformed.rankings?.length || 0,
+      sampleRanking: transformed.rankings?.[0] || null,
+      hasComparisonData: comparisonData.rows?.length > 0
+    });
 
     // Validate LLM sessions match llm-platforms endpoint
     // Fetch LLM platforms data for validation
@@ -779,7 +1016,8 @@ router.get('/pages', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req, 
         { name: 'pagePath' },
         { name: 'pageTitle' },
         { name: 'sessionSource' },
-        { name: 'sessionMedium' }
+        { name: 'sessionMedium' },
+        { name: 'pageReferrer' } // Add pageReferrer for accurate LLM detection (matches Platform Tab)
       ],
       dimensionFilter: {
         filter: {
@@ -899,12 +1137,107 @@ router.get('/pages', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req, 
     
     const pagesData = transformPagesData(data, defaultUri);
 
+    // Fetch Platform Tab's LLM sessions total for consistency
+    // Use the EXACT same logic as Platform Tab endpoint: same date range, same comparison data
+    let platformLLMSessions = null;
+    try {
+      // Convert to same format as Platform Tab endpoint expects
+      // Platform Tab uses: startDate='7daysAgo', endDate='today' which becomes '2025-10-25' to '2025-11-01'
+      // For consistency, we need to match the Platform Tab's date format
+      let platformStartDate = startDate;
+      let platformEndDate = endDate;
+      
+      // Convert dateRange string to startDate/endDate if needed (matching Platform Tab logic)
+      if (dateRange && typeof dateRange === 'string') {
+        const days = parseInt(dateRange.split(' ')[0]);
+        if (!isNaN(days)) {
+          platformStartDate = `${days}daysAgo`;
+          platformEndDate = 'today'; // Platform Tab uses 'today', not 'yesterday'
+        }
+      }
+      
+      const platformSplitConfig = {
+        dateRanges: [{ startDate: platformStartDate, endDate: platformEndDate }],
+        dimensions: [
+          { name: 'sessionSource' },
+          { name: 'sessionMedium' },
+          { name: 'pageReferrer' }
+        ],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'engagementRate' },
+          { name: conversionMetric },
+          { name: 'bounceRate' },
+          { name: 'averageSessionDuration' },
+          { name: 'screenPageViewsPerSession' },
+          { name: 'newUsers' },
+          { name: 'totalUsers' }
+        ],
+        keepEmptyRows: false,
+        limit: 10000
+      };
+
+      const platformSplitData = await runReport(accessToken, propertyId, platformSplitConfig);
+      
+      // Fetch comparison data to match Platform Tab's behavior exactly
+      const { comparisonStartDate, comparisonEndDate } = calculateComparisonDates(platformStartDate, platformEndDate);
+      const comparisonConfig = {
+        ...platformSplitConfig,
+        dateRanges: [{ startDate: comparisonStartDate, endDate: comparisonEndDate }]
+      };
+      const comparisonData = await runReport(accessToken, propertyId, comparisonConfig);
+      
+      // Use same transform logic as Platform Tab endpoint
+      const transformedPlatformSplit = transformToPlatformSplit(platformSplitData, comparisonData);
+      
+      // Extract LLM sessions total from platform split - use the aggregated 'LLMs' platform
+      // This matches exactly what Platform Tab shows as "Total LLM Sessions"
+      const llmsPlatform = transformedPlatformSplit.performanceData?.find(p => p.name === 'LLMs');
+      const llmBreakdown = transformedPlatformSplit.summary?.llmBreakdown || [];
+      
+      // Use LLMs platform sessions (aggregated total) - this is the authoritative source
+      platformLLMSessions = llmsPlatform?.sessions || 
+        llmBreakdown.reduce((sum, p) => sum + (p.sessions || 0), 0) || 0;
+
+      console.log('✅ [pages] Fetched Platform Tab LLM sessions:', {
+        total: platformLLMSessions,
+        fromLLMsPlatform: llmsPlatform?.sessions || 0,
+        llmBreakdownSum: llmBreakdown.reduce((s, p) => s + (p.sessions || 0), 0),
+        breakdown: llmBreakdown.map(p => ({ platform: p.platform || p.name, sessions: p.sessions })),
+        dateRange: `${platformStartDate} to ${platformEndDate}`,
+        comparisonRange: `${comparisonStartDate} to ${comparisonEndDate}`
+      });
+    } catch (platformError) {
+      console.warn('⚠️ [pages] Could not fetch Platform Tab LLM sessions, using calculated total:', platformError.message);
+      // Fall back to calculated total if Platform Tab fetch fails
+      platformLLMSessions = pagesData.summary?.totalSessions || 0;
+    }
+
+    // Use Platform Tab's LLM sessions total for consistency
+    if (platformLLMSessions !== null && platformLLMSessions > 0) {
+      // Recalculate avgSQS using Platform Tab's total sessions for consistency
+      const totalPageSessions = pagesData.pages.reduce((sum, page) => sum + (page.sessions || 0), 0);
+      const weightedSQS = pagesData.pages.reduce((sum, page) => sum + (parseFloat(page.sqs || 0) * (page.sessions || 0)), 0);
+      const avgSQS = platformLLMSessions > 0 ? (weightedSQS / platformLLMSessions) : pagesData.summary.avgSQS;
+      
+      pagesData.summary.totalSessions = platformLLMSessions;
+      pagesData.summary.avgSQS = avgSQS;
+      
+      console.log('✅ [pages] Updated summary with Platform Tab values:', {
+        totalSessions: platformLLMSessions,
+        avgSQS: avgSQS.toFixed(2),
+        weightedSQS: weightedSQS.toFixed(2),
+        totalPageSessions: totalPageSessions
+      });
+    }
+
     // Cache disabled - don't save to cache
     // await setCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate, pagesData);
 
     console.log('✅ Pages response:', {
       pagesCount: pagesData.pages?.length || 0,
       totalSessions: pagesData.summary?.totalSessions || 0,
+      platformLLMSessions: platformLLMSessions,
       conversionMetric
     });
 

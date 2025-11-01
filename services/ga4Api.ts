@@ -1,4 +1,4 @@
-import type { GA4ApiResponse, GA4Account, GA4Connection, PlatformData, PageData, GeoData, DeviceData } from '@/types/ga4'
+import type { GA4ApiResponse, GA4Account, GA4Connection, PageData, GeoData, DeviceData } from '@/types/ga4'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
 
@@ -20,8 +20,41 @@ export const initiateGA4OAuth = () => {
 }
 
 export const checkGA4Connection = async (): Promise<GA4ApiResponse<GA4Connection>> => {
-  const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/connection-status`)
-  return response.json()
+  try {
+    const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/connection-status`)
+    
+    // Check if response is OK
+    if (!response.ok) {
+      let errorMessage = `Request failed with status ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } catch {
+        try {
+          const errorText = await response.text();
+          errorMessage = errorText || errorMessage;
+        } catch {
+          // Ignore parsing errors
+        }
+      }
+      
+      console.error('❌ [checkGA4Connection] HTTP error:', errorMessage, 'Status:', response.status);
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
+    
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Network error occurred';
+    console.error('❌ [checkGA4Connection] Network/unexpected error:', errorMessage);
+    return {
+      success: false,
+      error: `Failed to check GA4 connection: ${errorMessage}`
+    };
+  }
 }
 
 export const disconnectGA4 = async (): Promise<GA4ApiResponse<void>> => {
@@ -46,14 +79,107 @@ export const saveProperty = async (accountId: string, propertyId: string): Promi
 }
 
 // Data Fetching
-export const getLLMPlatforms = async (startDate: string, endDate: string): Promise<GA4ApiResponse<Array<{ platform: string, sessions: string, users: string, pageViews: string }>>> => {
-  const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/llm-platforms?startDate=${startDate}&endDate=${endDate}`)
-  return response.json()
+export const getLLMPlatforms = async (startDate: string, endDate: string, dateRange?: string, conversionEvent: string = 'conversions'): Promise<GA4ApiResponse<Array<{ platform: string, sessions: string, users: string, pageViews: string }>>> => {
+  try {
+    const dateRangeParam = dateRange ? `&dateRange=${encodeURIComponent(dateRange)}` : '';
+    const conversionEventParam = conversionEvent ? `&conversionEvent=${encodeURIComponent(conversionEvent)}` : '';
+    const url = `${API_BASE_URL}/ga4/llm-platforms?startDate=${startDate}&endDate=${endDate}${dateRangeParam}${conversionEventParam}`;
+    
+    const response = await fetchWithCredentials(url);
+    
+    // Check if response is OK
+    if (!response.ok) {
+      let errorMessage = `Request failed with status ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } catch {
+        try {
+          const errorText = await response.text();
+          errorMessage = errorText || errorMessage;
+        } catch {
+          // Ignore parsing errors
+        }
+      }
+      
+      console.error('❌ [getLLMPlatforms] HTTP error:', errorMessage, 'Status:', response.status);
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
+    
+    const data = await response.json();
+    
+    if (!data.success) {
+      console.error('❌ [getLLMPlatforms] API returned error:', data.error || 'Unknown error');
+    }
+    
+    return data;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Network error occurred';
+    console.error('❌ [getLLMPlatforms] Network/unexpected error:', errorMessage);
+    return {
+      success: false,
+      error: `Failed to fetch LLM platforms data: ${errorMessage}`
+    };
+  }
 }
 
-export const getPlatformSplit = async (startDate: string, endDate: string): Promise<GA4ApiResponse<Array<{ platform: string, sessions: string, percentage: string }>>> => {
-  const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/platform-split?startDate=${startDate}&endDate=${endDate}`)
-  return response.json()
+export const getPlatformSplit = async (startDate: string, endDate: string, dateRange?: string, conversionEvent: string = 'conversions'): Promise<GA4ApiResponse<Array<{ platform: string, sessions: string, percentage: string }>>> => {
+  const dateRangeParam = dateRange ? `&dateRange=${encodeURIComponent(dateRange)}` : '';
+  const conversionEventParam = conversionEvent ? `&conversionEvent=${encodeURIComponent(conversionEvent)}` : '';
+  const url = `${API_BASE_URL}/ga4/platform-split?startDate=${startDate}&endDate=${endDate}${dateRangeParam}${conversionEventParam}`;
+  
+  try {
+    console.log('🔄 [getPlatformSplit] Fetching from:', url);
+    
+    const response = await fetchWithCredentials(url);
+    
+    // Check if response is OK
+    if (!response.ok) {
+      let errorMessage = `Request failed with status ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } catch {
+        // If response isn't JSON, try to get text
+        try {
+          const errorText = await response.text();
+          errorMessage = errorText || errorMessage;
+        } catch {
+          // Ignore parsing errors
+        }
+      }
+      
+      console.error('❌ [getPlatformSplit] HTTP error:', errorMessage, 'Status:', response.status);
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
+    
+    const data = await response.json();
+    
+    if (!data.success) {
+      console.error('❌ [getPlatformSplit] API returned error:', data.error || 'Unknown error');
+    } else {
+      console.log('✅ [getPlatformSplit] API success:', { 
+        hasData: !!data.data, 
+        dataKeys: data.data ? Object.keys(data.data) : [] 
+      });
+    }
+    
+    return data;
+  } catch (error) {
+    // Network error or other fetch error
+    const errorMessage = error instanceof Error ? error.message : 'Network error occurred';
+    console.error('❌ [getPlatformSplit] Network/unexpected error:', errorMessage, 'URL:', url);
+    return {
+      success: false,
+      error: `Failed to fetch platform split data: ${errorMessage}`
+    };
+  }
 }
 
 export const getPages = async (startDate: string, endDate: string, limit: number = 10, dateRange?: string, conversionEvent: string = 'conversions'): Promise<GA4ApiResponse<Array<PageData>>> => {

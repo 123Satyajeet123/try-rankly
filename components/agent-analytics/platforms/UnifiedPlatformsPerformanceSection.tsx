@@ -260,8 +260,30 @@ function UnifiedPlatformsPerformanceSection({ realLLMData, isLoading = false }: 
                   <div className="text-2xl font-semibold text-foreground">
                     {(summary.totalSessions || 0).toLocaleString()}
                   </div>
-                  <div className="text-sm text-muted-foreground">
-                    Total LLM Sessions
+                  <div className="text-sm text-muted-foreground flex items-center justify-center gap-1.5">
+                    <span>Total LLM Sessions</span>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3.5 w-3.5 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <div className="max-w-xs space-y-2">
+                            <p className="text-sm font-semibold">Total LLM Sessions</p>
+                            <p className="text-sm">Total number of <strong>unique</strong> sessions from LLM providers</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              Calculated by aggregating sessions grouped by <strong>(sessionSource, sessionMedium, pageReferrer)</strong>. Each unique session is counted once, regardless of how many pages it visits.
+                            </p>
+                            <div className="mt-2 pt-2 border-t border-border/50">
+                              <p className="text-xs font-semibold mb-1">Calculation:</p>
+                              <p className="text-xs text-muted-foreground">
+                                Sessions are grouped by source/medium/referrer combination, then summed. This ensures each unique user session is counted only once.
+                              </p>
+                            </div>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </div>
                 </div>
                 <div className="text-center">

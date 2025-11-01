@@ -23,21 +23,86 @@ interface UnifiedPlatformsSplitSectionProps {
 }
 
 // Function to get the domain for each LLM platform for favicon fetching
+// Uses Google favicon service which automatically resolves domains for new platforms
 function getLLMDomain(platform: string): string {
-  switch (platform) {
-    case 'ChatGPT':
-      return 'chatgpt.com'
-    case 'Claude':
-      return 'claude.ai'
-    case 'Gemini':
-      return 'gemini.google.com'
-    case 'Perplexity':
-      return 'perplexity.ai'
-    case 'Other LLM':
-      return 'openai.com' // Fallback to OpenAI for other LLMs
-    default:
-      return 'openai.com'
+  const platformLower = platform.toLowerCase().trim()
+  
+  // Comprehensive LLM platform mappings
+  // ChatGPT/OpenAI
+  if (platformLower === 'chatgpt' || platformLower.includes('openai') || platformLower.includes('gpt')) {
+    return 'chatgpt.com'
   }
+  // Claude/Anthropic
+  if (platformLower === 'claude' || platformLower.includes('anthropic')) {
+    return 'claude.ai'
+  }
+  // Gemini/Bard
+  if (platformLower === 'gemini' || platformLower === 'bard' || platformLower.includes('bard')) {
+    return 'gemini.google.com'
+  }
+  // Perplexity
+  if (platformLower === 'perplexity') {
+    return 'perplexity.ai'
+  }
+  // Poe
+  if (platformLower === 'poe') {
+    return 'poe.com'
+  }
+  // Microsoft Copilot
+  if (platformLower === 'copilot' || platformLower.includes('microsoft copilot') || platformLower.includes('bing chat')) {
+    return 'copilot.microsoft.com'
+  }
+  // Grok (X/Twitter)
+  if (platformLower === 'grok' || platformLower.includes('grok')) {
+    return 'x.com'
+  }
+  // Character.ai
+  if (platformLower === 'character' || platformLower.includes('character.ai') || platformLower === 'characterai') {
+    return 'character.ai'
+  }
+  // You.com
+  if (platformLower === 'you' || platformLower === 'you.com' || platformLower.includes('youcom')) {
+    return 'you.com'
+  }
+  // HuggingChat
+  if (platformLower === 'huggingchat' || platformLower.includes('hugging face') || platformLower === 'huggingface') {
+    return 'huggingface.co'
+  }
+  // Pi (Inflection)
+  if (platformLower === 'pi' || platformLower.includes('inflection') || platformLower === 'heypi') {
+    return 'heypi.com'
+  }
+  // Llama/Meta AI
+  if (platformLower === 'llama' || platformLower.includes('meta ai') || platformLower === 'metaai') {
+    return 'meta.ai'
+  }
+  // Mistral
+  if (platformLower === 'mistral') {
+    return 'mistral.ai'
+  }
+  // Cohere
+  if (platformLower === 'cohere') {
+    return 'cohere.com'
+  }
+  // Google/Direct
+  if (platformLower === 'google' || platformLower === 'direct') {
+    return 'google.com'
+  }
+  
+  // For unknown platforms, construct domain from platform name
+  // Google favicon service will automatically resolve the correct favicon
+  // Format: platformname.com (remove spaces, special chars, lowercase)
+  const cleanPlatform = platformLower
+    .replace(/\s+/g, '') // Remove spaces
+    .replace(/[^a-z0-9]/g, '') // Remove special characters
+  
+  // Try common domain extensions for LLM platforms
+  if (cleanPlatform) {
+    return `${cleanPlatform}.com` // Google favicon service will handle resolution
+  }
+  
+  // Final fallback
+  return 'google.com'
 }
 
 function UnifiedPlatformsSplitSection({ realLLMData, dateRange = '30 days', isLoading = false }: UnifiedPlatformsSplitSectionProps) {
@@ -61,13 +126,18 @@ function UnifiedPlatformsSplitSection({ realLLMData, dateRange = '30 days', isLo
     color: colors[index % colors.length],
   }))
 
-  // Create rankings from LLM platforms - use backend-provided percentage
+  // Create rankings from LLM platforms - include comparison data from backend
   const rankings = llmPlatformsData
     .map((platform: any, index: number) => ({
       rank: index + 1,
       name: platform.name || platform.platform, // Use name if available, fallback to platform
       sessions: platform.sessions,
-      percentage: platform.percentage ? `${platform.percentage.toFixed(2)}%` : '0.00%' // Use backend-provided percentage, rounded to 2 decimals
+      percentage: platform.percentage ? `${platform.percentage.toFixed(2)}%` : '0.00%', // Use backend-provided percentage, rounded to 2 decimals
+      // Include comparison data from backend
+      absoluteChange: platform.absoluteChange || 0,
+      change: platform.change || 0, // Session percentage change
+      shareChange: platform.shareChange || 0, // Share percentage point change (if available)
+      trend: platform.trend || 'neutral'
     }))
     .sort((a: any, b: any) => b.sessions - a.sessions)
   
@@ -78,7 +148,17 @@ function UnifiedPlatformsSplitSection({ realLLMData, dateRange = '30 days', isLo
     hasData: platformSplitData.length > 0,
     llmPlatformsData: llmPlatformsData,
     firstPlatform: llmPlatformsData[0],
-    rankingsPercentages: rankings.map(r => ({ name: r.name, percentage: r.percentage, sessions: r.sessions }))
+    rankingsPercentages: rankings.map(r => ({ 
+      name: r.name, 
+      percentage: r.percentage, 
+      sessions: r.sessions,
+      absoluteChange: r.absoluteChange,
+      shareChange: r.shareChange,
+      change: r.change,
+      trend: r.trend
+    })),
+    sampleRanking: rankings[0],
+    rawPlatformData: llmPlatformsData.slice(0, 3)
   })
 
   // Show loading skeleton if loading
@@ -657,12 +737,29 @@ function UnifiedPlatformsSplitSection({ realLLMData, dateRange = '30 days', isLo
                     </TableHeader>
                     <TableBody>
                       {rankings.map((ranking: any, index: number) => {
-                        const maxSessions = Math.max(...rankings.map((r: any) => parseInt(r.sessions) || 0))
-                        const barWidth = maxSessions > 0 ? ((parseInt(ranking.sessions) || 0) / maxSessions) * 100 : 0
+                        const maxSessions = Math.max(...rankings.map((r: any) => r.sessions || 0))
+                        const barWidth = maxSessions > 0 ? ((ranking.sessions || 0) / maxSessions) * 100 : 0
                         // Use real trend data from backend
                         const trend = ranking.trend || 'neutral'
-                        const absoluteChange = Math.abs(ranking.absoluteChange || 0)
-                        const percentageChange = Math.abs(ranking.change || 0)
+                        const absoluteChange = ranking.absoluteChange || 0 // Keep sign for proper display
+                        // For LLM platforms, use shareChange if available and not null/undefined, otherwise use session percentage change
+                        const percentageChange = (ranking.shareChange !== undefined && ranking.shareChange !== null) 
+                          ? ranking.shareChange 
+                          : (ranking.change !== undefined && ranking.change !== null ? ranking.change : 0)
+                        
+                        // Debug logging for first few rankings
+                        if (index < 3) {
+                          console.log('🔍 [UnifiedPlatformsSplitSection] Ranking display:', {
+                            name: ranking.name,
+                            sessions: ranking.sessions,
+                            absoluteChange,
+                            shareChange: ranking.shareChange,
+                            change: ranking.change,
+                            percentageChange,
+                            trend,
+                            rawRanking: ranking
+                          })
+                        }
                         
                         return (
                           <TableRow 
@@ -671,14 +768,14 @@ function UnifiedPlatformsSplitSection({ realLLMData, dateRange = '30 days', isLo
                           >
                             <TableCell className="py-2 pl-0 pr-3">
                               <div className="space-y-1">
-                                        {/* Platform name with favicon */}
+                                        {/* Platform name with favicon - matching bar chart style */}
                                         <div className="flex items-center gap-2">
                                           <img
-                                    src={getDynamicFaviconUrl(getLLMDomain(ranking.name), 32)}
+                                    src={getDynamicFaviconUrl(getLLMDomain(ranking.name), 64)}
                                             alt={`${ranking.name} favicon`}
-                                    className="w-4 h-4 rounded-sm"
+                                    className="w-6 h-6 rounded-sm"
                                             data-favicon-identifier={ranking.name}
-                                            data-favicon-size="32"
+                                            data-favicon-size="64"
                                             onError={(e) => {
                                               handleFaviconError(e as any)
                                               // Also apply custom fallback for visual consistency
@@ -711,10 +808,10 @@ function UnifiedPlatformsSplitSection({ realLLMData, dateRange = '30 days', isLo
                                         }}
                                       />
                                     </div>
-                                    <div className="text-xs font-medium text-foreground min-w-[50px] text-right">
-                                      {(parseInt(ranking.sessions) || 0).toLocaleString()}
-                                      <span className="text-muted-foreground ml-1 text-[10px]">
-                                        ({trend === 'up' ? '+' : '-'}{absoluteChange})
+                                    <div className="text-sm font-semibold text-foreground min-w-[50px] text-right">
+                                      {(ranking.sessions || 0).toLocaleString()}
+                                      <span className="text-muted-foreground ml-1 text-[10px] font-normal">
+                                        ({absoluteChange > 0 ? '+' : ''}{absoluteChange.toLocaleString()})
                                       </span>
                                     </div>
                                   </div>
@@ -722,24 +819,35 @@ function UnifiedPlatformsSplitSection({ realLLMData, dateRange = '30 days', isLo
                               </div>
                             </TableCell>
                             <TableCell className="text-right py-2 px-3 w-24">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm text-foreground font-medium">
+                              <div className="flex items-center justify-end gap-2">
+                                {/* Percentage Share */}
+                                <span className="text-xs text-muted-foreground font-normal">
                                   {parseFloat(ranking.percentage.replace('%', '')) > 0 
                                     ? parseFloat(ranking.percentage.replace('%', '')).toFixed(2) + '%'
                                     : '0.00%'}
                                 </span>
-                                <div className="flex items-center gap-1">
-                                  {trend === 'up' ? (
-                                    <ModernTrendUp className="w-3 h-3 text-green-500" />
-                                  ) : (
+                                {/* Percentage Change with Trend Arrow - always show */}
+                                {Math.abs(percentageChange) >= 0.01 ? (
+                                  <div className="flex items-center gap-1">
+                                    {trend === 'up' ? (
+                                      <ModernTrendUp className="w-3 h-3 text-green-500" />
+                                    ) : (
+                                      <ModernTrendDown className="w-3 h-3 text-red-500" />
+                                    )}
+                                    <span className={`text-xs font-medium ${
+                                      trend === 'up' ? 'text-green-500' : 'text-red-500'
+                                    }`}>
+                                      {Math.abs(percentageChange).toFixed(2)}%
+                                    </span>
+                                  </div>
+                                ) : (
+                                  <div className="flex items-center gap-1">
                                     <ModernTrendDown className="w-3 h-3 text-red-500" />
-                                  )}
-                                  <span className={`text-xs font-medium leading-none ${
-                                    trend === 'up' ? 'text-green-500' : 'text-red-500'
-                                  }`}>
-                                    {percentageChange.toFixed(2)}%
-                                  </span>
-                                </div>
+                                    <span className="text-xs font-medium text-red-500">
+                                      0.00%
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>

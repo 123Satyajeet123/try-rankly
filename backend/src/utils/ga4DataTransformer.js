@@ -15,6 +15,16 @@ const LLM_PATTERNS = {
   'Character.ai': /character\.ai/i
 };
 
+// List of valid LLM platform names (for filtering)
+const LLM_PLATFORMS = ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'Copilot', 'Grok', 'Poe', 'Character.ai'];
+
+/**
+ * Check if a platform is an LLM platform
+ */
+function isLLMPlatform(platform) {
+  return platform && LLM_PLATFORMS.includes(platform);
+}
+
 /**
  * Detect platform from source and medium OR pageReferrer
  */
@@ -133,12 +143,46 @@ function transformToPlatformSplit(ga4Response, comparisonResponse = null) {
   const rows = ga4Response.rows || [];
   const comparisonRows = comparisonResponse?.rows || [];
   
+  // Determine conversion metric index from response headers
+  // The conversion metric is always at index 2 (third metric: sessions, engagementRate, conversions, ...)
+  const conversionMetricIndex = 2; // Always index 2 based on our reportConfig structure
+  
+  // Verify by checking metric headers if available
+  const metricHeaders = ga4Response.metricHeaders || [];
+  if (metricHeaders.length > 0) {
+    const conversionMetricName = metricHeaders[conversionMetricIndex]?.name || 'conversions';
+    console.log('🔍 [transformToPlatformSplit] Conversion metric verification:', {
+      conversionMetricIndex,
+      conversionMetricName,
+      expectedIndex: 2,
+      metricHeaders: metricHeaders.map((h, idx) => ({ index: idx, name: h.name }))
+    });
+  }
+  
+  console.log('🔍 [transformToPlatformSplit] Starting transformation:', {
+    currentRows: rows.length,
+    comparisonRows: comparisonRows.length,
+    hasComparisonData: comparisonResponse !== null && comparisonRows.length > 0
+  });
+  
   // Build comparison map
   const comparisonMap = new Map();
+  const comparisonLLMData = {
+    sessions: 0,
+    engagementRate: 0,
+    conversions: 0,
+    bounceRate: 0,
+    avgSessionDuration: 0,
+    pagesPerSession: 0,
+    newUsers: 0,
+    totalUsers: 0
+  };
+  
   for (const row of comparisonRows) {
     const source = row.dimensionValues?.[0]?.value || '';
     const medium = row.dimensionValues?.[1]?.value || '';
     const referrer = row.dimensionValues?.[2]?.value || ''; // Added referrer dimension
+    const metrics = row.metricValues || [];
     
     // Use same LLM detection logic as current period
     let detectedLLM = null;
@@ -160,11 +204,40 @@ function transformToPlatformSplit(ga4Response, comparisonResponse = null) {
     }
     
     const platform = detectedLLM || detectPlatform(source, medium, referrer);
-    const sessions = parseFloat(row.metricValues?.[0]?.value || '0');
+    const sessions = parseFloat(metrics[0]?.value || '0');
+    
+    // If it's an LLM platform, also aggregate for 'LLMs'
+    if (detectedLLM) {
+      comparisonLLMData.sessions += sessions;
+      const rowEngagementRate = parseFloat(metrics[1]?.value || '0');
+      const rowConversions = parseFloat(metrics[conversionMetricIndex]?.value || '0'); // Use dynamic index
+      const rowBounceRate = parseFloat(metrics[3]?.value || '0');
+      const rowAvgSessionDuration = parseFloat(metrics[4]?.value || '0');
+      const rowPagesPerSession = parseFloat(metrics[5]?.value || '0');
+      const rowNewUsers = parseFloat(metrics[6]?.value || '0');
+      const rowTotalUsers = parseFloat(metrics[7]?.value || '0');
+      
+      comparisonLLMData.engagementRate += rowEngagementRate * sessions;
+      comparisonLLMData.conversions += rowConversions;
+      comparisonLLMData.bounceRate += rowBounceRate * sessions;
+      comparisonLLMData.avgSessionDuration += rowAvgSessionDuration * sessions;
+      comparisonLLMData.pagesPerSession += rowPagesPerSession * sessions;
+      comparisonLLMData.newUsers += rowNewUsers;
+      comparisonLLMData.totalUsers += rowTotalUsers;
+    }
     
     const current = comparisonMap.get(platform) || { sessions: 0 };
     current.sessions += sessions;
     comparisonMap.set(platform, current);
+  }
+  
+  // Add aggregated LLM comparison data to comparison map
+  if (comparisonLLMData.sessions > 0) {
+    comparisonMap.set('LLMs', comparisonLLMData);
+    console.log('🔍 [transformToPlatformSplit] Added aggregated LLM comparison data:', {
+      llmComparisonSessions: comparisonLLMData.sessions,
+      comparisonMapKeys: Array.from(comparisonMap.keys())
+    });
   }
   
   // Aggregate metrics by platform for current period
@@ -223,9 +296,10 @@ function transformToPlatformSplit(ga4Response, comparisonResponse = null) {
     };
     
     // Parse metrics - GA4 returns engagementRate and bounceRate as decimals (0-1)
+    // Metric order: [0] sessions, [1] engagementRate, [2] conversions (or keyEvents:...), [3] bounceRate, [4] avgSessionDuration, [5] pagesPerSession, [6] newUsers, [7] totalUsers
     const rowSessions = parseFloat(metrics[0]?.value || '0');
     const rowEngagementRate = parseFloat(metrics[1]?.value || '0'); // Decimal 0-1
-    const rowConversions = parseFloat(metrics[2]?.value || '0');
+    const rowConversions = parseFloat(metrics[conversionMetricIndex]?.value || '0'); // Use dynamic index
     const rowBounceRate = parseFloat(metrics[3]?.value || '0'); // Decimal 0-1
     const rowAvgSessionDuration = parseFloat(metrics[4]?.value || '0'); // Seconds
     const rowPagesPerSession = parseFloat(metrics[5]?.value || '0'); // Number
@@ -256,6 +330,16 @@ function transformToPlatformSplit(ga4Response, comparisonResponse = null) {
   // Calculate totals
   const totalSessions = Array.from(platformMap.values()).reduce((sum, val) => sum + val.sessions, 0);
   const comparisonTotalSessions = Array.from(comparisonMap.values()).reduce((sum, p) => sum + p.sessions, 0);
+  
+  console.log('🔍 [transformToPlatformSplit] Totals calculated:', {
+    totalSessions,
+    comparisonTotalSessions,
+    comparisonMapSize: comparisonMap.size,
+    comparisonPlatforms: Array.from(comparisonMap.entries()).map(([name, data]) => ({
+      name,
+      sessions: data.sessions
+    }))
+  });
   
   // Aggregate LLM platforms - but keep the data to calculate totals correctly
   const llmData = {
@@ -324,10 +408,31 @@ function transformToPlatformSplit(ga4Response, comparisonResponse = null) {
     // Calculate change from comparison period
     const comparisonData = comparisonMap.get(platform);
     const previousSessions = comparisonData?.sessions || 0;
+    const absoluteChange = data.sessions - previousSessions;
+    
+    // Debug logging for LLMs platform and first few platforms
+    if (platform === 'LLMs' || finalPlatformData.length < 3) {
+      console.log('🔍 [transformToPlatformSplit] Platform comparison:', {
+        platform,
+        currentSessions: data.sessions,
+        previousSessions,
+        absoluteChange,
+        hasComparisonData: !!comparisonData,
+        comparisonDataExists: comparisonMap.has(platform)
+      });
+    }
+    
+    // Calculate session percentage change
     const sessionChange = previousSessions > 0 
       ? ((data.sessions - previousSessions) / previousSessions) * 100 
       : 0;
-    const absoluteChange = data.sessions - previousSessions;
+    
+    // Calculate share percentage change (current share - previous share)
+    const currentShare = totalSessions > 0 ? (data.sessions / totalSessions * 100) : 0;
+    const previousShare = comparisonTotalSessions > 0 
+      ? (previousSessions / comparisonTotalSessions * 100) 
+      : 0;
+    const shareChange = currentShare - previousShare; // Difference in percentage points
     
     const platformName = platform.charAt(0).toUpperCase() + platform.slice(1);
     
@@ -346,9 +451,10 @@ function transformToPlatformSplit(ga4Response, comparisonResponse = null) {
       revenue: 0,
       conversionRate: conversionRate, // Already rounded to 2 decimals
       // Comparison data
-      change: Math.round(sessionChange * 100) / 100, // Rounded to 2 decimals
+      shareChange: Math.round(shareChange * 100) / 100, // Share percentage change (rounded to 2 decimals)
+      sessionChange: Math.round(sessionChange * 100) / 100, // Session percentage change (for reference)
       absoluteChange: absoluteChange,
-      trend: sessionChange > 0 ? 'up' : sessionChange < 0 ? 'down' : 'neutral'
+      trend: shareChange > 0 ? 'up' : shareChange < 0 ? 'down' : 'neutral' // Trend based on share change
     });
   }
   
@@ -379,7 +485,7 @@ function transformToPlatformSplit(ga4Response, comparisonResponse = null) {
     name: item.name,
     sessions: item.sessions,
     percentage: `${item.percentage.toFixed(2)}%`,
-    change: item.change,
+    shareChange: item.shareChange, // Share percentage change
     absoluteChange: item.absoluteChange,
     trend: item.trend
   }));
@@ -388,8 +494,30 @@ function transformToPlatformSplit(ga4Response, comparisonResponse = null) {
   const topPlatform = finalPlatformData[0]?.name || 'N/A';
   const topPlatformShare = finalPlatformData[0]?.percentage || 0;
   
-  // Debug: Log LLM breakdown with detailed validation
+  // Validate that all platform sessions add up to total sessions
   const finalTotalSessions = finalPlatformData.reduce((sum, p) => sum + p.sessions, 0);
+  const sessionsDifference = Math.abs(finalTotalSessions - totalSessions);
+  if (sessionsDifference > 1) {
+    console.error('⚠️ [transformToPlatformSplit] Sessions mismatch:', {
+      calculatedTotal: finalTotalSessions,
+      reportedTotal: totalSessions,
+      difference: sessionsDifference,
+      platforms: finalPlatformData.map(p => ({ name: p.name, sessions: p.sessions }))
+    });
+  }
+  
+  // Validate that all percentages add up to 100%
+  const totalPercentage = finalPlatformData.reduce((sum, p) => sum + p.percentage, 0);
+  const percentageDifference = Math.abs(totalPercentage - 100);
+  if (percentageDifference > 0.1) {
+    console.error('⚠️ [transformToPlatformSplit] Percentages don\'t add up to 100%:', {
+      totalPercentage: totalPercentage.toFixed(2),
+      difference: percentageDifference.toFixed(2),
+      platforms: finalPlatformData.map(p => ({ name: p.name, percentage: p.percentage }))
+    });
+  }
+  
+  // Debug: Log LLM breakdown with detailed validation
   const llmPlatformsSessions = finalPlatformData.find(p => p.name === 'LLMs')?.sessions || 0;
   
   console.log('🔍 LLM Platform Breakdown:', {
@@ -398,24 +526,80 @@ function transformToPlatformSplit(ga4Response, comparisonResponse = null) {
     totalSessions: totalSessions,
     finalTotalSessions: finalTotalSessions,
     llmPlatformsSessions: llmPlatformsSessions,
-    validation: Math.abs(finalTotalSessions - totalSessions) < 1, // Allow small floating point differences
+    sessionsValidation: sessionsDifference <= 1, // Allow small floating point differences
+    percentageValidation: percentageDifference <= 0.1, // Allow small rounding differences
     individualLLMTotal: llmBreakdown.reduce((sum, p) => sum + p.sessions, 0),
     platformsInMap: Array.from(platformMap.keys()),
-    finalPlatformNames: finalPlatformData.map(p => p.name)
+    finalPlatformNames: finalPlatformData.map(p => p.name),
+    platformSessions: finalPlatformData.map(p => ({ name: p.name, sessions: p.sessions, percentage: p.percentage.toFixed(2) + '%' }))
   });
+  
+  // Final validation: Ensure totalSessions matches sum of all platforms
+  // If there's a mismatch, use the calculated total from platforms
+  const validatedTotalSessions = Math.abs(finalTotalSessions - totalSessions) <= 1 
+    ? totalSessions 
+    : finalTotalSessions;
+  
+  // Calculate total change metrics using validated total
+  const totalAbsoluteChange = validatedTotalSessions - comparisonTotalSessions;
+  const totalPercentageChange = comparisonTotalSessions > 0 
+    ? ((validatedTotalSessions - comparisonTotalSessions) / comparisonTotalSessions) * 100 
+    : 0;
+  
+  // Recalculate percentages if we had to adjust total
+  if (Math.abs(finalTotalSessions - totalSessions) > 1) {
+    console.warn('⚠️ [transformToPlatformSplit] Adjusting percentages to match calculated total');
+    finalPlatformData.forEach(platform => {
+      platform.percentage = validatedTotalSessions > 0 
+        ? Math.round((platform.sessions / validatedTotalSessions * 100) * 100) / 100 
+        : 0;
+    });
+    
+    // Update platformSplit with corrected percentages
+    finalPlatformData.forEach((platform, index) => {
+      const splitItem = platformSplit.find(p => p.name === platform.name);
+      if (splitItem) {
+        splitItem.value = platform.percentage;
+      }
+    });
+    
+    // Update rankings with corrected percentages
+    finalPlatformData.forEach((platform, index) => {
+      const ranking = rankings.find(r => r.name === platform.name);
+      if (ranking) {
+        ranking.percentage = `${platform.percentage.toFixed(2)}%`;
+      }
+    });
+    
+    // Final validation after recalculation
+    const recalculatedPercentageTotal = finalPlatformData.reduce((sum, p) => sum + p.percentage, 0);
+    const recalculatedDifference = Math.abs(recalculatedPercentageTotal - 100);
+    if (recalculatedDifference > 0.1) {
+      console.warn('⚠️ [transformToPlatformSplit] Percentages still don\'t add up after recalculation:', {
+        total: recalculatedPercentageTotal.toFixed(2),
+        difference: recalculatedDifference.toFixed(2)
+      });
+    }
+  }
   
   return {
     platformSplit,
     rankings,
-    totalSessions,
+    totalSessions: validatedTotalSessions,
     summary: {
-      totalSessions,
+      totalSessions: validatedTotalSessions,
       topPlatform,
-      topPlatformShare,
-      totalChange: comparisonTotalSessions > 0 
-        ? ((totalSessions - comparisonTotalSessions) / comparisonTotalSessions) * 100 
-        : 0,
-      llmBreakdown // Add LLM breakdown for debugging
+      topPlatformShare: finalPlatformData[0]?.percentage || 0,
+      totalAbsoluteChange: totalAbsoluteChange,
+      totalPercentageChange: Math.round(totalPercentageChange * 100) / 100,
+      totalChange: totalPercentageChange, // Keep for backwards compatibility
+      llmBreakdown, // Add LLM breakdown for debugging
+      validation: {
+        sessionsMatch: sessionsDifference <= 1,
+        percentagesMatch: percentageDifference <= 0.1,
+        calculatedTotal: finalTotalSessions,
+        reportedTotal: totalSessions
+      }
     },
     // Include the detailed performance data for Traffic Performance section
     performanceData: finalPlatformData
@@ -429,8 +613,32 @@ function transformToLLMPlatforms(ga4Response, comparisonResponse = null) {
   const rows = ga4Response.rows || [];
   const comparisonRows = comparisonResponse?.rows || [];
   
+  // Determine conversion metric index from response headers
+  // The conversion metric is always at index 2 (third metric: sessions, engagementRate, conversions, ...)
+  const conversionMetricIndex = 2; // Always index 2 based on our reportConfig structure
+  
+  // Verify by checking metric headers if available
+  const metricHeaders = ga4Response.metricHeaders || [];
+  if (metricHeaders.length > 0) {
+    const conversionMetricName = metricHeaders[conversionMetricIndex]?.name || 'conversions';
+    console.log('🔍 [transformToLLMPlatforms] Conversion metric verification:', {
+      conversionMetricIndex,
+      conversionMetricName,
+      expectedIndex: 2,
+      metricHeaders: metricHeaders.map((h, idx) => ({ index: idx, name: h.name }))
+    });
+  }
+  
+  console.log('🔍 [transformToLLMPlatforms] Starting transformation:', {
+    currentRows: rows.length,
+    comparisonRows: comparisonRows.length,
+    hasComparisonData: comparisonResponse !== null && comparisonRows.length > 0,
+    conversionMetricIndex
+  });
+  
   // Build comparison map - use same detection logic as platform-split
   const comparisonMap = new Map();
+  let comparisonLLMCount = 0;
   for (const row of comparisonRows) {
     const source = row.dimensionValues?.[0]?.value || '';
     const medium = row.dimensionValues?.[1]?.value || '';
@@ -458,13 +666,24 @@ function transformToLLMPlatforms(ga4Response, comparisonResponse = null) {
     // Only process LLM platforms, skip others
     if (!detectedLLM) continue;
     
+    comparisonLLMCount++;
     const sessions = parseFloat(row.metricValues?.[0]?.value || '0');
     const current = comparisonMap.get(detectedLLM) || { sessions: 0 };
     current.sessions += sessions;
     comparisonMap.set(detectedLLM, current);
   }
   
+  console.log('🔍 [transformToLLMPlatforms] Comparison map built:', {
+    comparisonMapSize: comparisonMap.size,
+    comparisonLLMRows: comparisonLLMCount,
+    comparisonPlatforms: Array.from(comparisonMap.entries()).map(([name, data]) => ({
+      name,
+      sessions: data.sessions
+    }))
+  });
+  
   const platformMap = new Map();
+  let currentLLMCount = 0;
   
   for (const row of rows) {
     const source = row.dimensionValues?.[0]?.value || '';
@@ -494,6 +713,7 @@ function transformToLLMPlatforms(ga4Response, comparisonResponse = null) {
     // Only process LLM platforms, skip others
     if (!detectedLLM) continue;
     
+    currentLLMCount++;
     const platform = detectedLLM;
     
     const current = platformMap.get(platform) || {
@@ -509,14 +729,35 @@ function transformToLLMPlatforms(ga4Response, comparisonResponse = null) {
     };
     
     // Parse metrics - GA4 returns engagementRate and bounceRate as decimals (0-1)
+    // Metric order: [0] sessions, [1] engagementRate, [2] conversions (or keyEvents:...), [3] bounceRate, [4] avgSessionDuration, [5] pagesPerSession, [6] newUsers, [7] totalUsers
     const rowSessions = parseFloat(metrics[0]?.value || '0');
     const rowEngagementRate = parseFloat(metrics[1]?.value || '0'); // Decimal 0-1
-    const rowConversions = parseFloat(metrics[2]?.value || '0');
+    const rowConversions = parseFloat(metrics[conversionMetricIndex]?.value || '0'); // Use dynamic index
     const rowBounceRate = parseFloat(metrics[3]?.value || '0'); // Decimal 0-1
     const rowAvgSessionDuration = parseFloat(metrics[4]?.value || '0'); // Seconds
     const rowPagesPerSession = parseFloat(metrics[5]?.value || '0'); // Number
     const rowNewUsers = parseFloat(metrics[6]?.value || '0');
     const rowTotalUsers = parseFloat(metrics[7]?.value || '0');
+    
+    // Debug: Log conversion data for first few LLM rows
+    if (currentLLMCount < 3 && rowSessions > 0) {
+      const conversionMetricName = metricHeaders[conversionMetricIndex]?.name || `metrics[${conversionMetricIndex}]`;
+      console.log('🔍 [transformToLLMPlatforms] LLM row conversion data:', {
+        platform: detectedLLM,
+        source,
+        referrer: referrer?.substring(0, 50),
+        sessions: rowSessions,
+        conversions: rowConversions,
+        conversionMetricName: conversionMetricName,
+        conversionMetricIndex: conversionMetricIndex,
+        conversionRate: rowSessions > 0 ? (rowConversions / rowSessions * 100).toFixed(2) + '%' : '0%',
+        metricValues: metrics.map((m, i) => ({ 
+          index: i, 
+          value: m?.value, 
+          name: metricHeaders[i]?.name || ['sessions', 'engagementRate', 'conversions', 'bounceRate', 'averageSessionDuration', 'screenPageViewsPerSession', 'newUsers', 'totalUsers'][i] 
+        }))
+      });
+    }
     
     // Accumulate values for weighted averages
     current.sessions += rowSessions;
@@ -552,6 +793,23 @@ function transformToLLMPlatforms(ga4Response, comparisonResponse = null) {
       : 0;
     const absoluteChange = data.sessions - previousSessions;
     
+    // Calculate share change (percentage point change in share of total LLM traffic)
+    // Calculate current and previous totals first (we'll calculate these after the loop)
+    // For now, we'll calculate share change in a second pass after we have totals
+    
+    // Debug logging for first few platforms
+    if (platformDataArray.length < 3) {
+      console.log('🔍 [transformToLLMPlatforms] Platform comparison:', {
+        platform,
+        currentSessions: data.sessions,
+        previousSessions,
+        absoluteChange,
+        sessionChange,
+        hasComparisonData: !!comparisonData,
+        comparisonMapKeys: Array.from(comparisonMap.keys())
+      });
+    }
+    
     platformDataArray.push({
       name: platform,
       sessions: data.sessions,
@@ -563,9 +821,10 @@ function transformToLLMPlatforms(ga4Response, comparisonResponse = null) {
       newUsers: data.newUsers,
       returningUsers: returningUsers,
       conversionRate: conversionRate, // Already rounded to 2 decimals
-      // Comparison data
-      change: Math.round(sessionChange * 100) / 100, // Rounded to 2 decimals
+      // Comparison data - store both for share change calculation
+      change: Math.round(sessionChange * 100) / 100, // Session percentage change (rounded to 2 decimals)
       absoluteChange: absoluteChange,
+      previousSessions: previousSessions, // Store for share change calculation
       trend: sessionChange > 0 ? 'up' : sessionChange < 0 ? 'down' : 'neutral'
     });
   }
@@ -575,16 +834,73 @@ function transformToLLMPlatforms(ga4Response, comparisonResponse = null) {
   
   // Calculate totals and percentages
   const totalLLMSessions = platformDataArray.reduce((sum, p) => sum + p.sessions, 0);
+  const totalComparisonLLMSessions = Array.from(comparisonMap.values()).reduce((sum, p) => sum + p.sessions, 0);
+  
+  console.log('🔍 [transformToLLMPlatforms] Totals calculated:', {
+    currentLLMRows: currentLLMCount,
+    totalLLMSessions,
+    totalComparisonLLMSessions,
+    comparisonMapSize: comparisonMap.size,
+    platformsCount: platformDataArray.length
+  });
+  
+  // Now calculate share changes and percentages for each platform
+  platformDataArray.forEach((platform, index) => {
+    // Calculate current and previous shares of total LLM traffic
+    const currentShare = totalLLMSessions > 0 ? (platform.sessions / totalLLMSessions * 100) : 0;
+    const previousShare = totalComparisonLLMSessions > 0 && platform.previousSessions
+      ? (platform.previousSessions / totalComparisonLLMSessions * 100)
+      : 0;
+    const shareChange = currentShare - previousShare; // Percentage point change
+    
+    // Debug logging for first few platforms
+    if (index < 3) {
+      console.log('🔍 [transformToLLMPlatforms] Share change calculation:', {
+        platform: platform.name,
+        currentSessions: platform.sessions,
+        previousSessions: platform.previousSessions,
+        totalLLMSessions,
+        totalComparisonLLMSessions,
+        currentShare: currentShare.toFixed(2),
+        previousShare: previousShare.toFixed(2),
+        shareChange: shareChange.toFixed(2)
+      });
+    }
+    
+    // Update platform with share change and percentage
+    platform.shareChange = Math.round(shareChange * 100) / 100; // Rounded to 2 decimals
+    platform.percentage = Math.round(currentShare * 100) / 100; // Percentage share
+    platform.trend = shareChange > 0 ? 'up' : shareChange < 0 ? 'down' : 'neutral'; // Update trend based on share change
+    
+    // Clean up temporary field
+    delete platform.previousSessions;
+  });
   const totalLLMConversions = platformDataArray.reduce((sum, p) => sum + p.conversions, 0);
   // Calculate weighted average engagement rate (weighted by sessions) - rounded to 2 decimals
   const totalEngagementRateWeighted = platformDataArray.reduce((sum, p) => sum + (p.engagementRate * p.sessions / 100), 0); // engagementRate is percentage, divide by 100 to get decimal
   const avgEngagementRate = totalLLMSessions > 0 ? Math.round(((totalEngagementRateWeighted / totalLLMSessions) * 100) * 100) / 100 : 0; // Rounded to 2 decimals
   
-  // Add percentage field to each platform - rounded to 2 decimals
-  const platformsWithPercentage = platformDataArray.map(platform => ({
-    ...platform,
-    percentage: totalLLMSessions > 0 ? Math.round((platform.sessions / totalLLMSessions) * 10000) / 100 : 0
-  }));
+  // Log conversion summary for debugging
+  console.log('🔍 [transformToLLMPlatforms] Conversion summary:', {
+    totalLLMSessions,
+    totalLLMConversions,
+    overallConversionRate: totalLLMSessions > 0 ? (totalLLMConversions / totalLLMSessions * 100).toFixed(2) + '%' : '0%',
+    platformsWithConversions: platformDataArray.filter(p => p.conversions > 0).map(p => ({
+      name: p.name,
+      sessions: p.sessions,
+      conversions: p.conversions,
+      conversionRate: (p.conversions / p.sessions * 100).toFixed(2) + '%'
+    })),
+    allPlatforms: platformDataArray.map(p => ({
+      name: p.name,
+      sessions: p.sessions,
+      conversions: p.conversions,
+      conversionRate: p.sessions > 0 ? (p.conversions / p.sessions * 100).toFixed(2) + '%' : '0%'
+    }))
+  });
+  
+  // Percentages and share changes already calculated above, use platformDataArray directly
+  const platformsWithPercentage = platformDataArray;
   
   // Debug: Log LLM platforms total with detailed detection stats
   let llmRowsDetected = 0;
@@ -858,11 +1174,21 @@ function transformPagesData(ga4Response, defaultUri = null) {
   // Group by page path to aggregate data
   const pageMap = new Map();
   
+  // Track unique LLM sessions by (sessionSource, sessionMedium, pageReferrer) combination
+  // This prevents double-counting sessions that visit multiple pages
+  // Key: `${sessionSource}|${sessionMedium}|${pageReferrer}`, Value: { platform, sessions }
+  const uniqueSessionCombinations = new Map();
+  
+  // Track unique LLM sessions by platform (for matching Platform Tab total)
+  // Key: platform name, Value: total unique sessions for that platform
+  const uniqueLLMSessionsByPlatform = new Map();
+  
   for (const row of rows) {
     const pagePath = row.dimensionValues?.[0]?.value || '';
     const pageTitle = row.dimensionValues?.[1]?.value || '';
     const sessionSource = row.dimensionValues?.[2]?.value || '';
     const sessionMedium = row.dimensionValues?.[3]?.value || '';
+    const pageReferrer = row.dimensionValues?.[4]?.value || ''; // Added pageReferrer dimension
     const metrics = row.metricValues || [];
 
     const sessions = parseFloat(metrics[0]?.value || '0');
@@ -881,12 +1207,28 @@ function transformPagesData(ga4Response, defaultUri = null) {
         sessions,
         conversions,
         conversionMetricIndex: 2,
-        conversionValue: metrics[2]?.value
+        conversionValue: metrics[2]?.value,
+        sessionSource,
+        sessionMedium,
+        pageReferrer
       });
     }
 
-    // Detect LLM platform from sessionSource + sessionMedium
-    const platform = detectPlatform(sessionSource, sessionMedium);
+    // Detect LLM platform from sessionSource + sessionMedium + pageReferrer (matching Platform Tab logic)
+    const platform = detectPlatform(sessionSource, sessionMedium, pageReferrer);
+
+    // Debug: Log platform detection for tracking
+    if (rows.indexOf(row) < 5) {
+      console.log('🔍 [transformPagesData] Platform detection:', {
+        pagePath,
+        sessionSource,
+        sessionMedium,
+        pageReferrer,
+        detectedPlatform: platform,
+        isLLM: isLLMPlatform(platform),
+        sessions
+      });
+    }
 
     const current = pageMap.get(pagePath) || {
       title: pageTitle,
@@ -904,21 +1246,56 @@ function transformPagesData(ga4Response, defaultUri = null) {
       platformSessions: new Map()
     };
 
+    // Only count sessions that are actually LLM platforms (matching Platform Tab behavior)
+    // This ensures consistency - Pages Tab should only show LLM sessions
+    if (!isLLMPlatform(platform)) {
+      // Skip non-LLM sessions - they passed the API filter but aren't detected as LLM
+      if (rows.indexOf(row) < 5) {
+        console.log('⏭️ [transformPagesData] Skipping non-LLM session:', {
+          pagePath,
+          platform,
+          sessions,
+          reason: 'Platform not in LLM_PLATFORMS list'
+        });
+      }
+      return; // Continue to next row without adding to pageMap
+    }
+
+    // Track sessions by unique (sessionSource, sessionMedium, pageReferrer) combination
+    // This matches how Platform Tab aggregates - sum sessions per unique combination
+    // Note: Since Pages Tab groups by pagePath, the same session combination can appear
+    // in multiple rows for different pages. We sum all sessions for each combination,
+    // matching how Platform Tab sums when grouping only by (source, medium, referrer).
+    const sessionKey = `${sessionSource}|${sessionMedium}|${pageReferrer}`;
+    const existing = uniqueSessionCombinations.get(sessionKey);
+    
+    if (!existing) {
+      // First time seeing this session combination - store it
+      uniqueSessionCombinations.set(sessionKey, { platform, sessions });
+      const currentPlatformTotal = uniqueLLMSessionsByPlatform.get(platform) || 0;
+      uniqueLLMSessionsByPlatform.set(platform, currentPlatformTotal + sessions);
+    } else {
+      // This combination exists in another page row - sum the sessions
+      // This matches Platform Tab's aggregation: sum all sessions for each unique combination
+      const totalSessions = existing.sessions + sessions;
+      uniqueSessionCombinations.set(sessionKey, { platform, sessions: totalSessions });
+      const currentPlatformTotal = uniqueLLMSessionsByPlatform.get(platform) || 0;
+      uniqueLLMSessionsByPlatform.set(platform, currentPlatformTotal + sessions);
+    }
+
     // Clone sources Set to avoid mutation issues
     const newSources = new Set(current.sources);
     const newPlatformSessions = new Map(current.platformSessions);
     
-    if (platform && platform !== 'other') {
-      newSources.add(platform);
-      // Track sessions per platform
-      const currentPlatformSessions = newPlatformSessions.get(platform) || 0;
-      newPlatformSessions.set(platform, currentPlatformSessions + sessions);
-    }
+    // Add platform to sources and track platform sessions (only LLM platforms reach here)
+    newSources.add(platform);
+    const currentPlatformSessions = newPlatformSessions.get(platform) || 0;
+    newPlatformSessions.set(platform, currentPlatformSessions + sessions);
 
     pageMap.set(pagePath, {
       title: pageTitle || current.title,
       url: defaultUri ? `${defaultUri}${pagePath}` : pagePath, // Construct full URL if defaultUri is available
-      sessions: current.sessions + sessions,
+      sessions: current.sessions + sessions, // Only LLM sessions are added
       totalEngagementRate: current.totalEngagementRate + (engagementRate * sessions),
       totalConversions: current.totalConversions + conversions,
       totalBounceRate: current.totalBounceRate + (bounceRate * sessions),
@@ -926,7 +1303,7 @@ function transformPagesData(ga4Response, defaultUri = null) {
       totalPagesPerSession: current.totalPagesPerSession + (pagesPerSession * sessions),
       totalNewUsers: current.totalNewUsers + newUsers,
       totalUsers: current.totalUsers + totalUsers,
-      sessionCount: current.sessionCount + sessions,
+      sessionCount: current.sessionCount + sessions, // Only LLM sessions are counted
       sources: newSources,
       platformSessions: newPlatformSessions
     });
@@ -934,17 +1311,39 @@ function transformPagesData(ga4Response, defaultUri = null) {
 
     // Convert to array with computed metrics
     const pages = Array.from(pageMap.entries()).map(([url, data]) => {
-      const avgEngagementRate = data.sessionCount > 0 ? (data.totalEngagementRate / data.sessionCount) * 100 : 0;
-      const avgBounceRate = data.sessionCount > 0 ? (data.totalBounceRate / data.sessionCount) * 100 : 0;
-      const avgSessionDuration = data.sessionCount > 0 ? (data.totalSessionDuration / data.sessionCount) : 0;
-      const avgPagesPerSession = data.sessionCount > 0 ? (data.totalPagesPerSession / data.sessionCount) : 0;
+      // Calculate weighted averages: divide weighted sums by total sessions
+      // GA4 returns engagementRate and bounceRate as decimals (0-1), so multiply by 100 for percentage
+      // sessionCount should equal sessions (both track LLM sessions only)
+      const avgEngagementRate = data.sessions > 0 ? (data.totalEngagementRate / data.sessions) * 100 : 0;
+      const avgBounceRate = data.sessions > 0 ? (data.totalBounceRate / data.sessions) * 100 : 0;
+      const avgSessionDuration = data.sessions > 0 ? (data.totalSessionDuration / data.sessions) : 0;
+      const avgPagesPerSession = data.sessions > 0 ? (data.totalPagesPerSession / data.sessions) : 0;
 
-      // Compute Session Quality Score (SQS)
-      const sqs = Math.min(100, Math.max(0, 
-        (avgEngagementRate * 0.4) + 
-        ((100 - avgBounceRate) * 0.3) + 
-        (Math.min(avgSessionDuration / 60, 5) * 10 * 0.2) + 
-        (Math.min(avgPagesPerSession, 5) * 20 * 0.1)
+      // Compute Session Quality Score (SQS) - Matching Platform Tab formula
+      // Engagement Rate (40%) + Conversion Rate (30%) + Pages per Session (20%) + Session Duration (10%)
+      const conversionRate = data.sessions > 0 ? (data.totalConversions / data.sessions) * 100 : 0;
+      
+      // Pages component: Cap at 5 pages, then scale to contribute up to 20% (max 20 points)
+      // If 5 pages = 20 points, then 1 page = 4 points
+      const pagesComponent = Math.min(avgPagesPerSession, 5) * 4; // Max 20 points
+      
+      // Duration component: Convert seconds to minutes, cap at 5 minutes, scale to contribute up to 10% (max 10 points)
+      // If 5 minutes = 10 points, then 1 minute = 2 points
+      const durationMinutes = avgSessionDuration / 60;
+      const durationComponent = Math.min(durationMinutes, 5) * 2; // Max 10 points
+      
+      // Engagement component: 40% weight (max 40 points)
+      const engagementComponent = avgEngagementRate * 0.4;
+      
+      // Conversion component: 30% weight (max 30 points)
+      const conversionComponent = conversionRate * 0.3;
+      
+      // Total SQS (capped at 100)
+      const sqs = Math.min(100, Math.max(0,
+        engagementComponent +
+        conversionComponent +
+        pagesComponent +
+        durationComponent
       ));
 
       // Determine content group
@@ -965,6 +1364,19 @@ function transformPagesData(ga4Response, defaultUri = null) {
             : 'Unknown');
 
       const platformSessionsObj = Object.fromEntries(data.platformSessions);
+      
+      // Validate that platformSessions sum equals page sessions
+      const platformSessionsSum = Object.values(platformSessionsObj).reduce((sum, val) => sum + (val || 0), 0);
+      if (Math.abs(platformSessionsSum - data.sessions) > 0.01) {
+        console.warn('⚠️ [transformPagesData] Platform sessions mismatch for page:', {
+          page: data.title,
+          url: url,
+          pageSessions: data.sessions,
+          platformSessionsSum: platformSessionsSum,
+          difference: Math.abs(platformSessionsSum - data.sessions),
+          platformBreakdown: platformSessionsObj
+        });
+      }
 
       // Ensure URL is properly constructed
       let finalUrl = data.url;
@@ -1002,12 +1414,75 @@ function transformPagesData(ga4Response, defaultUri = null) {
 
   // Debug: Log conversion rates summary
   const pagesWithConversions = pages.filter(p => p._totalConversions > 0);
+  const totalPageSessions = pages.reduce((sum, page) => sum + page.sessions, 0);
+  
+  // Calculate total unique LLM sessions by platform (matching Platform Tab calculation)
+  // This sums sessions per platform across all pages, matching how Platform Tab counts
+  const totalUniqueLLMSessions = Array.from(uniqueLLMSessionsByPlatform.values()).reduce((sum, sessions) => sum + sessions, 0);
+  
+  // Calculate total sessions from platformSessions to verify consistency
+  const totalPlatformSessions = pages.reduce((sum, page) => {
+    const platformTotal = Object.values(page.platformSessions || {}).reduce((pSum, pSessions) => pSum + (pSessions || 0), 0);
+    return sum + platformTotal;
+  }, 0);
+  
+  // Verify that each page's platformSessions sum equals page.sessions
+  const platformSessionMismatches = pages.filter(page => {
+    const platformSum = Object.values(page.platformSessions || {}).reduce((sum, val) => sum + (val || 0), 0);
+    return Math.abs(platformSum - page.sessions) > 0.01; // Allow small floating point differences
+  });
+  
+  // Verify weighted averages are calculated correctly
+  const totalWeightedEngagementRate = pages.reduce((sum, page) => {
+    const pageEngagementRate = page.bounce ? (100 - page.bounce) : 0; // Bounce rate is inverse of engagement
+    return sum + (pageEngagementRate * page.sessions);
+  }, 0);
+  
+  const totalWeightedBounceRate = pages.reduce((sum, page) => sum + (page.bounce * page.sessions), 0);
+  const totalWeightedConversionRate = pages.reduce((sum, page) => sum + (page.conversionRate * page.sessions), 0);
+  const totalWeightedTimeOnPage = pages.reduce((sum, page) => sum + (page.timeOnPage * page.sessions), 0);
+  
+  // Calculate overall weighted averages (should match individual page calculations)
+  const overallWeightedEngagementRate = totalPageSessions > 0 ? (totalWeightedEngagementRate / totalPageSessions) : 0;
+  const overallWeightedBounceRate = totalPageSessions > 0 ? (totalWeightedBounceRate / totalPageSessions) : 0;
+  const overallWeightedConversionRate = totalPageSessions > 0 ? (totalWeightedConversionRate / totalPageSessions) : 0;
+  const overallWeightedTimeOnPage = totalPageSessions > 0 ? (totalWeightedTimeOnPage / totalPageSessions) : 0;
+  
   console.log('🔍 [transformPagesData] Conversion summary:', {
     totalPages: pages.length,
     pagesWithConversions: pagesWithConversions.length,
-    totalSessions: pages.reduce((sum, p) => sum + p.sessions, 0),
+    totalPageSessions: totalPageSessions, // Sum of page-level sessions (may double-count)
+    totalUniqueLLMSessions: totalUniqueLLMSessions, // Unique LLM sessions by platform (matches Platform Tab)
+    totalPlatformSessions: totalPlatformSessions, // Should match totalPageSessions
+    platformSessionMismatches: platformSessionMismatches.length,
+    platformSessionMismatchDetails: platformSessionMismatches.slice(0, 3).map(p => ({
+      page: p.title.substring(0, 40),
+      pageSessions: p.sessions,
+      platformSum: Object.values(p.platformSessions || {}).reduce((sum, val) => sum + (val || 0), 0),
+      difference: Math.abs(p.sessions - Object.values(p.platformSessions || {}).reduce((sum, val) => sum + (val || 0), 0))
+    })),
+    platformBreakdown: Array.from(uniqueLLMSessionsByPlatform.entries()).map(([platform, sessions]) => ({
+      platform,
+      sessions
+    })),
     totalConversions: pages.reduce((sum, p) => sum + p._totalConversions, 0),
     defaultUri,
+    weightedAverages: {
+      engagementRate: overallWeightedEngagementRate.toFixed(2),
+      bounceRate: overallWeightedBounceRate.toFixed(2),
+      conversionRate: overallWeightedConversionRate.toFixed(2),
+      timeOnPage: overallWeightedTimeOnPage.toFixed(2)
+    },
+    pageBreakdown: pages.slice(0, 5).map(p => ({
+      page: p.title.substring(0, 40),
+      sessions: p.sessions,
+      platformSessions: Object.keys(p.platformSessions || {}).length,
+      platformTotal: Object.values(p.platformSessions || {}).reduce((sum, val) => sum + (val || 0), 0),
+      conversionRate: p.conversionRate.toFixed(2),
+      bounceRate: p.bounce.toFixed(2),
+      sqs: p.sqs.toFixed(2),
+      timeOnPage: p.timeOnPage
+    })),
     sampleUrls: pages.slice(0, 5).map(p => ({
       page: p.title,
       url: p.url,
@@ -1020,14 +1495,17 @@ function transformPagesData(ga4Response, defaultUri = null) {
       conversionRate: p.conversionRate
     }))
   });
-
-  const totalSessions = pages.reduce((sum, page) => sum + page.sessions, 0);
-  const avgSQS = pages.length > 0 ? pages.reduce((sum, page) => sum + page.sqs, 0) / pages.length : 0;
+  
+  // Calculate weighted average SQS (matching Platform Tab calculation)
+  // Use totalUniqueLLMSessions for consistency with Platform Tab
+  const totalSessionsForAvg = totalUniqueLLMSessions; // Use unique sessions for weighted average
+  const weightedSQS = pages.reduce((sum, page) => sum + (page.sqs * page.sessions), 0);
+  const avgSQS = totalSessionsForAvg > 0 ? (weightedSQS / totalSessionsForAvg) : 0;
 
   return {
     pages,
     summary: {
-      totalSessions,
+      totalSessions: totalUniqueLLMSessions, // Return unique LLM sessions to match Platform Tab
       totalPages: pages.length,
       avgSQS
     }

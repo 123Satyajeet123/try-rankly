@@ -14,25 +14,85 @@ import { PlatformTrendChart } from '@/components/charts/PlatformTrendChart'
 import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
 
 // Function to get the domain for each LLM platform for favicon fetching
+// Uses Google favicon service which automatically resolves domains for new platforms
 function getLLMDomain(platform: string): string {
-  const platformLower = platform.toLowerCase()
+  const platformLower = platform.toLowerCase().trim()
   
-  if (platformLower.includes('chatgpt') || platformLower.includes('openai')) {
+  // Comprehensive LLM platform mappings
+  // ChatGPT/OpenAI
+  if (platformLower === 'chatgpt' || platformLower.includes('openai') || platformLower.includes('gpt')) {
     return 'chatgpt.com'
   }
-  if (platformLower.includes('claude') || platformLower.includes('anthropic')) {
+  // Claude/Anthropic
+  if (platformLower === 'claude' || platformLower.includes('anthropic')) {
     return 'claude.ai'
   }
-  if (platformLower.includes('gemini')) {
+  // Gemini/Bard
+  if (platformLower === 'gemini' || platformLower === 'bard' || platformLower.includes('bard')) {
     return 'gemini.google.com'
   }
-  if (platformLower.includes('perplexity')) {
+  // Perplexity
+  if (platformLower === 'perplexity') {
     return 'perplexity.ai'
   }
-  if (platformLower.includes('google')) {
+  // Poe
+  if (platformLower === 'poe') {
+    return 'poe.com'
+  }
+  // Microsoft Copilot
+  if (platformLower === 'copilot' || platformLower.includes('microsoft copilot') || platformLower.includes('bing chat')) {
+    return 'copilot.microsoft.com'
+  }
+  // Grok (X/Twitter)
+  if (platformLower === 'grok' || platformLower.includes('grok')) {
+    return 'x.com'
+  }
+  // Character.ai
+  if (platformLower === 'character' || platformLower.includes('character.ai') || platformLower === 'characterai') {
+    return 'character.ai'
+  }
+  // You.com
+  if (platformLower === 'you' || platformLower === 'you.com' || platformLower.includes('youcom')) {
+    return 'you.com'
+  }
+  // HuggingChat
+  if (platformLower === 'huggingchat' || platformLower.includes('hugging face') || platformLower === 'huggingface') {
+    return 'huggingface.co'
+  }
+  // Pi (Inflection)
+  if (platformLower === 'pi' || platformLower.includes('inflection') || platformLower === 'heypi') {
+    return 'heypi.com'
+  }
+  // Llama/Meta AI
+  if (platformLower === 'llama' || platformLower.includes('meta ai') || platformLower === 'metaai') {
+    return 'meta.ai'
+  }
+  // Mistral
+  if (platformLower === 'mistral') {
+    return 'mistral.ai'
+  }
+  // Cohere
+  if (platformLower === 'cohere') {
+    return 'cohere.com'
+  }
+  // Google/Direct
+  if (platformLower === 'google' || platformLower === 'direct') {
     return 'google.com'
   }
   
+  // For unknown platforms, construct domain from platform name
+  // Google favicon service will automatically resolve the correct favicon
+  // Format: platformname.com (remove spaces, special chars, lowercase)
+  const cleanPlatform = platformLower
+    .replace(/\s+/g, '') // Remove spaces
+    .replace(/[^a-z0-9]/g, '') // Remove special characters
+  
+  // Try common domain extensions for LLM platforms
+  if (cleanPlatform) {
+    return `${cleanPlatform}.com` // Google favicon service will handle resolution
+  }
+  
+  // Final fallback
   return 'google.com'
 }
 
@@ -53,14 +113,42 @@ function UnifiedPlatformSplitSection({ realLLMData, dateRange = '30 days', isLoa
   const rankings = realLLMData?.data?.rankings || []
   const totalSessions = realLLMData?.data?.totalSessions || 0
   
+  // Validation: Verify data consistency
+  const calculatedTotalSessions = rankings.reduce((sum: number, r: any) => sum + (r.sessions || 0), 0)
+  const sessionsDifference = Math.abs(calculatedTotalSessions - totalSessions)
+  const totalPercentage = platformSplitData.reduce((sum: number, p: any) => sum + (p.value || 0), 0)
+  const percentageDifference = Math.abs(totalPercentage - 100)
+  
   console.log('🔍 UnifiedPlatformSplitSection processed data:', {
     platformSplitData,
     rankings,
     totalSessions,
+    calculatedTotalSessions,
+    sessionsDifference,
+    totalPercentage: totalPercentage.toFixed(2),
+    percentageDifference: percentageDifference.toFixed(2),
     hasData: platformSplitData.length > 0,
-    realLLMDataKeys: realLLMData ? Object.keys(realLLMData) : [],
-    dataKeys: realLLMData?.data ? Object.keys(realLLMData.data) : []
+    validation: {
+      sessionsMatch: sessionsDifference <= 1,
+      percentagesMatch: percentageDifference <= 0.1
+    }
   })
+  
+  // Log warning if data inconsistency detected
+  if (sessionsDifference > 1) {
+    console.warn('⚠️ [PlatformSplit] Sessions mismatch:', {
+      reportedTotal: totalSessions,
+      calculatedTotal: calculatedTotalSessions,
+      difference: sessionsDifference
+    })
+  }
+  
+  if (percentageDifference > 0.1) {
+    console.warn('⚠️ [PlatformSplit] Percentages don\'t sum to 100%:', {
+      totalPercentage: totalPercentage.toFixed(2),
+      difference: percentageDifference.toFixed(2)
+    })
+  }
 
   // Show loading skeleton if loading
   if (isLoading) {
@@ -114,11 +202,12 @@ function UnifiedPlatformSplitSection({ realLLMData, dateRange = '30 days', isLoa
     )
   }
 
-  // Calculate total traffic from all sources
-  const allSourcesTotalSessions = rankings.reduce((sum: number, ranking: any) => sum + (parseInt(ranking.sessions) || 0), 0);
-  // Note: Change/trend data not available yet, will be added in future update
-  const allSourcesTotalChange = 0;
-  const allSourcesTotalTrend = null;
+  // Use total sessions from backend directly
+  const allSourcesTotalSessions = totalSessions;
+  const allSourcesTotalAbsoluteChange = realLLMData?.data?.summary?.totalAbsoluteChange || 0;
+  const allSourcesTotalPercentageChange = realLLMData?.data?.summary?.totalPercentageChange || 0;
+  const allSourcesTotalTrend = allSourcesTotalAbsoluteChange > 0 ? 'up' : 
+                               allSourcesTotalAbsoluteChange < 0 ? 'down' : 'neutral';
   
   // Get top platform data for display
   const topPlatform = platformSplitData[0];
@@ -176,19 +265,43 @@ function UnifiedPlatformSplitSection({ realLLMData, dateRange = '30 days', isLoa
                   </DropdownMenu>
                 </div>
 
-                {/* Title and Score Display */}
+                {/* Title and Total Traffic Metrics Display */}
                 <div className="space-y-2">
-                  <div className="flex items-baseline gap-3">
-                    <div className="metric text-xl font-semibold text-foreground">
-                      {allSourcesTotalSessions.toLocaleString()}
-                      {allSourcesTotalTrend && (
-                        <span className={`text-sm font-normal ml-1 ${
-                          allSourcesTotalTrend === 'up' ? 'text-green-500' : 'text-red-500'
-                        }`}>
-                          ({allSourcesTotalTrend === 'up' ? '+' : '-'}{Math.abs(allSourcesTotalChange).toLocaleString()})
-                        </span>
-                      )}
+                  <div className="flex items-baseline gap-3 flex-wrap">
+                    {/* Total Sessions Value */}
+                    <div className="flex items-center gap-2">
+                      <div className="metric text-xl font-semibold text-foreground">
+                        {allSourcesTotalSessions.toLocaleString()}
+                      </div>
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Info className="h-3 w-3 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            <div className="max-w-xs space-y-2">
+                              <p className="text-sm font-semibold">Total Sessions</p>
+                              <p className="text-sm">Total number of sessions across all traffic sources</p>
+                              <p className="text-xs text-muted-foreground mt-1">A session is a period of user activity on your site</p>
+                              {allSourcesTotalAbsoluteChange !== 0 && (
+                                <div className="mt-2 pt-2 border-t border-border/50">
+                                  <p className="text-xs text-muted-foreground">
+                                    Change from previous period: {allSourcesTotalAbsoluteChange > 0 ? '+' : ''}{allSourcesTotalAbsoluteChange.toLocaleString()} sessions
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
                     </div>
+                    
+                    {/* Absolute Change */}
+                    {allSourcesTotalAbsoluteChange !== 0 && (
+                      <span className={`text-sm font-normal text-muted-foreground`}>
+                        ({allSourcesTotalAbsoluteChange > 0 ? '+' : ''}{allSourcesTotalAbsoluteChange.toLocaleString()})
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -392,7 +505,7 @@ function UnifiedPlatformSplitSection({ realLLMData, dateRange = '30 days', isLoa
               {/* Right Section: Horizontal Bar Chart */}
               <div className="space-y-4 pl-8 relative">
                 <div className="space-y-1">
-                  <h3 className="text-foreground text-sm font-medium">Platform Rankings</h3>
+                  <h3 className="text-foreground text-sm font-medium">Source Rankings</h3>
                   <div className="text-sm text-muted-foreground">Top {rankings.length} Sources</div>
                 </div>
 
@@ -402,21 +515,67 @@ function UnifiedPlatformSplitSection({ realLLMData, dateRange = '30 days', isLoa
                     <TableHeader>
                       <TableRow className="border-border/60">
                         <TableHead className="caption text-muted-foreground py-2 pl-0 pr-3">
-                          Platform
+                          <div className="flex items-center gap-2">
+                            Platform
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="w-3 h-3 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-sm">Traffic source with session count and absolute change from previous period</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
                         </TableHead>
                         <TableHead className="text-right caption text-muted-foreground py-2 px-3 w-24">
-                          Share
+                          <div className="flex items-center justify-end gap-2">
+                            Share
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="w-3 h-3 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <div className="max-w-xs space-y-2">
+                                    <p className="text-sm font-semibold">Share</p>
+                                    <p className="text-sm">Percentage share of total traffic from this source</p>
+                                    <p className="text-xs text-muted-foreground mt-1">Calculated as: (Platform Sessions / Total Sessions) × 100%</p>
+                                    <div className="mt-2 pt-2 border-t border-border/50">
+                                      <p className="text-xs font-semibold mb-1">Change Indicator:</p>
+                                      <p className="text-xs text-muted-foreground">Shows percentage point change (share % - previous share %)</p>
+                                      <p className="text-xs text-muted-foreground mt-1">Example: If share increased from 20% to 22%, change = +2.00%</p>
+                                    </div>
+                                  </div>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          </div>
                         </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {rankings.map((ranking: any, index: number) => {
-                        const maxSessions = Math.max(...rankings.map((r: any) => parseInt(r.sessions) || 0))
-                        const barWidth = maxSessions > 0 ? ((parseInt(ranking.sessions) || 0) / maxSessions) * 100 : 0
+                        const maxSessions = Math.max(...rankings.map((r: any) => r.sessions || 0))
+                        const barWidth = maxSessions > 0 ? ((ranking.sessions || 0) / maxSessions) * 100 : 0
                         // Use real trend data from backend
                         const trend = ranking.trend || 'neutral'
-                        const absoluteChange = Math.abs(ranking.absoluteChange || 0)
-                        const percentageChange = Math.abs(ranking.change || 0)
+                        const absoluteChange = ranking.absoluteChange || 0
+                        const shareChange = ranking.shareChange || 0 // Share percentage change
+                        
+                        // Debug logging for first few rankings
+                        if (index < 3) {
+                          console.log('🔍 [PlatformSplit] Ranking data:', {
+                            name: ranking.name,
+                            sessions: ranking.sessions,
+                            percentage: ranking.percentage,
+                            shareChange,
+                            absoluteChange,
+                            trend,
+                            rankingObject: ranking
+                          })
+                        }
                         
                         return (
                           <TableRow 
@@ -425,27 +584,8 @@ function UnifiedPlatformSplitSection({ realLLMData, dateRange = '30 days', isLoa
                           >
                             <TableCell className="py-2 pl-0 pr-3">
                               <div className="space-y-1">
-                                {/* Platform name with favicon */}
+                                {/* Platform name without favicon */}
                                 <div className="flex items-center gap-2">
-                                  <img
-                                    src={getDynamicFaviconUrl(getLLMDomain(ranking.name), 16)}
-                                    alt={`${ranking.name} favicon`}
-                                    className="w-4 h-4 rounded-sm"
-                                    data-favicon-identifier={ranking.name}
-                                    data-favicon-size="16"
-                                    onError={(e) => {
-                                      handleFaviconError(e as any)
-                                      // Also apply custom fallback for visual consistency
-                                      const target = e.target as HTMLImageElement
-                                      if (!target.src.includes('fetchfavicon') && !target.src.includes('google.com')) {
-                                        target.style.display = 'none'
-                                        const fallback = document.createElement('div')
-                                        fallback.className = 'w-2.5 h-2.5 rounded-full'
-                                        fallback.style.backgroundColor = platformSplitData[index]?.color || '#6B7280'
-                                        target.parentNode?.insertBefore(fallback, target)
-                                      }
-                                    }}
-                                  />
                                   <div className="flex items-center gap-1">
                                     <span className="text-xs font-medium" style={{ color: platformSplitData[index]?.color || '#6B7280' }}>
                                       {ranking.name}
@@ -477,10 +617,10 @@ function UnifiedPlatformSplitSection({ realLLMData, dateRange = '30 days', isLoa
                                         }}
                                       />
                                     </div>
-                                    <div className="text-xs font-medium text-foreground min-w-[50px] text-right">
-                                      {(parseInt(ranking.sessions) || 0).toLocaleString()}
-                                      <span className="text-muted-foreground ml-1 text-[10px]">
-                                        ({trend === 'up' ? '+' : '-'}{absoluteChange})
+                                    <div className="text-sm font-semibold text-foreground min-w-[50px] text-right">
+                                      {(ranking.sessions || 0).toLocaleString()}
+                                      <span className="text-muted-foreground ml-1 text-[10px] font-normal">
+                                        ({absoluteChange > 0 ? '+' : ''}{absoluteChange.toLocaleString()})
                                       </span>
                                     </div>
                                   </div>
@@ -488,24 +628,28 @@ function UnifiedPlatformSplitSection({ realLLMData, dateRange = '30 days', isLoa
                               </div>
                             </TableCell>
                             <TableCell className="text-right py-2 px-3 w-24">
-                              <div className="flex items-center justify-between">
-                                <span className="text-sm text-foreground font-medium">
+                              <div className="flex items-center justify-end gap-2">
+                                {/* Percentage Share */}
+                                <span className="text-xs text-muted-foreground font-normal">
                                   {parseFloat(ranking.percentage.replace('%', '')) > 0 
                                     ? parseFloat(ranking.percentage.replace('%', '')).toFixed(2) + '%'
                                     : '0.00%'}
                                 </span>
-                                <div className="flex items-center gap-1">
-                                  {trend === 'up' ? (
-                                    <ModernTrendUp className="w-3 h-3 text-green-500" />
-                                  ) : (
-                                    <ModernTrendDown className="w-3 h-3 text-red-500" />
-                                  )}
-                                  <span className={`text-xs font-medium ${
-                                    trend === 'up' ? 'text-green-500' : 'text-red-500'
-                                  }`}>
-                                    {percentageChange.toFixed(2)}%
-                                  </span>
-                                </div>
+                                {/* Percentage Change with Trend Arrow */}
+                                {Math.abs(shareChange) >= 0.01 && (
+                                  <div className="flex items-center gap-1">
+                                    {trend === 'up' ? (
+                                      <ModernTrendUp className="w-3 h-3 text-green-500" />
+                                    ) : (
+                                      <ModernTrendDown className="w-3 h-3 text-red-500" />
+                                    )}
+                                    <span className={`text-xs font-medium ${
+                                      trend === 'up' ? 'text-green-500' : 'text-red-500'
+                                    }`}>
+                                      {Math.abs(shareChange).toFixed(2)}%
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             </TableCell>
                           </TableRow>

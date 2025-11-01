@@ -7,118 +7,69 @@ export function PagesSkeleton() {
       {/* Page Performance Section */}
       <UnifiedCard className="w-full">
         <UnifiedCardContent className="p-6">
-          <div className="space-y-4">
+          <div className="space-y-6">
+            {/* Header */}
             <div className="flex items-center justify-between">
               <div className="space-y-2">
-                <Skeleton className="h-6 w-40" />
-                <Skeleton className="h-4 w-80" />
-              </div>
-              <div className="flex items-center gap-3">
-                <Skeleton className="h-8 w-24" />
-                <Skeleton className="h-8 w-8 rounded" />
+                <Skeleton className="h-7 w-48" />
+                <Skeleton className="h-4 w-96" />
               </div>
             </div>
-            
-            {/* Summary Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-8 w-20" />
-              </div>
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-32" />
-                <Skeleton className="h-8 w-16" />
-              </div>
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-28" />
-                <Skeleton className="h-8 w-18" />
-              </div>
-            </div>
-            
-            {/* Chart Area */}
-            <div className="h-[300px] bg-muted animate-pulse rounded-lg" />
-            
-            {/* Chart Controls */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Skeleton className="h-4 w-4 rounded-full" />
-                <Skeleton className="h-4 w-4 rounded-full" />
-                <Skeleton className="h-4 w-4 rounded-full" />
-                <Skeleton className="h-4 w-4 rounded-full" />
-                <Skeleton className="h-4 w-4 rounded-full" />
-              </div>
-              <div className="flex items-center gap-2">
-                <Skeleton className="h-8 w-32" />
-                <Skeleton className="h-8 w-8 rounded" />
-              </div>
-            </div>
-          </div>
-        </UnifiedCardContent>
-      </UnifiedCard>
 
-      {/* Top Pages Section */}
-      <UnifiedCard className="w-full">
-        <UnifiedCardContent className="p-6">
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
-                <Skeleton className="h-6 w-32" />
-                <Skeleton className="h-4 w-48" />
-              </div>
+            {/* Conversion Event Selector and Summary Metrics */}
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-2">
-                <Skeleton className="h-8 w-24" />
-                <Skeleton className="h-8 w-8 rounded" />
+                <Skeleton className="h-9 w-32" />
+                <Skeleton className="h-9 w-40" />
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-6 w-12" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-32" />
+                  <Skeleton className="h-6 w-16" />
+                </div>
               </div>
             </div>
             
-            {/* Pages Table */}
+            {/* Table Skeleton */}
             <div className="space-y-2">
-              <div className="grid grid-cols-5 gap-4 p-3 bg-muted/50 rounded-lg">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <Skeleton key={i} className="h-4 w-full" />
-                ))}
+              {/* Table Header */}
+              <div className="grid grid-cols-6 gap-4 p-4 border-b">
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-28" />
+                <Skeleton className="h-4 w-20" />
+                <Skeleton className="h-4 w-32" />
+                <Skeleton className="h-4 w-24" />
+                <Skeleton className="h-4 w-20" />
               </div>
               
               {/* Table Rows */}
               {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((row) => (
-                <div key={row} className="grid grid-cols-5 gap-4 p-3 border rounded-lg">
-                  <div className="col-span-2">
+                <div key={row} className="grid grid-cols-6 gap-4 p-4 border-b">
+                  {/* Page column (2 cols worth) */}
+                  <div className="col-span-2 space-y-2">
                     <Skeleton className="h-4 w-full" />
-                    <Skeleton className="h-3 w-3/4 mt-1" />
+                    <Skeleton className="h-3 w-3/4" />
                   </div>
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-full" />
-                  <Skeleton className="h-4 w-full" />
-                </div>
-              ))}
-            </div>
-          </div>
-        </UnifiedCardContent>
-      </UnifiedCard>
-
-      {/* Page Categories Section */}
-      <UnifiedCard className="w-full">
-        <UnifiedCardContent className="p-6">
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Skeleton className="h-6 w-40" />
-              <Skeleton className="h-4 w-64" />
-            </div>
-            
-            {/* Category Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[1, 2, 3, 4, 5, 6].map((i) => (
-                <div key={i} className="p-4 border rounded-lg space-y-3">
-                  <div className="flex items-center gap-2">
-                    <Skeleton className="h-5 w-5 rounded" />
-                    <Skeleton className="h-4 w-24" />
+                  {/* LLM Sessions */}
+                  <div className="flex items-center justify-center">
+                    <Skeleton className="h-4 w-12" />
                   </div>
-                  <div className="space-y-2">
-                    <Skeleton className="h-6 w-16" />
-                    <Skeleton className="h-4 w-20" />
+                  {/* Platform */}
+                  <div className="flex items-center justify-center gap-2">
+                    <Skeleton className="h-5 w-5 rounded-sm" />
+                    <Skeleton className="h-4 w-8" />
                   </div>
-                  <div className="h-2 bg-muted rounded-full">
-                    <Skeleton className="h-2 w-3/4 rounded-full" />
+                  {/* SQS */}
+                  <div className="flex items-center justify-center">
+                    <Skeleton className="h-4 w-16" />
+                  </div>
+                  {/* Conversion Rate */}
+                  <div className="flex items-center justify-center">
+                    <Skeleton className="h-4 w-12" />
                   </div>
                 </div>
               ))}

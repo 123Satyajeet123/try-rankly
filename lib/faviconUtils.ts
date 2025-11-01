@@ -83,12 +83,50 @@ export const getFaviconUrlForDomain = (domain: string, size: number = 16): strin
  * These bypass the Google favicon API to use the official favicon URLs directly
  */
 const DIRECT_FAVICON_MAPPINGS: Record<string, string> = {
-  'chatgpt': 'https://chat.openai.com/favicon.ico',
-  'openai': 'https://chat.openai.com/favicon.ico',
-  'gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
-  'claude': 'https://claude.ai/favicon.ico',
-  'anthropic': 'https://claude.ai/favicon.ico',
-  'perplexity': 'https://www.perplexity.ai/favicon.ico'
+  // ChatGPT/OpenAI
+  'chatgpt': 'https://www.google.com/s2/favicons?domain=chatgpt.com&sz=32',
+  'openai': 'https://www.google.com/s2/favicons?domain=chatgpt.com&sz=32',
+  'gpt': 'https://www.google.com/s2/favicons?domain=chatgpt.com&sz=32',
+  // Claude/Anthropic
+  'claude': 'https://www.google.com/s2/favicons?domain=claude.ai&sz=32',
+  'anthropic': 'https://www.google.com/s2/favicons?domain=claude.ai&sz=32',
+  // Gemini/Bard
+  'gemini': 'https://www.google.com/s2/favicons?domain=gemini.google.com&sz=32',
+  'bard': 'https://www.google.com/s2/favicons?domain=gemini.google.com&sz=32',
+  // Perplexity
+  'perplexity': 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=32',
+  // Poe
+  'poe': 'https://www.google.com/s2/favicons?domain=poe.com&sz=32',
+  // Microsoft Copilot
+  'copilot': 'https://www.google.com/s2/favicons?domain=copilot.microsoft.com&sz=32',
+  'microsoft copilot': 'https://www.google.com/s2/favicons?domain=copilot.microsoft.com&sz=32',
+  'bing chat': 'https://www.google.com/s2/favicons?domain=copilot.microsoft.com&sz=32',
+  // Grok (X/Twitter)
+  'grok': 'https://www.google.com/s2/favicons?domain=x.com&sz=32',
+  // Character.ai
+  'character': 'https://www.google.com/s2/favicons?domain=character.ai&sz=32',
+  'character.ai': 'https://www.google.com/s2/favicons?domain=character.ai&sz=32',
+  'characterai': 'https://www.google.com/s2/favicons?domain=character.ai&sz=32',
+  // You.com
+  'you': 'https://www.google.com/s2/favicons?domain=you.com&sz=32',
+  'you.com': 'https://www.google.com/s2/favicons?domain=you.com&sz=32',
+  'youcom': 'https://www.google.com/s2/favicons?domain=you.com&sz=32',
+  // HuggingChat
+  'huggingchat': 'https://www.google.com/s2/favicons?domain=huggingface.co&sz=32',
+  'hugging face': 'https://www.google.com/s2/favicons?domain=huggingface.co&sz=32',
+  'huggingface': 'https://www.google.com/s2/favicons?domain=huggingface.co&sz=32',
+  // Pi (Inflection)
+  'pi': 'https://www.google.com/s2/favicons?domain=heypi.com&sz=32',
+  'inflection': 'https://www.google.com/s2/favicons?domain=heypi.com&sz=32',
+  'heypi': 'https://www.google.com/s2/favicons?domain=heypi.com&sz=32',
+  // Llama/Meta AI
+  'llama': 'https://www.google.com/s2/favicons?domain=meta.ai&sz=32',
+  'meta ai': 'https://www.google.com/s2/favicons?domain=meta.ai&sz=32',
+  'metaai': 'https://www.google.com/s2/favicons?domain=meta.ai&sz=32',
+  // Mistral
+  'mistral': 'https://www.google.com/s2/favicons?domain=mistral.ai&sz=32',
+  // Cohere
+  'cohere': 'https://www.google.com/s2/favicons?domain=cohere.com&sz=32'
 }
 
 /**
@@ -158,17 +196,63 @@ export const getDynamicFaviconUrl = (
 
 // Internal: name-based mapping and fallback generation
 const getDynamicFaviconFromName = (companyName: string, size: number = 16): string => {
-  // First check for known platform mappings - matching top navbar implementation
+  // First check for known platform mappings - using Google favicon service for consistency
   const faviconMap: Record<string, string> = {
-    'ChatGPT': 'https://chat.openai.com/favicon.ico',
-    'OpenAI': 'https://chat.openai.com/favicon.ico',
-    'openai': 'https://chat.openai.com/favicon.ico',
-    'Claude': 'https://claude.ai/favicon.ico',
-    'claude': 'https://claude.ai/favicon.ico',
-    'Gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
-    'gemini': 'https://www.gstatic.com/lamda/images/gemini_sparkle_v002_d4735304ff6292a690345.svg',
+    // ChatGPT/OpenAI
+    'ChatGPT': 'https://www.google.com/s2/favicons?domain=chatgpt.com&sz=32',
+    'OpenAI': 'https://www.google.com/s2/favicons?domain=chatgpt.com&sz=32',
+    'openai': 'https://www.google.com/s2/favicons?domain=chatgpt.com&sz=32',
+    'GPT': 'https://www.google.com/s2/favicons?domain=chatgpt.com&sz=32',
+    'gpt': 'https://www.google.com/s2/favicons?domain=chatgpt.com&sz=32',
+    // Claude/Anthropic
+    'Claude': 'https://www.google.com/s2/favicons?domain=claude.ai&sz=32',
+    'claude': 'https://www.google.com/s2/favicons?domain=claude.ai&sz=32',
+    'Anthropic': 'https://www.google.com/s2/favicons?domain=claude.ai&sz=32',
+    // Gemini/Bard
+    'Gemini': 'https://www.google.com/s2/favicons?domain=gemini.google.com&sz=32',
+    'gemini': 'https://www.google.com/s2/favicons?domain=gemini.google.com&sz=32',
+    'Bard': 'https://www.google.com/s2/favicons?domain=gemini.google.com&sz=32',
+    'bard': 'https://www.google.com/s2/favicons?domain=gemini.google.com&sz=32',
+    // Perplexity
     'perplexity': 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=32',
     'Perplexity': 'https://www.google.com/s2/favicons?domain=perplexity.ai&sz=32',
+    // Poe
+    'Poe': 'https://www.google.com/s2/favicons?domain=poe.com&sz=32',
+    'poe': 'https://www.google.com/s2/favicons?domain=poe.com&sz=32',
+    // Microsoft Copilot
+    'Copilot': 'https://www.google.com/s2/favicons?domain=copilot.microsoft.com&sz=32',
+    'copilot': 'https://www.google.com/s2/favicons?domain=copilot.microsoft.com&sz=32',
+    'Microsoft Copilot': 'https://www.google.com/s2/favicons?domain=copilot.microsoft.com&sz=32',
+    'Bing Chat': 'https://www.google.com/s2/favicons?domain=copilot.microsoft.com&sz=32',
+    // Grok
+    'Grok': 'https://www.google.com/s2/favicons?domain=x.com&sz=32',
+    'grok': 'https://www.google.com/s2/favicons?domain=x.com&sz=32',
+    // Character.ai
+    'Character': 'https://www.google.com/s2/favicons?domain=character.ai&sz=32',
+    'character': 'https://www.google.com/s2/favicons?domain=character.ai&sz=32',
+    'Character.ai': 'https://www.google.com/s2/favicons?domain=character.ai&sz=32',
+    // You.com
+    'You': 'https://www.google.com/s2/favicons?domain=you.com&sz=32',
+    'you': 'https://www.google.com/s2/favicons?domain=you.com&sz=32',
+    'You.com': 'https://www.google.com/s2/favicons?domain=you.com&sz=32',
+    // HuggingChat
+    'HuggingChat': 'https://www.google.com/s2/favicons?domain=huggingface.co&sz=32',
+    'huggingchat': 'https://www.google.com/s2/favicons?domain=huggingface.co&sz=32',
+    'Hugging Face': 'https://www.google.com/s2/favicons?domain=huggingface.co&sz=32',
+    // Pi
+    'Pi': 'https://www.google.com/s2/favicons?domain=heypi.com&sz=32',
+    'pi': 'https://www.google.com/s2/favicons?domain=heypi.com&sz=32',
+    'Inflection': 'https://www.google.com/s2/favicons?domain=heypi.com&sz=32',
+    // Meta AI/Llama
+    'Llama': 'https://www.google.com/s2/favicons?domain=meta.ai&sz=32',
+    'llama': 'https://www.google.com/s2/favicons?domain=meta.ai&sz=32',
+    'Meta AI': 'https://www.google.com/s2/favicons?domain=meta.ai&sz=32',
+    // Mistral
+    'Mistral': 'https://www.google.com/s2/favicons?domain=mistral.ai&sz=32',
+    'mistral': 'https://www.google.com/s2/favicons?domain=mistral.ai&sz=32',
+    // Cohere
+    'Cohere': 'https://www.google.com/s2/favicons?domain=cohere.com&sz=32',
+    'cohere': 'https://www.google.com/s2/favicons?domain=cohere.com&sz=32',
     // Credit card companies
     'HDFC Bank': 'https://www.google.com/s2/favicons?domain=hdfcbank.com&sz=32',
     'HDFC Bank Freedom Credit Card': 'https://www.google.com/s2/favicons?domain=hdfcbank.com&sz=32',
