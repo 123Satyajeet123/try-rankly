@@ -76,7 +76,7 @@ function ChartSkeleton({
   type = "bar", 
   className, 
   ...props 
-}: React.HTMLAttributes<HTMLDivElement> & { type?: "bar" | "line" | "donut" }) {
+}: React.HTMLAttributes<HTMLDivElement> & { type?: "bar" | "line" | "donut" | "trend" }) {
   if (type === "donut") {
     return (
       <div className={cn("flex items-center justify-center h-64", className)} {...props}>
@@ -88,23 +88,80 @@ function ChartSkeleton({
     )
   }
 
+  if (type === "trend" || type === "line") {
+    return (
+      <div className={cn("space-y-4", className)} {...props}>
+        {/* Line chart skeleton with axis */}
+        <div className="relative h-full space-y-3">
+          {/* Y-axis labels */}
+          <div className="absolute left-0 top-0 bottom-8 w-8 flex flex-col justify-between">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <SkeletonShimmer key={i} className="h-3 w-6" />
+            ))}
+          </div>
+          {/* Chart area with lines */}
+          <div className="ml-10 h-full space-y-4">
+            {[0, 1, 2].map((line) => (
+              <div key={line} className="relative h-8">
+                <SkeletonShimmer className="h-1 w-full rounded-full" />
+                <div className="absolute top-0 left-0 w-full flex justify-between">
+                  {[0, 1, 2, 3, 4, 5, 6].map((point) => (
+                    <SkeletonShimmer key={point} className="h-2 w-2 rounded-full" />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* X-axis labels */}
+          <div className="ml-10 flex justify-between mt-2">
+            {[0, 1, 2, 3, 4, 5, 6].map((i) => (
+              <SkeletonShimmer key={i} className="h-3 w-10" />
+            ))}
+          </div>
+        </div>
+        {/* Legend */}
+        <div className="flex justify-center space-x-4 mt-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="flex items-center space-x-2">
+              <SkeletonShimmer className="h-3 w-3 rounded-full" />
+              <SkeletonShimmer className="h-3 w-16" />
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Bar chart skeleton
   return (
     <div className={cn("space-y-4", className)} {...props}>
-      {/* Chart area */}
-      <div className="h-48 space-y-3">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <SkeletonShimmer 
-            key={i} 
-            className={cn(
-              "h-4 rounded",
-              type === "line" ? "w-full" : `w-${Math.floor(Math.random() * 60) + 20}`
-            )} 
-          />
-        ))}
+      {/* Chart area with bars */}
+      <div className="relative h-full">
+        {/* Y-axis labels */}
+        <div className="absolute left-0 top-0 bottom-8 w-8 flex flex-col justify-between">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <SkeletonShimmer key={i} className="h-3 w-6" />
+          ))}
+        </div>
+        {/* Bars */}
+        <div className="ml-10 h-full flex items-end justify-between gap-2">
+          {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => {
+            const heights = [60, 45, 80, 35, 70, 50, 55, 40]
+            return (
+              <div key={i} className="flex-1 flex flex-col items-center gap-2">
+                <SkeletonShimmer 
+                  className="w-full rounded-t transition-all"
+                  style={{ height: `${heights[i % heights.length]}%` }}
+                />
+                <SkeletonShimmer className="h-3 w-full max-w-[80%]" />
+              </div>
+            )
+          })}
+        </div>
       </div>
       {/* Legend */}
-      <div className="flex justify-center space-x-4">
-        {Array.from({ length: 3 }).map((_, i) => (
+      <div className="flex justify-center space-x-4 mt-4">
+        {[1, 2, 3].map((i) => (
           <div key={i} className="flex items-center space-x-2">
             <SkeletonShimmer className="h-3 w-3 rounded-full" />
             <SkeletonShimmer className="h-3 w-16" />

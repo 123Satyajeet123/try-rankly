@@ -32,7 +32,7 @@ const generateSlug = (pagePath?: string, pageTitle?: string, pageUrl?: string): 
     try {
       const url = new URL(pageUrl)
       path = url.pathname
-    } catch (e) {
+    } catch {
       // If URL parsing fails, use as-is
       path = pageUrl
     }
@@ -331,8 +331,9 @@ export function JourneyTab({ realJourneyData, dateRange = '7 days', isLoading = 
           const totalSessionsFromPages = result.data.pages.reduce((sum: number, page: PageData) => {
             const platformSessions = (page as any).platformSessions || {}
             if (platformSessions && typeof platformSessions === 'object' && Object.keys(platformSessions).length > 0) {
-              return sum + Object.values(platformSessions).reduce((pSum: number, pSessions: any) => 
-                pSum + (typeof pSessions === 'number' ? pSessions : parseInt(pSessions) || 0), 0)
+              const platformSum = Object.values(platformSessions).reduce((pSum: number, pSessions: any) => 
+                pSum + (typeof pSessions === 'number' ? pSessions : parseInt(String(pSessions)) || 0), 0) as number
+              return sum + platformSum
             }
             return sum + (page.sessions || 0)
           }, 0)
@@ -476,9 +477,8 @@ export function JourneyTab({ realJourneyData, dateRange = '7 days', isLoading = 
       // Chart options with platform-specific colors
       const isDarkMode = document.documentElement.classList.contains('dark')
       
-      // Get unique platforms and slugs in order (left to right)
+      // Get unique platforms in order (left to right)
       const uniquePlatforms = Array.from(new Set(sankeyData.map(link => link.from)))
-      const uniqueSlugs = Array.from(new Set(sankeyData.map(link => link.to)))
       
       // Create color arrays - need enough colors for all unique source platforms
       // Google Charts will map colors based on source node order when colorMode is 'source'
@@ -559,12 +559,33 @@ export function JourneyTab({ realJourneyData, dateRange = '7 days', isLoading = 
           // Check if dark mode
           const isDarkMode = document.documentElement.classList.contains('dark')
           
-          // Disable hover on sankey links (paths) - remove tooltips
+          // Disable hover on sankey links (paths) - remove tooltips completely
           const paths = svg.querySelectorAll('path')
           paths.forEach(path => {
-            // Disable pointer events on sankey paths to prevent hover tooltips
-            path.setAttribute('style', 'cursor: default; pointer-events: none;')
+            // Completely disable pointer events on sankey paths to prevent hover tooltips
+            path.setAttribute('style', 'cursor: default; pointer-events: none !important;')
             path.setAttribute('pointer-events', 'none')
+            path.removeAttribute('onmouseover')
+            path.removeAttribute('onmouseout')
+            path.removeAttribute('onmousemove')
+            path.removeAttribute('onclick')
+            // Remove any event listeners by cloning the node
+            const newPath = path.cloneNode(true)
+            path.parentNode?.replaceChild(newPath, path)
+          })
+          
+          // Also disable hover on any groups that contain paths
+          const groups = svg.querySelectorAll('g')
+          groups.forEach(group => {
+            const hasPaths = group.querySelector('path')
+            if (hasPaths) {
+              // Don't disable pointer events on the group itself, just ensure paths inside can't be hovered
+              const groupPaths = group.querySelectorAll('path')
+              groupPaths.forEach(path => {
+                path.setAttribute('style', 'cursor: default; pointer-events: none !important;')
+                path.setAttribute('pointer-events', 'none')
+              })
+            }
           })
           
           // Force all rect nodes to be neutral gray (both left and right side)
@@ -577,9 +598,8 @@ export function JourneyTab({ realJourneyData, dateRange = '7 days', isLoading = 
               // Remove any hover events from rect nodes
               rect.setAttribute('pointer-events', 'none')
               
-              // Force all nodes to neutral gray color - check fill and style
+              // Force all nodes to neutral gray color - check fill
               const currentFill = rect.getAttribute('fill') || ''
-              const currentStyle = rect.getAttribute('style') || ''
               
               // Check if it's a node (not a background element) - nodes usually have non-transparent fills
               if (currentFill && currentFill !== 'none' && currentFill !== 'transparent' && currentFill !== '#ffffff') {
@@ -608,14 +628,15 @@ export function JourneyTab({ realJourneyData, dateRange = '7 days', isLoading = 
           console.log('🎨 [JourneyTab] Set all nodes to neutral gray, only links have platform colors')
           
           // Process labels: style, position outside, and add hover for slugs
+          const labelColor = isDarkMode ? '#ffffff' : '#000000'
+          const strokeColor = isDarkMode ? '#000000' : '#ffffff'
+          
+          // Process each label individually
           labels.forEach((label) => {
             const text = label.textContent?.trim() || ''
             if (!text) return
 
             // Enhanced styling for all labels - better visibility
-            const labelColor = isDarkMode ? '#ffffff' : '#000000'
-            const strokeColor = isDarkMode ? '#000000' : '#ffffff'
-            
             label.setAttribute('font-weight', '700')
             label.setAttribute('font-size', '16')
             label.setAttribute('fill', labelColor)
@@ -624,7 +645,6 @@ export function JourneyTab({ realJourneyData, dateRange = '7 days', isLoading = 
             label.setAttribute('stroke-linejoin', 'round')
             label.setAttribute('stroke-linecap', 'round')
             label.setAttribute('paint-order', 'stroke fill')
-            label.setAttribute('pointer-events', 'all') // Enable hover for all labels
             
             // Add text shadow effect using filter (if supported)
             if (!isDarkMode) {
@@ -652,24 +672,30 @@ export function JourneyTab({ realJourneyData, dateRange = '7 days', isLoading = 
                 platformText.includes('character') || platformText.includes('llm')) && !text.startsWith('/')
             const isSlug = text.startsWith('/')
 
-            // Move platform labels to the left (outside sankey)
+            // Move platform labels to the left (outside sankey) - no hover needed
             if (isPlatform) {
               const newX = baseX - 220
               label.setAttribute('transform', `translate(${newX}, ${baseY})`)
               label.setAttribute('text-anchor', 'end')
+              label.setAttribute('pointer-events', 'none') // No hover on platform labels
               console.log('📍 [JourneyTab] Moved platform label left:', text, 'x:', baseX, '->', newX)
             }
 
             // Move slug labels to the right (outside sankey) and add hover
             if (isSlug) {
               const newX = baseX + 220
+              const slugText = text // Capture in closure
+              
+              // Set position and styling
               label.setAttribute('transform', `translate(${newX}, ${baseY})`)
               label.setAttribute('text-anchor', 'start')
-              label.setAttribute('style', 'cursor: pointer; pointer-events: all !important;')
+              
+              // Ensure slug labels can receive mouse events
+              label.setAttribute('style', 'cursor: pointer; pointer-events: all;')
+              label.setAttribute('pointer-events', 'all')
               
               // Add hover events to slug labels
-              const slugText = text // Capture in closure
-              const handleMouseEnter = (e: Event) => {
+              const handleMouseEnter = (e: MouseEvent) => {
                 e.stopPropagation()
                 // Use ref to get latest map data (avoids stale closure issues)
                 const currentMap = slugToPagesMapRef.current
@@ -689,17 +715,41 @@ export function JourneyTab({ realJourneyData, dateRange = '7 days', isLoading = 
                 }
               }
               
-              const handleMouseLeave = (e: Event) => {
+              const handleMouseLeave = (e: MouseEvent) => {
                 e.stopPropagation()
                 setHoveredSlug(null)
                 setHoverPosition(null)
               }
               
-              // Add event listeners
-              label.addEventListener('mouseenter', handleMouseEnter, { capture: true })
-              label.addEventListener('mouseleave', handleMouseLeave, { capture: true })
+              // Remove any existing listeners first by removing and re-adding
+              const newLabel = label.cloneNode(false) as SVGTextElement
+              // Copy all attributes
+              Array.from(label.attributes).forEach(attr => {
+                newLabel.setAttribute(attr.name, attr.value)
+              })
+              newLabel.textContent = label.textContent
+              label.parentNode?.replaceChild(newLabel, label)
               
-              console.log('✅ [JourneyTab] Set up slug label:', slugText, 'x:', baseX, '->', newX)
+              // Re-apply styling after cloning
+              newLabel.setAttribute('transform', `translate(${newX}, ${baseY})`)
+              newLabel.setAttribute('text-anchor', 'start')
+              newLabel.setAttribute('style', 'cursor: pointer; pointer-events: all;')
+              newLabel.setAttribute('pointer-events', 'all')
+              newLabel.setAttribute('font-weight', '700')
+              newLabel.setAttribute('font-size', '16')
+              newLabel.setAttribute('fill', labelColor)
+              newLabel.setAttribute('stroke', strokeColor)
+              newLabel.setAttribute('stroke-width', '2')
+              newLabel.setAttribute('stroke-linejoin', 'round')
+              newLabel.setAttribute('stroke-linecap', 'round')
+              newLabel.setAttribute('paint-order', 'stroke fill')
+              
+              // Add event listeners to the new label
+              newLabel.addEventListener('mouseenter', handleMouseEnter, { capture: true })
+              newLabel.addEventListener('mouseleave', handleMouseLeave, { capture: true })
+              newLabel.addEventListener('mouseover', handleMouseEnter, { capture: true })
+              
+              console.log('✅ [JourneyTab] Set up slug label with hover:', slugText, 'x:', baseX, '->', newX)
             }
           })
         }, 400) // wait 400 ms to ensure nodes are ready
@@ -881,7 +931,7 @@ export function JourneyTab({ realJourneyData, dateRange = '7 days', isLoading = 
                           <p className="text-sm font-semibold">Total LLM Sessions</p>
                           <p className="text-sm">Total number of <strong>unique</strong> sessions from LLM providers</p>
                           <p className="text-xs text-muted-foreground mt-1">
-                            Each session is counted once, regardless of how many pages it visits. This matches the Pages Tab's "Total Sessions" for consistency.
+                            Each session is counted once, regardless of how many pages it visits. This matches the Pages Tab&apos;s &quot;Total Sessions&quot; for consistency.
                           </p>
                           <div className="mt-2 pt-2 border-t border-border/50">
                             <p className="text-xs font-semibold mb-1">Note:</p>

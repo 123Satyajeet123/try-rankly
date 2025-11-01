@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { UnifiedCard, UnifiedCardContent } from '@/components/ui/unified-card'
+import { SkeletonShimmer } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
@@ -167,17 +168,30 @@ function UnifiedPlatformsSplitSection({ realLLMData, dateRange = '30 days', isLo
       <div className="w-full space-y-4">
         <UnifiedCard className="w-full">
           <UnifiedCardContent className="p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div className="space-y-2">
-                <div className="h-6 w-40 bg-muted animate-pulse rounded" />
-                <div className="h-4 w-72 bg-muted animate-pulse rounded" />
+            <div className="space-y-6">
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <SkeletonShimmer className="h-7 w-56" />
+                  <SkeletonShimmer className="h-4 w-72" />
+                </div>
               </div>
-            </div>
-            <div className="grid grid-cols-12 gap-6">
-              <div className="col-span-7 h-80 bg-muted animate-pulse rounded" />
-              <div className="col-span-5 space-y-3">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-20 bg-muted animate-pulse rounded" />
+              
+              {/* Platform Bars */}
+              <div className="space-y-4">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <SkeletonShimmer className="h-6 w-6 rounded-full" />
+                        <SkeletonShimmer className="h-5 w-32" />
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <SkeletonShimmer className="h-5 w-16" />
+                        <SkeletonShimmer className="h-5 w-12" />
+                      </div>
+                    </div>
+                    <SkeletonShimmer className="h-8 w-full rounded-md" />
+                  </div>
                 ))}
               </div>
             </div>

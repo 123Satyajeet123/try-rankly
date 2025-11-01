@@ -2,6 +2,7 @@
 
 import React from 'react'
 import { UnifiedCard, UnifiedCardContent } from '@/components/ui/unified-card'
+import { SkeletonShimmer, TableRowSkeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
@@ -47,17 +48,31 @@ function UnifiedPlatformsPerformanceSection({ realLLMData, isLoading = false }: 
   if (isLoading) {
     return (
       <div className="w-full space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-2">
-            <div className="h-6 w-48 bg-muted animate-pulse rounded" />
-          </div>
-        </div>
         <UnifiedCard className="w-full">
           <UnifiedCardContent className="p-6">
-            <div className="space-y-3">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="h-16 bg-muted animate-pulse rounded" />
-              ))}
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <SkeletonShimmer className="h-7 w-56" />
+                  <SkeletonShimmer className="h-4 w-72" />
+                </div>
+              </div>
+              
+              {/* Table */}
+              <div className="space-y-2">
+                {/* Table Header */}
+                <div className="grid grid-cols-9 gap-4 p-4 bg-muted/30 rounded-lg border">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+                    <SkeletonShimmer key={i} className="h-4 w-full" />
+                  ))}
+                </div>
+                
+                {/* Table Rows */}
+                {[1, 2, 3, 4, 5, 6].map((row) => (
+                  <TableRowSkeleton key={row} columns={9} className="p-4 border rounded-lg" />
+                ))}
+              </div>
             </div>
           </UnifiedCardContent>
         </UnifiedCard>

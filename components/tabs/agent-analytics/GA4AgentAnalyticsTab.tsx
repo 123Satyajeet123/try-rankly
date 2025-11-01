@@ -1,13 +1,12 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { SetupOptionsSection } from './SetupOptionsSection'
 import { PlatformsTab } from '@/components/agent-analytics/platforms/PlatformsTab'
 import { PagesTab } from '@/components/agent-analytics/pages/PagesTab'
 import { GeoTab } from '@/components/agent-analytics/geo-device/GeoTab'
 import { DeviceTab } from '@/components/agent-analytics/geo-device/DeviceTab'
 import { JourneyTab } from '@/components/agent-analytics/journey/JourneyTab'
-import { checkGA4Connection, disconnectGA4, getLLMPlatforms, getPlatformSplit, getPages, getGeo, getDevices, getDateRange, getConversionEvents } from '@/services/ga4Api'
+import { getLLMPlatforms, getPlatformSplit, getPages, getGeo, getDevices, getDateRange, getConversionEvents } from '@/services/ga4Api'
 import { toast } from 'sonner'
 
 interface GA4AgentAnalyticsTabProps {
@@ -25,7 +24,6 @@ export function GA4AgentAnalyticsTab({
   onDateRangeChange,
   refreshTrigger = 0
 }: GA4AgentAnalyticsTabProps) {
-  const [isConnected, setIsConnected] = useState(false)
   const [activeTab, setActiveTab] = useState(externalActiveTab)
   const [realLLMData, setRealLLMData] = useState<any>(null)
   const [realPlatformData, setRealPlatformData] = useState<any>(null)
@@ -46,12 +44,7 @@ export function GA4AgentAnalyticsTab({
     setSelectedDateRange(externalDateRange)
   }, [externalDateRange])
 
-  // Check connection status on mount
-  useEffect(() => {
-    checkConnectionStatus()
-  }, [])
-
-  // Fetch data when connected and date range/conversion event changes (but NOT on tab switch)
+  // Fetch data when tab/date range/conversion event changes
   // Use a cache key to avoid refetching when switching tabs
   const getCacheKey = (tab: string, dateRange: string, conversionEvent: string) => {
     return `${tab}_${dateRange}_${conversionEvent}`
@@ -60,10 +53,8 @@ export function GA4AgentAnalyticsTab({
   // Track which data has been fetched
   const [fetchedCacheKeys, setFetchedCacheKeys] = useState<Set<string>>(new Set())
 
-  // Fetch data when connected and date range/conversion event changes (but NOT on tab switch if data exists)
+  // Fetch data when tab/date range/conversion event changes (but NOT on tab switch if data exists)
   useEffect(() => {
-    if (!isConnected) return
-    
     const cacheKey = getCacheKey(activeTab, selectedDateRange, selectedConversionEvent)
     
     // Only fetch if we don't have this data cached yet
@@ -74,12 +65,12 @@ export function GA4AgentAnalyticsTab({
     } else {
       console.log('✅ [GA4AgentAnalyticsTab] Using cached data for:', cacheKey)
     }
-  }, [isConnected, activeTab, selectedDateRange, selectedConversionEvent])
+  }, [activeTab, selectedDateRange, selectedConversionEvent])
 
   // Fetch fresh data when refresh trigger changes (sync now button)
   // This clears cache and forces fresh fetch
   useEffect(() => {
-    if (isConnected && refreshTrigger > 0) {
+    if (refreshTrigger > 0) {
       console.log('🔄 Refresh triggered, clearing cache and fetching fresh data...')
       setFetchedCacheKeys(new Set()) // Clear all cached keys
       fetchGA4Data()
@@ -88,23 +79,6 @@ export function GA4AgentAnalyticsTab({
       setFetchedCacheKeys(prev => new Set([...prev, cacheKey]))
     }
   }, [refreshTrigger])
-
-  const checkConnectionStatus = async () => {
-    try {
-      const response = await checkGA4Connection()
-      console.log('Connection status response:', response)
-      
-      // Backend returns { connected, isActive } directly, not wrapped in success/data
-      if (response.connected && response.isActive) {
-        setIsConnected(true)
-      } else {
-        setIsConnected(false)
-      }
-    } catch (error) {
-      console.error('Error checking connection:', error)
-      setIsConnected(false)
-    }
-  }
 
   const fetchGA4Data = async () => {
     setIsLoadingData(true)
@@ -186,8 +160,8 @@ export function GA4AgentAnalyticsTab({
 
       if (activeTab === 'geo-device') {
         const [geoResponse, deviceResponse] = await Promise.all([
-          getGeo(startDate, endDate),
-          getDevices(startDate, endDate)
+          getGeo(startDate, endDate, selectedDateRange),
+          getDevices(startDate, endDate, selectedDateRange, selectedConversionEvent)
         ])
         console.log('🌍 Geo data received:', geoResponse)
         console.log('📱 Device data received:', deviceResponse)
@@ -213,20 +187,6 @@ export function GA4AgentAnalyticsTab({
       setIsLoadingData(false)
     }
   }
-
-  const handleSetupComplete = async () => {
-    // Wait a moment for backend to process
-    await new Promise(resolve => setTimeout(resolve, 500))
-    
-    // Refresh connection status
-    await checkConnectionStatus()
-    
-    // Force a re-render by setting connected state
-    if (isConnected) {
-      fetchGA4Data()
-    }
-  }
-
 
   const handleDateRangeChange = (range: string) => {
     setSelectedDateRange(range)
@@ -291,6 +251,8 @@ export function GA4AgentAnalyticsTab({
               realDeviceData={realDeviceData}
               dateRange={selectedDateRange}
               isLoading={isLoadingData}
+              selectedConversionEvent={selectedConversionEvent}
+              onConversionEventChange={setSelectedConversionEvent}
             />
           </div>
         )
@@ -299,12 +261,6 @@ export function GA4AgentAnalyticsTab({
     }
   }
 
-  // Show setup screen if not connected
-  if (!isConnected) {
-    return <SetupOptionsSection onSetupComplete={handleSetupComplete} />
-  }
-
-  // Show dashboard when connected
   return renderTabContent()
 }
 

@@ -15,18 +15,40 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Info } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { GeoDeviceSkeleton } from '@/components/ui/geo-device-skeleton'
-import { getConversionEvents, getDevices, getDateRange } from '@/services/ga4Api'
+import { getConversionEvents } from '@/services/ga4Api'
 
 interface DeviceTabProps {
   range: Range
   realDeviceData?: any
   dateRange?: string
   isLoading?: boolean
+  selectedConversionEvent?: string
+  onConversionEventChange?: (event: string) => void
 }
 
-export function DeviceTab({ range, realDeviceData, dateRange = '30 days', isLoading = false }: DeviceTabProps) {
+export function DeviceTab({ 
+  range, 
+  realDeviceData, 
+  dateRange = '30 days', 
+  isLoading = false,
+  selectedConversionEvent: propSelectedConversionEvent,
+  onConversionEventChange
+}: DeviceTabProps) {
   const [conversionEvents, setConversionEvents] = useState<any[]>([])
-  const [selectedConversionEvent, setSelectedConversionEvent] = useState('conversions')
+  const [selectedConversionEvent, setSelectedConversionEvent] = useState(propSelectedConversionEvent || 'conversions')
+
+  // Sync with prop if provided
+  useEffect(() => {
+    if (propSelectedConversionEvent && propSelectedConversionEvent !== selectedConversionEvent) {
+      setSelectedConversionEvent(propSelectedConversionEvent)
+    }
+  }, [propSelectedConversionEvent, selectedConversionEvent])
+
+  // Handle conversion event change
+  const handleConversionEventChange = (event: string) => {
+    setSelectedConversionEvent(event)
+    onConversionEventChange?.(event)
+  }
 
   // Fetch conversion events on component mount
   useEffect(() => {
@@ -77,7 +99,7 @@ export function DeviceTab({ range, realDeviceData, dateRange = '30 days', isLoad
                 {/* Conversion Events Dropdown */}
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">Conversion Event:</span>
-                  <Select value={selectedConversionEvent} onValueChange={setSelectedConversionEvent}>
+                  <Select value={selectedConversionEvent} onValueChange={handleConversionEventChange}>
                     <SelectTrigger className="w-[200px]">
                       <SelectValue placeholder="Select conversion event" />
                     </SelectTrigger>
@@ -99,9 +121,24 @@ export function DeviceTab({ range, realDeviceData, dateRange = '30 days', isLoad
                 </div>
                 
                 {/* Summary Metrics */}
-                <div className="text-sm text-muted-foreground">
-                  Total Sessions <span className="text-lg font-semibold text-foreground ml-1">{totalSessions}</span>
-                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="text-sm text-muted-foreground cursor-help">
+                        Total Sessions <span className="text-lg font-semibold text-foreground ml-1">{totalSessions}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-sm">
+                      <p className="font-semibold mb-1">Total LLM Sessions</p>
+                      <p className="text-sm">
+                        Total number of sessions originating from LLM platforms (ChatGPT, Claude, Gemini, Perplexity, etc.) for the selected date range, broken down by device category.
+                      </p>
+                      <p className="text-xs mt-2 text-muted-foreground">
+                        Note: Session counts may vary slightly between Geo and Device tabs due to how GA4 aggregates data across different dimension combinations. This is expected behavior.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
 

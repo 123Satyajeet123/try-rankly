@@ -392,10 +392,10 @@ export function PagesTab({
                         <div className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
                           <span className="text-xs font-medium text-muted-foreground">LLM Sessions</span>
                           <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
-                              </TooltipTrigger>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                            </TooltipTrigger>
                               <TooltipContent>
                                 <div className="max-w-xs space-y-2">
                                   <p className="text-sm font-semibold">LLM Sessions (Page-Level)</p>
@@ -410,8 +410,8 @@ export function PagesTab({
                                     </p>
                                   </div>
                                 </div>
-                              </TooltipContent>
-                            </Tooltip>
+                            </TooltipContent>
+                          </Tooltip>
                           </TooltipProvider>
                         </div>
                       </TableHead>
@@ -420,15 +420,15 @@ export function PagesTab({
                         <div className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
                           <span className="text-xs font-medium text-muted-foreground">Platform</span>
                           <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
-                              </TooltipTrigger>
-                              <TooltipContent>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                            </TooltipTrigger>
+                            <TooltipContent>
                                 <p className="text-sm">LLM platforms driving traffic to this page</p>
                                 <p className="text-xs text-muted-foreground mt-1">Shows platforms by session count with favicons</p>
-                              </TooltipContent>
-                            </Tooltip>
+                            </TooltipContent>
+                          </Tooltip>
                           </TooltipProvider>
                         </div>
                       </TableHead>
@@ -437,10 +437,10 @@ export function PagesTab({
                         <div className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
                           <span className="text-xs font-medium text-muted-foreground">Session Quality Score</span>
                           <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
-                              </TooltipTrigger>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                            </TooltipTrigger>
                               <TooltipContent>
                                 <div className="max-w-xs space-y-2">
                                   <p className="text-sm font-semibold">Session Quality Score (SQS)</p>
@@ -468,8 +468,8 @@ export function PagesTab({
                                     Higher scores indicate better-performing pages
                                   </p>
                                 </div>
-                              </TooltipContent>
-                            </Tooltip>
+                            </TooltipContent>
+                          </Tooltip>
                           </TooltipProvider>
                         </div>
                       </TableHead>
@@ -492,16 +492,16 @@ export function PagesTab({
                         <div className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
                           <span className="text-xs font-medium text-muted-foreground">Conversion Rate</span>
                           <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
-                              </TooltipTrigger>
-                              <TooltipContent>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                            </TooltipTrigger>
+                            <TooltipContent>
                                 <p className="text-sm">Percentage of sessions that resulted in conversions (0-100%)</p>
                                 <p className="text-xs text-muted-foreground mt-1">Calculated as: (Conversions / Sessions) × 100%</p>
                                 <p className="text-xs text-muted-foreground mt-1">Based on the selected conversion event</p>
-                              </TooltipContent>
-                            </Tooltip>
+                            </TooltipContent>
+                          </Tooltip>
                           </TooltipProvider>
                         </div>
                       </TableHead>
@@ -510,11 +510,11 @@ export function PagesTab({
                         <div className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
                           <span className="text-xs font-medium text-muted-foreground">Bounce Rate</span>
                           <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
-                              </TooltipTrigger>
-                              <TooltipContent>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                            </TooltipTrigger>
+                            <TooltipContent>
                                 <div className="max-w-xs space-y-2">
                                   <p className="text-sm font-semibold">Bounce Rate (GA4)</p>
                                   <p className="text-sm">Percentage of sessions that were not engaged (0-100%)</p>
@@ -528,8 +528,8 @@ export function PagesTab({
                                     Formula: Bounce Rate = 1 - Engagement Rate
                                   </p>
                                 </div>
-                              </TooltipContent>
-                            </Tooltip>
+                            </TooltipContent>
+                          </Tooltip>
                           </TooltipProvider>
                         </div>
                       </TableHead>
@@ -538,17 +538,17 @@ export function PagesTab({
                         <div className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-1 rounded">
                           <span className="text-xs font-medium text-muted-foreground">Time on Page</span>
                           <TooltipProvider>
-                            <Tooltip>
-                              <TooltipTrigger asChild>
-                                <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
-                              </TooltipTrigger>
-                              <TooltipContent>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Info className="h-4 w-4 text-muted-foreground hover:text-primary cursor-help transition-colors" />
+                            </TooltipTrigger>
+                            <TooltipContent>
                                 <p className="text-sm">Average time spent per session on this page</p>
                                 <p className="text-xs text-muted-foreground mt-1">Calculated as: Total Session Duration / Total Sessions</p>
                                 <p className="text-xs text-muted-foreground mt-1">Displayed in seconds</p>
                                 <p className="text-xs text-muted-foreground mt-1">Higher values indicate users are spending more time on this page</p>
-                              </TooltipContent>
-                            </Tooltip>
+                            </TooltipContent>
+                          </Tooltip>
                           </TooltipProvider>
                         </div>
                       </TableHead>
@@ -612,30 +612,30 @@ export function PagesTab({
                                   : getDynamicFaviconUrl(getLLMDomain(platform), 32);
                                 
                                 return (
-                                  <div key={platform} className="flex items-center gap-1" title={`${platform}: ${sessions} sessions`}>
-                                    <img
+                                <div key={platform} className="flex items-center gap-1" title={`${platform}: ${sessions} sessions`}>
+                                  <img
                                       src={faviconUrl}
-                                      alt={`${platform} favicon`}
+                                    alt={`${platform} favicon`}
                                       className="w-5 h-5 rounded-sm"
-                                      data-favicon-identifier={platform}
-                                      data-favicon-size="32"
-                                      onError={(e) => {
-                                        handleFaviconError(e as any)
+                                    data-favicon-identifier={platform}
+                                    data-favicon-size="32"
+                                    onError={(e) => {
+                                      handleFaviconError(e as any)
                                         // Also apply custom fallback for visual consistency (matching Platform Tab)
-                                        const target = e.target as HTMLImageElement;
+                                      const target = e.target as HTMLImageElement;
                                         if (!target.src.includes('fetchfavicon') && !target.src.includes('google.com') && !target.src.includes('openai.com')) {
-                                          target.style.display = 'none';
-                                          const fallback = document.createElement('div');
-                                          fallback.className = 'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold';
+                                        target.style.display = 'none';
+                                        const fallback = document.createElement('div');
+                                        fallback.className = 'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold';
                                           fallback.style.backgroundColor = platformColor;
-                                          fallback.style.color = 'white';
-                                          fallback.textContent = platform.charAt(0).toUpperCase();
-                                          target.parentNode?.insertBefore(fallback, target);
-                                        }
-                                      }}
-                                    />
-                                    <span className="text-xs text-muted-foreground">{sessions as number}</span>
-                                  </div>
+                                        fallback.style.color = 'white';
+                                        fallback.textContent = platform.charAt(0).toUpperCase();
+                                        target.parentNode?.insertBefore(fallback, target);
+                                      }
+                                    }}
+                                  />
+                                  <span className="text-xs text-muted-foreground">{sessions as number}</span>
+                                </div>
                                 );
                               })
                             ) : (
@@ -650,26 +650,26 @@ export function PagesTab({
                                     return (
                                       <img
                                         src={faviconUrl}
-                                        alt={`${page.provider} favicon`}
+                                    alt={`${page.provider} favicon`}
                                         className="w-5 h-5 rounded-sm"
                                         data-favicon-identifier={page.provider}
                                         data-favicon-size="32"
-                                        onError={(e) => {
+                                    onError={(e) => {
                                           handleFaviconError(e as any)
                                           // Fallback to colored circle if favicon fails to load (matching Platform Tab)
-                                          const target = e.target as HTMLImageElement;
+                                      const target = e.target as HTMLImageElement;
                                           if (!target.src.includes('fetchfavicon') && !target.src.includes('google.com') && !target.src.includes('openai.com')) {
-                                            target.style.display = 'none';
-                                            const fallback = document.createElement('div');
-                                            fallback.className = 'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold';
+                                      target.style.display = 'none';
+                                      const fallback = document.createElement('div');
+                                      fallback.className = 'w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold';
                                             const providerColor = getLLMPlatformColor(page.provider);
                                             fallback.style.backgroundColor = providerColor;
-                                            fallback.style.color = 'white';
-                                            fallback.textContent = page.provider.charAt(0).toUpperCase();
-                                            target.parentNode?.insertBefore(fallback, target);
+                                      fallback.style.color = 'white';
+                                      fallback.textContent = page.provider.charAt(0).toUpperCase();
+                                      target.parentNode?.insertBefore(fallback, target);
                                           }
-                                        }}
-                                      />
+                                    }}
+                                  />
                                     );
                                   })()}
                                   <span className="text-xs text-muted-foreground">{page.sessions}</span>

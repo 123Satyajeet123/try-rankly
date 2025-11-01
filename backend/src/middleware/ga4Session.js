@@ -43,14 +43,22 @@ function ga4SessionMiddleware(req, res, next) {
   const session = parseGA4Session(req);
   
   if (!session) {
+    const hasCookie = !!req.cookies?.ga4_session;
+    console.error('❌ [ga4SessionMiddleware] No valid session found:', {
+      hasCookie,
+      cookieDomain: req.headers.host,
+      path: req.path
+    });
+    
     return res.status(401).json({
       success: false,
-      error: 'No valid GA4 session found'
+      error: 'No valid GA4 session found. Please reconnect your GA4 account.'
     });
   }
   
   // Attach session to request
   req.ga4Session = session;
+  console.log('✅ [ga4SessionMiddleware] Session validated for user:', session.userId);
   next();
 }
 

@@ -16,12 +16,52 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Info, Expand, X } from 'lucide-react'
 import { ChoroplethMap } from '@/components/charts/ChoroplethMap'
 import { GeoDeviceSkeleton } from '@/components/ui/geo-device-skeleton'
+import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
 
 interface GeoTabProps {
   range: Range
   realGeoData?: any
   dateRange?: string
   isLoading?: boolean
+}
+
+// Function to get the domain for each LLM platform for favicon fetching
+function getLLMDomain(platform: string): string {
+  const platformLower = platform.toLowerCase().trim()
+  
+  // Comprehensive LLM platform mappings
+  if (platformLower === 'chatgpt' || platformLower.includes('openai') || platformLower.includes('gpt')) {
+    return 'chatgpt.com'
+  }
+  if (platformLower === 'claude' || platformLower.includes('anthropic')) {
+    return 'claude.ai'
+  }
+  if (platformLower === 'gemini' || platformLower === 'bard' || platformLower.includes('bard')) {
+    return 'gemini.google.com'
+  }
+  if (platformLower === 'perplexity') {
+    return 'perplexity.ai'
+  }
+  if (platformLower === 'poe') {
+    return 'poe.com'
+  }
+  if (platformLower === 'copilot' || platformLower.includes('microsoft copilot') || platformLower.includes('bing chat')) {
+    return 'copilot.microsoft.com'
+  }
+  if (platformLower === 'grok' || platformLower.includes('grok')) {
+    return 'x.com'
+  }
+  
+  // For unknown platforms, construct domain from platform name
+  const cleanPlatform = platformLower
+    .replace(/\s+/g, '')
+    .replace(/[^a-z0-9]/g, '')
+  
+  if (cleanPlatform) {
+    return `${cleanPlatform}.com`
+  }
+  
+  return 'google.com'
 }
 
 export function GeoTab({ range, realGeoData, dateRange = '30 days', isLoading = false }: GeoTabProps) {
@@ -68,17 +108,24 @@ export function GeoTab({ range, realGeoData, dateRange = '30 days', isLoading = 
                     {platformBreakdown.map((platform: any, index: number) => (
                       <div key={index} className="flex items-center gap-2">
                         <img 
-                          src={platform.favicon} 
-                          alt={platform.name}
-                          className="w-6 h-6 rounded object-contain"
+                          src={getDynamicFaviconUrl(getLLMDomain(platform.name), 64)} 
+                          alt={`${platform.name} favicon`}
+                          className="w-6 h-6 rounded-sm"
                           title={platform.name}
+                          data-favicon-identifier={platform.name}
+                          data-favicon-size="64"
                           onError={(e) => {
-                            // Fallback to a generic icon if favicon fails to load
-                            if (platform.name === 'Perplexity') {
-                              // Use a specific fallback for Perplexity with orange background
-                              e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"%3E%3Ccircle cx="12" cy="12" r="10" fill="%23ff6b35"/%3E%3Ctext x="12" y="16" font-size="12" text-anchor="middle" fill="white" font-weight="bold"%3EP%3C/text%3E%3C/svg%3E'
-                            } else {
-                              e.currentTarget.src = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"%3E%3Ctext x="12" y="16" font-size="16" text-anchor="middle" fill="%236366f1"%3E{platform.name[0]}%3C/text%3E%3C/svg%3E'
+                            handleFaviconError(e as any)
+                            const target = e.target as HTMLImageElement
+                            if (!target.src.includes('fetchfavicon') && !target.src.includes('google.com')) {
+                              target.style.display = 'none'
+                              const fallback = document.createElement('div')
+                              fallback.className = 'w-6 h-6 rounded-full bg-muted flex items-center justify-center'
+                              const text = document.createElement('span')
+                              text.className = 'text-xs font-bold text-foreground'
+                              text.textContent = platform.name[0]
+                              fallback.appendChild(text)
+                              target.parentNode?.insertBefore(fallback, target)
                             }
                           }}
                         />
@@ -88,9 +135,24 @@ export function GeoTab({ range, realGeoData, dateRange = '30 days', isLoading = 
                   </div>
                 )}
                 
-                <div className="text-sm text-muted-foreground">
-                  Total Sessions <span className="text-lg font-semibold text-foreground ml-1">{totalSessions}</span>
-                </div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="text-sm text-muted-foreground cursor-help">
+                        Total Sessions <span className="text-lg font-semibold text-foreground ml-1">{totalSessions}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-sm">
+                      <p className="font-semibold mb-1">Total LLM Sessions</p>
+                      <p className="text-sm">
+                        Total number of sessions originating from LLM platforms (ChatGPT, Claude, Gemini, Perplexity, etc.) for the selected date range.
+                      </p>
+                      <p className="text-xs mt-2 text-muted-foreground">
+                        Note: Session counts may vary slightly between Geo and Device tabs due to how GA4 aggregates data across different dimension combinations. This is expected behavior.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <div className="text-sm text-muted-foreground">
                   Countries <span className="text-lg font-semibold text-foreground ml-1">{countries.length}</span>
                 </div>

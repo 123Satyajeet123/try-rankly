@@ -21,8 +21,17 @@ async function fetchAccountSummaries(accessToken) {
     );
     return response.data;
   } catch (error) {
-    console.error('Error fetching account summaries:', error.response?.data || error.message);
-    throw error;
+    console.error('❌ [fetchAccountSummaries] Error details:');
+    console.error('  Status:', error.response?.status);
+    console.error('  Status Text:', error.response?.statusText);
+    console.error('  Error Data:', JSON.stringify(error.response?.data, null, 2));
+    console.error('  Error Message:', error.message);
+    
+    // Re-throw with more context
+    const errorMessage = error.response?.data?.error?.message || error.message;
+    const enhancedError = new Error(errorMessage);
+    enhancedError.response = error.response;
+    throw enhancedError;
   }
 }
 

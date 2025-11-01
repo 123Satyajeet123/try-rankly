@@ -989,87 +989,280 @@ function transformPlatformData(rawData) {
 
 /**
  * Transform geographic data (matching traffic-analytics format)
+ * If filterLLMs is true, only includes rows that match LLM platform patterns
+ * This matches the logic used in transformToLLMPlatforms for consistency
  */
-function transformGeoData(rawData) {
+function transformGeoData(rawData, filterLLMs = false) {
   const rows = rawData.rows || [];
   
   console.log('🌍 [transformGeoData] Processing geo data:', {
     totalRows: rows.length,
+    filterLLMs,
     sampleRows: rows.slice(0, 3).map(r => ({
       country: r.dimensionValues?.[0]?.value,
+      source: r.dimensionValues?.[1]?.value || '(not in response)',
+      medium: r.dimensionValues?.[2]?.value || '(not in response)',
+      referrer: r.dimensionValues?.[3]?.value?.substring(0, 50) || '(not in response)',
       sessions: r.metricValues?.[0]?.value
     }))
   });
 
   let totalSessions = 0;
   let totalConversions = 0;
+  let llmRowsCount = 0;
+  let skippedRowsCount = 0;
 
-  const countries = rows.map(row => {
+  // Filter LLM traffic if flag is set (same logic as transformToLLMPlatforms)
+  const filteredRows = filterLLMs 
+    ? rows.filter(row => {
+        const source = row.dimensionValues?.[1]?.value || '';
+        const medium = row.dimensionValues?.[2]?.value || '';
+        const referrer = row.dimensionValues?.[3]?.value || '';
+        
+        // Use same LLM detection logic as transformToLLMPlatforms
+        let detectedLLM = null;
+        if (referrer) {
+          for (const [platform, pattern] of Object.entries(LLM_PATTERNS)) {
+            if (pattern.test(referrer)) {
+              detectedLLM = platform;
+              break;
+            }
+          }
+        }
+        if (!detectedLLM && source) {
+          for (const [platform, pattern] of Object.entries(LLM_PATTERNS)) {
+            if (pattern.test(source)) {
+              detectedLLM = platform;
+              break;
+            }
+          }
+        }
+        
+        const isLLM = detectedLLM !== null;
+        if (isLLM) {
+          llmRowsCount++;
+        } else {
+          skippedRowsCount++;
+        }
+        return isLLM;
+      })
+    : rows;
+
+  if (filterLLMs) {
+    console.log('🌍 [transformGeoData] LLM filtering applied:', {
+      totalRows: rows.length,
+      llmRowsFiltered: llmRowsCount,
+      skippedRows: skippedRowsCount,
+      remainingRows: filteredRows.length
+    });
+  }
+
+  // Calculate totals from filtered rows (before aggregation) - ensures accuracy
+  let rowCountForTotal = 0;
+  filteredRows.forEach(row => {
+    const metrics = row.metricValues || [];
+    const sessions = parseFloat(metrics[0]?.value || '0');
+    const conversions = parseFloat(metrics[1]?.value || '0');
+    totalSessions += sessions;
+    totalConversions += conversions;
+    if (sessions > 0) rowCountForTotal++;
+  });
+  
+  console.log('🌍 [transformGeoData] Total calculation from filtered rows:', {
+    filteredRowCount: filteredRows.length,
+    rowsWithSessions: rowCountForTotal,
+    totalSessions,
+    totalConversions
+  });
+  
+  // Store initial totals for final calculation
+  const initialTotalSessions = totalSessions;
+  const initialTotalConversions = totalConversions;
+
+  // Aggregate by country
+  const countryMap = new Map();
+
+  filteredRows.forEach(row => {
     const country = row.dimensionValues?.[0]?.value || 'Unknown';
     const metrics = row.metricValues || [];
     
     const sessions = parseFloat(metrics[0]?.value || '0');
     const conversions = parseFloat(metrics[1]?.value || '0');
-    const bounceRate = parseFloat(metrics[2]?.value || '0') * 100;
-    const avgSessionDuration = parseFloat(metrics[3]?.value || '0');
-    const engagementRate = parseFloat(metrics[4]?.value || '0') * 100;
+    const bounceRate = parseFloat(metrics[2]?.value || '0'); // Decimal 0-1
+    const avgSessionDuration = parseFloat(metrics[3]?.value || '0'); // Seconds
+    const engagementRate = parseFloat(metrics[4]?.value || '0'); // Decimal 0-1
+    const newUsers = parseFloat(metrics[5]?.value || '0');
+    const totalUsers = parseFloat(metrics[6]?.value || '0');
     
-    totalSessions += sessions;
-    totalConversions += conversions;
+    const current = countryMap.get(country) || {
+      sessions: 0,
+      conversions: 0,
+      totalBounceRate: 0, // Weighted sum
+      totalAvgSessionDuration: 0, // Weighted sum
+      totalEngagementRate: 0, // Weighted sum
+      totalNewUsers: 0,
+      totalUsers: 0,
+      sessionWeight: 0 // For weighted averages
+    };
+    
+    // Aggregate with weighted averages for rate metrics
+    countryMap.set(country, {
+      sessions: current.sessions + sessions,
+      conversions: current.conversions + conversions,
+      totalBounceRate: current.totalBounceRate + (bounceRate * sessions), // Weight by sessions
+      totalAvgSessionDuration: current.totalAvgSessionDuration + (avgSessionDuration * sessions), // Weight by sessions
+      totalEngagementRate: current.totalEngagementRate + (engagementRate * sessions), // Weight by sessions
+      totalNewUsers: current.totalNewUsers + newUsers,
+      totalUsers: current.totalUsers + totalUsers,
+      sessionWeight: current.sessionWeight + sessions
+    });
+  });
+
+  // Use the totals calculated from filtered rows directly (more accurate)
+  // totalSessions and totalConversions already have the correct values from the calculation above
+  
+  // Convert map to array and calculate weighted averages
+  const countries = Array.from(countryMap.entries()).map(([country, data]) => {
+    const avgBounceRate = data.sessionWeight > 0 ? (data.totalBounceRate / data.sessionWeight) * 100 : 0;
+    const avgSessionDuration = data.sessionWeight > 0 ? data.totalAvgSessionDuration / data.sessionWeight : 0;
+    const avgEngagementRate = data.sessionWeight > 0 ? (data.totalEngagementRate / data.sessionWeight) * 100 : 0;
     
     return {
       country,
-      sessions: Math.round(sessions),
+      sessions: Math.round(data.sessions),
       percentage: 0, // Will be calculated after
-      conversions: Math.round(conversions),
-      conversionRate: sessions > 0 ? (conversions / sessions) * 100 : 0,
-      bounceRate: Math.round(bounceRate * 10) / 10,
+      conversions: Math.round(data.conversions),
+      conversionRate: data.sessions > 0 ? (data.conversions / data.sessions) * 100 : 0,
+      bounceRate: Math.round(avgBounceRate * 10) / 10,
       avgSessionDuration: Math.round(avgSessionDuration),
-      engagementRate: Math.round(engagementRate * 10) / 10
+      engagementRate: Math.round(avgEngagementRate * 10) / 10,
+      newUsers: Math.round(data.totalNewUsers),
+      totalUsers: Math.round(data.totalUsers)
     };
   });
 
-  // Calculate percentages
+  // Sort by sessions descending
+  countries.sort((a, b) => b.sessions - a.sessions);
+
+  // Calculate percentages using initial totals (most accurate)
   countries.forEach(country => {
-    country.percentage = totalSessions > 0 ? (country.sessions / totalSessions) * 100 : 0;
+    country.percentage = initialTotalSessions > 0 ? (country.sessions / initialTotalSessions) * 100 : 0;
   });
 
   console.log('🌍 [transformGeoData] Final data:', {
     totalCountries: countries.length,
-    totalSessions,
-    totalConversions,
+    totalSessions: initialTotalSessions,
+    totalConversions: initialTotalConversions,
+    filterLLMs,
     topCountries: countries.slice(0, 3).map(c => ({ country: c.country, sessions: c.sessions }))
   });
 
   return {
     countries,
-    totalSessions: Math.round(totalSessions),
-    totalConversions: Math.round(totalConversions)
+    totalSessions: Math.round(initialTotalSessions),
+    totalConversions: Math.round(initialTotalConversions)
   };
 }
 
 /**
  * Transform device data (matching traffic-analytics format)
+ * @param {Object} rawData - Raw GA4 API response
+ * @param {boolean} filterLLMs - Whether to filter LLM traffic only (default: false)
  */
-function transformDeviceData(rawData) {
+function transformDeviceData(rawData, filterLLMs = false) {
   const rows = rawData.rows || [];
   
   console.log('📱 [transformDeviceData] Processing device data:', {
     totalRows: rows.length,
+    filterLLMs,
     sampleRows: rows.slice(0, 3).map(r => ({
       device: r.dimensionValues?.[0]?.value,
       os: r.dimensionValues?.[1]?.value,
       browser: r.dimensionValues?.[2]?.value,
+      source: r.dimensionValues?.[3]?.value || '(not in response)',
+      medium: r.dimensionValues?.[4]?.value || '(not in response)',
+      referrer: r.dimensionValues?.[5]?.value?.substring(0, 50) || '(not in response)',
       sessions: r.metricValues?.[0]?.value
     }))
   });
 
+  let totalSessions = 0;
+  let totalConversions = 0;
+  let llmRowsCount = 0;
+  let skippedRowsCount = 0;
+
+  // Filter LLM traffic if flag is set (same logic as transformGeoData and transformToLLMPlatforms)
+  const filteredRows = filterLLMs 
+    ? rows.filter(row => {
+        const source = row.dimensionValues?.[3]?.value || '';
+        const medium = row.dimensionValues?.[4]?.value || '';
+        const referrer = row.dimensionValues?.[5]?.value || '';
+        
+        // Use same LLM detection logic as transformToLLMPlatforms
+        let detectedLLM = null;
+        if (referrer) {
+          for (const [platform, pattern] of Object.entries(LLM_PATTERNS)) {
+            if (pattern.test(referrer)) {
+              detectedLLM = platform;
+              break;
+            }
+          }
+        }
+        if (!detectedLLM && source) {
+          for (const [platform, pattern] of Object.entries(LLM_PATTERNS)) {
+            if (pattern.test(source)) {
+              detectedLLM = platform;
+              break;
+            }
+          }
+        }
+        
+        const isLLM = detectedLLM !== null;
+        if (isLLM) {
+          llmRowsCount++;
+        } else {
+          skippedRowsCount++;
+        }
+        return isLLM;
+      })
+    : rows;
+
+  if (filterLLMs) {
+    console.log('📱 [transformDeviceData] LLM filtering applied:', {
+      totalRows: rows.length,
+      llmRowsFiltered: llmRowsCount,
+      skippedRows: skippedRowsCount,
+      remainingRows: filteredRows.length
+    });
+  }
+
+  // Calculate totals from filtered rows (before aggregation) - matches geo approach
+  let rowCountForTotal = 0;
+  filteredRows.forEach(row => {
+    const metrics = row.metricValues || [];
+    const sessions = parseFloat(metrics[0]?.value || '0');
+    const conversions = parseFloat(metrics[1]?.value || '0');
+    totalSessions += sessions;
+    totalConversions += conversions;
+    if (sessions > 0) rowCountForTotal++;
+  });
+  
+  console.log('📱 [transformDeviceData] Total calculation from filtered rows:', {
+    filteredRowCount: filteredRows.length,
+    rowsWithSessions: rowCountForTotal,
+    totalSessions,
+    totalConversions
+  });
+  
+  // Store initial totals for final calculation
+  const initialTotalSessions = totalSessions;
+  const initialTotalConversions = totalConversions;
+
   const deviceMap = new Map();
   const osMap = new Map();
   const browserMap = new Map();
-  let totalSessions = 0;
 
-  for (const row of rows) {
+  for (const row of filteredRows) {
     const device = row.dimensionValues?.[0]?.value || 'Unknown';
     const os = row.dimensionValues?.[1]?.value || 'Unknown';
     const browser = row.dimensionValues?.[2]?.value || 'Unknown';
@@ -1077,27 +1270,27 @@ function transformDeviceData(rawData) {
     
     const sessions = parseFloat(metrics[0]?.value || '0');
     const conversions = parseFloat(metrics[1]?.value || '0');
-    const bounceRate = parseFloat(metrics[2]?.value || '0');
-    const avgSessionDuration = parseFloat(metrics[3]?.value || '0');
-    const engagementRate = parseFloat(metrics[4]?.value || '0');
+    const bounceRate = parseFloat(metrics[2]?.value || '0'); // Decimal 0-1
+    const avgSessionDuration = parseFloat(metrics[3]?.value || '0'); // Seconds
+    const engagementRate = parseFloat(metrics[4]?.value || '0'); // Decimal 0-1
     
-    totalSessions += sessions;
+    // Note: totalSessions already calculated from filteredRows above, don't increment here
 
-    // Aggregate by device
+    // Aggregate by device (using weighted averages for rate metrics)
     const deviceData = deviceMap.get(device) || {
       sessions: 0,
       conversions: 0,
-      bounceRate: 0,
-      avgSessionDuration: 0,
-      engagementRate: 0,
-      count: 0
+      totalBounceRate: 0, // Weighted sum
+      totalAvgSessionDuration: 0, // Weighted sum
+      totalEngagementRate: 0, // Weighted sum
+      sessionWeight: 0 // For weighted averages
     };
     deviceData.sessions += sessions;
     deviceData.conversions += conversions;
-    deviceData.bounceRate += bounceRate;
-    deviceData.avgSessionDuration += avgSessionDuration;
-    deviceData.engagementRate += engagementRate;
-    deviceData.count += 1;
+    deviceData.totalBounceRate += (bounceRate * sessions); // Weight by sessions
+    deviceData.totalAvgSessionDuration += (avgSessionDuration * sessions); // Weight by sessions
+    deviceData.totalEngagementRate += (engagementRate * sessions); // Weight by sessions
+    deviceData.sessionWeight += sessions;
     deviceMap.set(device, deviceData);
 
     // Aggregate by OS
@@ -1107,44 +1300,138 @@ function transformDeviceData(rawData) {
     browserMap.set(browser, (browserMap.get(browser) || 0) + sessions);
   }
 
-  // Transform device data
-  const deviceBreakdown = Array.from(deviceMap.entries()).map(([device, data]) => ({
-    device,
-    sessions: Math.round(data.sessions),
-    percentage: totalSessions > 0 ? (data.sessions / totalSessions) * 100 : 0,
-    conversions: Math.round(data.conversions),
-    conversionRate: data.sessions > 0 ? (data.conversions / data.sessions) * 100 : 0,
-    bounceRate: Math.round((data.bounceRate / data.count) * 1000) / 10,
-    avgSessionDuration: Math.round(data.avgSessionDuration / data.count),
-    engagementRate: Math.round((data.engagementRate / data.count) * 1000) / 10
-  })).sort((a, b) => b.sessions - a.sessions);
+  // Use the totals calculated from filtered rows directly (matches geo approach)
+  // totalSessions already has the correct value from filteredRows calculation above
+  
+  // Transform device data with weighted averages
+  const deviceBreakdown = Array.from(deviceMap.entries()).map(([device, data]) => {
+    const avgBounceRate = data.sessionWeight > 0 ? (data.totalBounceRate / data.sessionWeight) * 100 : 0;
+    const avgSessionDuration = data.sessionWeight > 0 ? data.totalAvgSessionDuration / data.sessionWeight : 0;
+    const avgEngagementRate = data.sessionWeight > 0 ? (data.totalEngagementRate / data.sessionWeight) * 100 : 0;
+    
+    return {
+      device,
+      sessions: Math.round(data.sessions),
+      percentage: initialTotalSessions > 0 ? (data.sessions / initialTotalSessions) * 100 : 0,
+      conversions: Math.round(data.conversions),
+      conversionRate: data.sessions > 0 ? (data.conversions / data.sessions) * 100 : 0,
+      bounceRate: Math.round(avgBounceRate * 10) / 10,
+      avgSessionDuration: Math.round(avgSessionDuration),
+      engagementRate: Math.round(avgEngagementRate * 10) / 10
+    };
+  }).sort((a, b) => b.sessions - a.sessions);
 
   // Transform OS data
   const osBreakdown = Array.from(osMap.entries()).map(([os, sessions]) => ({
     os,
     sessions: Math.round(sessions),
-    percentage: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0
+    percentage: initialTotalSessions > 0 ? (sessions / initialTotalSessions) * 100 : 0
   })).sort((a, b) => b.sessions - a.sessions);
 
   // Transform browser data
   const browserBreakdown = Array.from(browserMap.entries()).map(([browser, sessions]) => ({
     browser,
     sessions: Math.round(sessions),
-    percentage: totalSessions > 0 ? (sessions / totalSessions) * 100 : 0
+    percentage: initialTotalSessions > 0 ? (sessions / initialTotalSessions) * 100 : 0
   })).sort((a, b) => b.sessions - a.sessions);
 
-  console.log('📱 [transformDeviceData] Final data:', {
-    deviceBreakdown: deviceBreakdown.slice(0, 3).map(d => ({ device: d.device, sessions: d.sessions })),
+  // Validation: Ensure sessions sum correctly
+  const sumDeviceSessions = deviceBreakdown.reduce((sum, d) => sum + d.sessions, 0);
+  const sumOSSessions = osBreakdown.reduce((sum, o) => sum + o.sessions, 0);
+  const sumBrowserSessions = browserBreakdown.reduce((sum, b) => sum + b.sessions, 0);
+  const sumDevicePercentages = deviceBreakdown.reduce((sum, d) => sum + d.percentage, 0);
+  const sumOSPercentages = osBreakdown.reduce((sum, o) => sum + o.percentage, 0);
+  const sumBrowserPercentages = browserBreakdown.reduce((sum, b) => sum + b.percentage, 0);
+  
+  // Calculate expected totals from aggregated data (should match initialTotalSessions)
+  const expectedTotalFromDevices = sumDeviceSessions;
+  const expectedTotalFromOS = sumOSSessions;
+  const expectedTotalFromBrowsers = sumBrowserSessions;
+  
+  // Validate and auto-correct if needed (allowing for small rounding differences)
+  const sessionsDifference = Math.abs(initialTotalSessions - expectedTotalFromDevices);
+  const percentageDifference = Math.abs(sumDevicePercentages - 100);
+  
+  // Recalculate percentages if there's a discrepancy (due to rounding)
+  if (percentageDifference > 0.1 && initialTotalSessions > 0) {
+    console.warn('⚠️ [transformDeviceData] Percentage sum mismatch detected:', {
+      sumDevicePercentages: sumDevicePercentages.toFixed(2),
+      difference: percentageDifference.toFixed(2),
+      recalculating: true
+    });
+    
+    deviceBreakdown.forEach(device => {
+      device.percentage = (device.sessions / initialTotalSessions) * 100;
+    });
+    
+    osBreakdown.forEach(os => {
+      os.percentage = (os.sessions / initialTotalSessions) * 100;
+    });
+    
+    browserBreakdown.forEach(browser => {
+      browser.percentage = (browser.sessions / initialTotalSessions) * 100;
+    });
+  }
+  
+  // Validate conversion rates are calculated correctly
+  deviceBreakdown.forEach(device => {
+    const expectedConversionRate = device.sessions > 0 ? (device.conversions / device.sessions) * 100 : 0;
+    const actualConversionRate = device.conversionRate;
+    const conversionRateDiff = Math.abs(expectedConversionRate - actualConversionRate);
+    
+    if (conversionRateDiff > 0.01) {
+      console.warn('⚠️ [transformDeviceData] Conversion rate mismatch for device:', {
+        device: device.device,
+        expected: expectedConversionRate.toFixed(2),
+        actual: actualConversionRate.toFixed(2),
+        difference: conversionRateDiff.toFixed(2),
+        recalculating: true
+      });
+      device.conversionRate = Math.round(expectedConversionRate * 10) / 10;
+    }
+  });
+
+  console.log('📱 [transformDeviceData] Final data with validation:', {
+    deviceBreakdown: deviceBreakdown.slice(0, 3).map(d => ({ 
+      device: d.device, 
+      sessions: d.sessions,
+      percentage: d.percentage.toFixed(2),
+      conversionRate: d.conversionRate.toFixed(2),
+      bounceRate: d.bounceRate.toFixed(2),
+      engagementRate: d.engagementRate.toFixed(2)
+    })),
     osBreakdown: osBreakdown.slice(0, 3).map(o => ({ os: o.os, sessions: o.sessions })),
     browserBreakdown: browserBreakdown.slice(0, 3).map(b => ({ browser: b.browser, sessions: b.sessions })),
-    totalSessions
+    totalSessions: initialTotalSessions, // Use the accurate total from filteredRows
+    initialTotalSessions,
+    sumDeviceSessions,
+    sumOSSessions,
+    sumBrowserSessions,
+    sessionsDifference,
+    sumDevicePercentages: sumDevicePercentages.toFixed(2),
+    sumOSPercentages: sumOSPercentages.toFixed(2),
+    sumBrowserPercentages: sumBrowserPercentages.toFixed(2),
+    validation: {
+      sessionsMatch: sessionsDifference <= 1, // Allow 1 session difference for rounding
+      devicePercentagesMatch: Math.abs(sumDevicePercentages - 100) <= 0.1,
+      osPercentagesMatch: Math.abs(sumOSPercentages - 100) <= 0.1,
+      browserPercentagesMatch: Math.abs(sumBrowserPercentages - 100) <= 0.1,
+      totalSessionsFromInitial: initialTotalSessions,
+      totalSessionsFromDevices: expectedTotalFromDevices,
+      totalSessionsFromOS: expectedTotalFromOS,
+      totalSessionsFromBrowsers: expectedTotalFromBrowsers
+    },
+    filterLLMs
   });
+
+  // Use the validated total sessions (from initial calculation, which is most accurate)
+  const validatedTotalSessions = Math.round(initialTotalSessions);
 
   return {
     deviceBreakdown,
     osBreakdown,
     browserBreakdown,
-    totalSessions: Math.round(totalSessions)
+    totalSessions: validatedTotalSessions
   };
 }
 
@@ -1288,9 +1575,9 @@ function transformPagesData(ga4Response, defaultUri = null) {
     const newPlatformSessions = new Map(current.platformSessions);
     
     // Add platform to sources and track platform sessions (only LLM platforms reach here)
-    newSources.add(platform);
-    const currentPlatformSessions = newPlatformSessions.get(platform) || 0;
-    newPlatformSessions.set(platform, currentPlatformSessions + sessions);
+      newSources.add(platform);
+      const currentPlatformSessions = newPlatformSessions.get(platform) || 0;
+      newPlatformSessions.set(platform, currentPlatformSessions + sessions);
 
     pageMap.set(pagePath, {
       title: pageTitle || current.title,
@@ -1322,7 +1609,7 @@ function transformPagesData(ga4Response, defaultUri = null) {
       // Compute Session Quality Score (SQS) - Matching Platform Tab formula
       // Engagement Rate (40%) + Conversion Rate (30%) + Pages per Session (20%) + Session Duration (10%)
       const conversionRate = data.sessions > 0 ? (data.totalConversions / data.sessions) * 100 : 0;
-      
+
       // Pages component: Cap at 5 pages, then scale to contribute up to 20% (max 20 points)
       // If 5 pages = 20 points, then 1 page = 4 points
       const pagesComponent = Math.min(avgPagesPerSession, 5) * 4; // Max 20 points
@@ -1339,7 +1626,7 @@ function transformPagesData(ga4Response, defaultUri = null) {
       const conversionComponent = conversionRate * 0.3;
       
       // Total SQS (capped at 100)
-      const sqs = Math.min(100, Math.max(0,
+      const sqs = Math.min(100, Math.max(0, 
         engagementComponent +
         conversionComponent +
         pagesComponent +
@@ -1495,7 +1782,7 @@ function transformPagesData(ga4Response, defaultUri = null) {
       conversionRate: p.conversionRate
     }))
   });
-  
+
   // Calculate weighted average SQS (matching Platform Tab calculation)
   // Use totalUniqueLLMSessions for consistency with Platform Tab
   const totalSessionsForAvg = totalUniqueLLMSessions; // Use unique sessions for weighted average
@@ -1675,6 +1962,26 @@ function formatDate(dateString) {
   return date.toISOString().split('T')[0];
 }
 
+/**
+ * Generate LLM filter regex string for GA4 API
+ * Used consistently across all endpoints for filtering LLM traffic
+ * @returns {string} Regex pattern for LLM detection
+ */
+function getLLMFilterRegex() {
+  // This regex pattern matches the LLM platforms we want to track
+  // It's designed to catch all variations of LLM platform names
+  // Note: The regex uses simple strings that will match patterns like:
+  // - chatgpt.com, chat.openai, openai.com
+  // - claude.ai, anthropic.com
+  // - gemini.google.com, bard.google.com
+  // - perplexity.ai
+  // - copilot.microsoft.com
+  // - x.ai (for Grok)
+  // - poe.com
+  // - character.ai
+  return '(chatgpt|claude|gemini|perplexity|copilot|bard|openai|anthropic|xai|grok|poe|character\\.ai)';
+}
+
 module.exports = {
   transformMetricsData,
   transformPlatformData,
@@ -1684,5 +1991,8 @@ module.exports = {
   transformGeoData,
   transformDeviceData,
   transformPagesData,
-  calculateComparisonDates
+  calculateComparisonDates,
+  getLLMFilterRegex,
+  LLM_PATTERNS,
+  LLM_PLATFORMS
 };

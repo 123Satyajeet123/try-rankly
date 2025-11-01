@@ -5,35 +5,35 @@ import { TrendingUp } from "lucide-react"
 const platforms = [
   {
     name: "ChatGPT",
-    favicon: undefined,
+    favicon: "https://chat.openai.com/favicon.ico",
     color: "#10a37f",
     sessions: "22.7k",
     revenue: "$12.5k"
   },
   {
     name: "Perplexity", 
-    favicon: undefined,
+    favicon: "https://www.google.com/s2/favicons?domain=perplexity.ai&sz=32",
     color: "#8b5cf6",
     sessions: "15.2k",
     revenue: "$8.9k"
   },
   {
     name: "Gemini",
-    favicon: undefined,
+    favicon: "https://www.google.com/s2/favicons?domain=gemini.google.com&sz=32", 
     color: "#4285f4",
     sessions: "11.8k",
     revenue: "$6.1k"
   },
   {
     name: "Claude",
-    favicon: undefined,
+    favicon: "https://claude.ai/favicon.ico",
     color: "#ff6b35", 
     sessions: "8.4k",
     revenue: "$4.2k"
   },
   {
     name: "Copilot",
-    favicon: undefined,
+    favicon: "https://www.google.com/s2/favicons?domain=copilot.microsoft.com&sz=32",
     color: "#0078d4",
     sessions: "6.1k",
     revenue: "$2.7k"

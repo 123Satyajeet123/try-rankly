@@ -66,8 +66,52 @@ export const disconnectGA4 = async (): Promise<GA4ApiResponse<void>> => {
 
 // Property Management
 export const getAccountsProperties = async (): Promise<GA4ApiResponse<{ accounts: GA4Account[] }>> => {
-  const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/accounts-properties`)
-  return response.json()
+  try {
+    const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/accounts-properties`)
+    
+    // Check if response is OK
+    if (!response.ok) {
+      let errorMessage = `Request failed with status ${response.status}`;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.error || errorData.message || errorMessage;
+      } catch {
+        try {
+          const errorText = await response.text();
+          errorMessage = errorText || errorMessage;
+        } catch {
+          // Ignore parsing errors
+        }
+      }
+      
+      console.error('❌ [getAccountsProperties] HTTP error:', errorMessage, 'Status:', response.status);
+      return {
+        success: false,
+        error: errorMessage
+      };
+    }
+    
+    const data = await response.json();
+    
+    if (!data.success) {
+      console.error('❌ [getAccountsProperties] API returned error:', data.error || 'Unknown error');
+    } else {
+      console.log('✅ [getAccountsProperties] API success:', { 
+        hasData: !!data.data, 
+        hasAccounts: !!data.data?.accounts,
+        accountCount: data.data?.accounts?.length || 0
+      });
+    }
+    
+    return data;
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Network error occurred';
+    console.error('❌ [getAccountsProperties] Network/unexpected error:', errorMessage);
+    return {
+      success: false,
+      error: `Failed to fetch GA4 accounts and properties: ${errorMessage}`
+    };
+  }
 }
 
 export const saveProperty = async (accountId: string, propertyId: string): Promise<GA4ApiResponse<{ propertyId: string, propertyName: string }>> => {
@@ -194,18 +238,22 @@ export const getConversionEvents = async (): Promise<GA4ApiResponse<{ events: Ar
   return response.json()
 }
 
-export const getGeo = async (startDate: string, endDate: string): Promise<GA4ApiResponse<Array<GeoData>>> => {
-  const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/geo?startDate=${startDate}&endDate=${endDate}`)
+export const getGeo = async (startDate: string, endDate: string, dateRange?: string): Promise<GA4ApiResponse<Array<GeoData>>> => {
+  const dateRangeParam = dateRange ? `&dateRange=${encodeURIComponent(dateRange)}` : '';
+  const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/geo?startDate=${startDate}&endDate=${endDate}${dateRangeParam}`)
   return response.json()
 }
 
-export const getDevices = async (startDate: string, endDate: string): Promise<GA4ApiResponse<Array<DeviceData>>> => {
-  const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/devices?startDate=${startDate}&endDate=${endDate}`)
+export const getDevices = async (startDate: string, endDate: string, dateRange?: string, conversionEvent: string = 'conversions'): Promise<GA4ApiResponse<Array<DeviceData>>> => {
+  const dateRangeParam = dateRange ? `&dateRange=${encodeURIComponent(dateRange)}` : '';
+  const conversionEventParam = conversionEvent ? `&conversionEvent=${encodeURIComponent(conversionEvent)}` : '';
+  const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/devices?startDate=${startDate}&endDate=${endDate}${dateRangeParam}${conversionEventParam}`)
   return response.json()
 }
 
-export const getPlatformTrends = async (startDate: string, endDate: string): Promise<GA4ApiResponse<any>> => {
-  const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/llm-platform-trends?startDate=${startDate}&endDate=${endDate}`)
+export const getPlatformTrends = async (startDate: string, endDate: string, dateRange?: string): Promise<GA4ApiResponse<any>> => {
+  const dateRangeParam = dateRange ? `&dateRange=${encodeURIComponent(dateRange)}` : '';
+  const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/llm-platform-trends?startDate=${startDate}&endDate=${endDate}${dateRangeParam}`)
   return response.json()
 }
 

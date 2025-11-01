@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { UnifiedCard, UnifiedCardContent } from '@/components/ui/unified-card'
+import { SkeletonShimmer, TableRowSkeleton } from '@/components/ui/skeleton'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
@@ -274,9 +275,42 @@ function UnifiedLLMPlatformPerformanceSection({
       <div className="w-full space-y-4">
         <UnifiedCard className="w-full">
           <UnifiedCardContent className="p-6">
-            <div className="animate-pulse">
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-4"></div>
-              <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-full"></div>
+            <div className="space-y-6">
+              {/* Header */}
+              <div className="flex items-center justify-between">
+                <div className="space-y-2">
+                  <SkeletonShimmer className="h-7 w-56" />
+                  <SkeletonShimmer className="h-4 w-96" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <SkeletonShimmer className="h-9 w-44" />
+                </div>
+              </div>
+              
+              {/* Summary Stats */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="space-y-2 p-4 border rounded-lg">
+                    <SkeletonShimmer className="h-4 w-32" />
+                    <SkeletonShimmer className="h-8 w-24" />
+                  </div>
+                ))}
+              </div>
+              
+              {/* Performance Table */}
+              <div className="space-y-2">
+                {/* Table Header */}
+                <div className="grid grid-cols-9 gap-4 p-4 bg-muted/30 rounded-lg border">
+                  {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+                    <SkeletonShimmer key={i} className="h-4 w-full" />
+                  ))}
+                </div>
+                
+                {/* Table Rows */}
+                {[1, 2, 3, 4, 5, 6].map((row) => (
+                  <TableRowSkeleton key={row} columns={9} className="p-4 border rounded-lg" />
+                ))}
+              </div>
             </div>
           </UnifiedCardContent>
         </UnifiedCard>
