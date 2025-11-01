@@ -258,3 +258,6 @@ Common issues:
 3. **Connection errors**: Verify `NEXT_PUBLIC_API_URL` is correct
 4. **Session errors**: Check cookie settings and HTTPS
 
+
+
+

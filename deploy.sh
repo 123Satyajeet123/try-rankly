@@ -79,3 +79,6 @@ echo "  2. Set up SSL certificate"
 echo "  3. Update Google OAuth redirect URIs"
 echo "  4. Configure environment variables"
 
+
+
+

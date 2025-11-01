@@ -122,3 +122,6 @@ To verify the changes work:
 ✅ Easy to scan and understand
 ✅ Fits card layout perfectly
 
+
+
+

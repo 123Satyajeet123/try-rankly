@@ -249,3 +249,6 @@ ALLOWED_ORIGINS=https://rankly.ai,https://www.rankly.ai,https://app.rankly.ai
 
 **All environment and CORS issues are now fixed and production-ready!**
 
+
+
+

@@ -469,3 +469,6 @@ pm2 set pm2-logrotate:retain 7
 - `pm2 logs`
 - `sudo tail -f /var/log/nginx/rankly-error.log`
 
+
+
+
