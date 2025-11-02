@@ -142,6 +142,7 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    cursor: inherit;
   }
 
   body {
@@ -151,6 +152,7 @@
     font-weight: 400;
     line-height: 1.5;
     font-feature-settings: "rlig" 1, "calt" 1;
+    cursor: default;
   }
 
   /* Typography System */

@@ -87,7 +87,7 @@ export const BackgroundBeams = React.memo(
     return (
       <div
         className={cn(
-          "absolute h-full w-full inset-0 [mask-size:40px] [mask-repeat:no-repeat] flex items-center justify-center cursor-none",
+          "absolute h-full w-full inset-0 [mask-size:40px] [mask-repeat:no-repeat] flex items-center justify-center",
           className,
         )}
         onMouseEnter={() => setIsHovered(true)}
@@ -113,10 +113,10 @@ export const BackgroundBeams = React.memo(
               key={`path-${index}`}
               d={path}
               stroke={`url(#linearGradient-${index})`}
-              strokeOpacity={isHovered ? 0.6 : 0.4}
+              strokeOpacity={isHovered ? (mounted && theme === 'dark' ? 0.8 : 0.6) : (mounted && theme === 'dark' ? 0.6 : 0.4)}
               strokeWidth={isHovered ? 1.5 : 1}
               animate={{
-                strokeOpacity: isHovered ? 0.6 : 0.4,
+                strokeOpacity: isHovered ? (mounted && theme === 'dark' ? 0.8 : 0.6) : (mounted && theme === 'dark' ? 0.6 : 0.4),
                 strokeWidth: isHovered ? 1.5 : 1,
               }}
               transition={{
@@ -151,8 +151,8 @@ export const BackgroundBeams = React.memo(
                 }}
               >
                 <stop stopColor={mounted && theme === 'dark' ? '#ffffff' : '#000000'} stopOpacity="0" />
-                <stop stopColor={mounted && theme === 'dark' ? '#ffffff' : '#000000'} stopOpacity="0.15" />
-                <stop offset="50%" stopColor={mounted && theme === 'dark' ? '#ffffff' : '#000000'} stopOpacity="0.3" />
+                <stop stopColor={mounted && theme === 'dark' ? '#ffffff' : '#000000'} stopOpacity={mounted && theme === 'dark' ? "0.4" : "0.15"} />
+                <stop offset="50%" stopColor={mounted && theme === 'dark' ? '#ffffff' : '#000000'} stopOpacity={mounted && theme === 'dark' ? "0.7" : "0.3"} />
                 <stop offset="100%" stopColor={mounted && theme === 'dark' ? '#ffffff' : '#000000'} stopOpacity="0" />
               </motion.linearGradient>
             ))}
@@ -165,8 +165,8 @@ export const BackgroundBeams = React.memo(
               gradientUnits="userSpaceOnUse"
               gradientTransform="translate(352 34) rotate(90) scale(555 1560.62)"
             >
-              <stop offset="0.0666667" stopColor={mounted && theme === 'dark' ? '#ffffff' : '#000000'} stopOpacity="0.15" />
-              <stop offset="0.243243" stopColor={mounted && theme === 'dark' ? '#ffffff' : '#000000'} stopOpacity="0.08" />
+              <stop offset="0.0666667" stopColor={mounted && theme === 'dark' ? '#ffffff' : '#000000'} stopOpacity={mounted && theme === 'dark' ? "0.4" : "0.15"} />
+              <stop offset="0.243243" stopColor={mounted && theme === 'dark' ? '#ffffff' : '#000000'} stopOpacity={mounted && theme === 'dark' ? "0.2" : "0.08"} />
               <stop offset="0.43594" stopColor={mounted && theme === 'dark' ? '#ffffff' : '#000000'} stopOpacity="0" />
             </radialGradient>
           </defs>
