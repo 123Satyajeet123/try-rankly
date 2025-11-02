@@ -122,7 +122,7 @@ export function PlatformTrendChart({ dateRange }: PlatformTrendChartProps) {
   
   // Calculate total sessions for the footer
   const totalSessions = trendData.reduce((sum: number, day: any) => {
-    return sum + Object.values(day).reduce((daySum: number, value: any) => {
+    return sum + (Object.values(day) as any[]).reduce((daySum: number, value: any) => {
       return daySum + (typeof value === 'number' ? value : 0)
     }, 0)
   }, 0)

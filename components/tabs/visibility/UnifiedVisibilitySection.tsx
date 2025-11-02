@@ -49,6 +49,7 @@ interface UnifiedVisibilitySectionProps {
     selectedTopics: string[]
     selectedPersonas: string[]
     selectedPlatforms: string[]
+    selectedAnalysisId?: string | null
   }
   dashboardData?: any
 }
@@ -113,8 +114,8 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
 
   // Apply filtering based on filter context with real-time updates
   const getFilteredData = () => {
-    let baseChartData = getChartDataFromDashboard()
-    let baseRankings = getRankingsFromDashboard()
+    const baseChartData = getChartDataFromDashboard()
+    const baseRankings = getRankingsFromDashboard()
 
     // Apply global filter filtering with real-time updates
     if (filterContext) {

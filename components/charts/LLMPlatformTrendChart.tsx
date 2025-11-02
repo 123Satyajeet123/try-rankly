@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { LineChart, Line, XAxis, CartesianGrid, YAxis, Legend, ResponsiveContainer } from 'recharts'
 import { getPlatformTrends } from '@/services/ga4Api'
+import { getFaviconUrlForDomain } from '@/lib/faviconUtils'
 
 interface LLMPlatformTrendChartProps {
   dateRange: string

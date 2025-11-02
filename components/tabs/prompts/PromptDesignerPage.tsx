@@ -258,8 +258,9 @@ export function PromptDesignerPage({ onBack }: PromptDesignerPageProps) {
                                 <div
                                   key={platform.id}
                                   className={`w-6 h-6 rounded-full ${platform.color} flex items-center justify-center text-xs`}
+                                  title={platform.name}
                                 >
-                                  {platform.icon}
+                                  {platform.name.charAt(0).toUpperCase()}
                                 </div>
                               ))}
                             </div>

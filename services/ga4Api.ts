@@ -123,7 +123,7 @@ export const saveProperty = async (accountId: string, propertyId: string): Promi
 }
 
 // Data Fetching
-export const getLLMPlatforms = async (startDate: string, endDate: string, dateRange?: string, conversionEvent: string = 'conversions'): Promise<GA4ApiResponse<Array<{ platform: string, sessions: string, users: string, pageViews: string }>>> => {
+export const getLLMPlatforms = async (startDate: string, endDate: string, dateRange?: string, conversionEvent: string = 'conversions'): Promise<GA4ApiResponse<{ platforms: Array<{ platform: string, sessions: string, users: string, pageViews: string }>, summary?: any, performanceData?: any[] }>> => {
   try {
     const dateRangeParam = dateRange ? `&dateRange=${encodeURIComponent(dateRange)}` : '';
     const conversionEventParam = conversionEvent ? `&conversionEvent=${encodeURIComponent(conversionEvent)}` : '';
@@ -170,7 +170,7 @@ export const getLLMPlatforms = async (startDate: string, endDate: string, dateRa
   }
 }
 
-export const getPlatformSplit = async (startDate: string, endDate: string, dateRange?: string, conversionEvent: string = 'conversions'): Promise<GA4ApiResponse<Array<{ platform: string, sessions: string, percentage: string }>>> => {
+export const getPlatformSplit = async (startDate: string, endDate: string, dateRange?: string, conversionEvent: string = 'conversions'): Promise<GA4ApiResponse<{ platformSplit: Array<{ platform: string, sessions: string, percentage: string }>, rankings?: any[], performanceData?: any[], totalSessions?: number, summary?: any }>> => {
   const dateRangeParam = dateRange ? `&dateRange=${encodeURIComponent(dateRange)}` : '';
   const conversionEventParam = conversionEvent ? `&conversionEvent=${encodeURIComponent(conversionEvent)}` : '';
   const url = `${API_BASE_URL}/ga4/platform-split?startDate=${startDate}&endDate=${endDate}${dateRangeParam}${conversionEventParam}`;

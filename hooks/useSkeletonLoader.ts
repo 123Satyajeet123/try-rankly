@@ -36,9 +36,9 @@ export function useSkeletonLoader(options: UseSkeletonLoaderOptions = {}): UseSk
   const [isVisible, setIsVisible] = useState(false)
   const [isLoading, setIsLoading] = useState(showOnMount)
   
-  const thresholdTimeoutRef = useRef<NodeJS.Timeout>()
-  const debounceTimeoutRef = useRef<NodeJS.Timeout>()
-  const fadeTimeoutRef = useRef<NodeJS.Timeout>()
+  const thresholdTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const debounceTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const fadeTimeoutRef = useRef<NodeJS.Timeout | undefined>(undefined)
 
   // Clean up timeouts on unmount
   useEffect(() => {

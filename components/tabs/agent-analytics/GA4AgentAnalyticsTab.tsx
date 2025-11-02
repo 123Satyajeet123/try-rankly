@@ -156,7 +156,7 @@ export function GA4AgentAnalyticsTab({
       }
 
       if (activeTab === 'pages') {
-        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange, selectedConversionEvent, false)
+        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange, selectedConversionEvent)
         console.log('📄 Pages data received:', pagesResponse)
         if (pagesResponse.success) {
           setRealPagesData(pagesResponse)
@@ -179,7 +179,7 @@ export function GA4AgentAnalyticsTab({
       }
 
       if (activeTab === 'journey') {
-        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange, selectedConversionEvent, false)
+        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange, selectedConversionEvent)
         console.log('📄 Journey data received:', pagesResponse)
         if (pagesResponse.success) {
           setRealPagesData(pagesResponse)

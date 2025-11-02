@@ -6,11 +6,11 @@ import { Sidebar } from '@/components/layout/Sidebar'
 import { TopNav } from '@/components/layout/TopNav'
 import { SettingsModal } from '@/components/agent-analytics/modals/SettingsModal'
 import { clearGA4Cache, checkGA4Connection } from '@/services/ga4Api'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { toast } from 'sonner'
 
-export default function AgentAnalyticsPage() {
+function AgentAnalyticsContent() {
   const searchParams = useSearchParams()
   const [activeTab, setActiveTab] = useState('platform')
   const [selectedDateRange, setSelectedDateRange] = useState('7 days')
@@ -38,7 +38,7 @@ export default function AgentAnalyticsPage() {
     const checkConnection = async () => {
       try {
         const response = await checkGA4Connection()
-        if (response.connected && response.isActive) {
+        if (response.data?.connected && response.data?.isActive) {
           setIsConnected(true)
         } else {
           setIsConnected(false)
@@ -104,7 +104,7 @@ export default function AgentAnalyticsPage() {
     // Refresh connection status
     try {
       const response = await checkGA4Connection()
-      if (response.connected && response.isActive) {
+      if (response.data?.connected && response.data?.isActive) {
         setIsConnected(true)
       }
     } catch (error) {
@@ -173,5 +173,25 @@ export default function AgentAnalyticsPage() {
         </div>
       )}
     </>
+  )
+}
+
+export default function AgentAnalyticsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen bg-background">
+        <div className="flex-shrink-0">
+          <Sidebar />
+        </div>
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground mx-auto mb-4"></div>
+            <div className="text-sm text-muted-foreground">Loading...</div>
+          </div>
+        </div>
+      </div>
+    }>
+      <AgentAnalyticsContent />
+    </Suspense>
   )
 }

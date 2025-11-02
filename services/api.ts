@@ -83,7 +83,7 @@ class ApiService {
    */
   async request(
     endpoint: string, 
-    options: RequestInit = {}, 
+    options: RequestInit & { timeout?: number } = {}, 
     retryCount: number = 0
   ): Promise<any> {
     // Validate endpoint
@@ -100,19 +100,19 @@ class ApiService {
     const separator = endpoint.includes('?') ? '&' : '?'
     const url = `${API_BASE_URL}${endpoint}${separator}_t=${Date.now()}`
     
+    // Extract timeout from options before spreading
+    const { timeout, ...restOptions } = options as any
+    
     // Create timeout controller
-    const timeout = options.timeout as number || DEFAULT_TIMEOUT
-    const timeoutController = this.createTimeoutController(timeout)
+    const timeoutValue = timeout || DEFAULT_TIMEOUT
+    const timeoutController = this.createTimeoutController(timeoutValue)
     
     const config: RequestInit = {
       headers: this.getHeaders(),
       credentials: 'include', // Include cookies for session-based auth (OAuth)
       signal: timeoutController.signal,
-      ...options,
+      ...restOptions,
     }
-
-    // Remove timeout from options (not a valid fetch option)
-    delete (config as any).timeout
 
     console.log(`🌐 [API] ${options.method || 'GET'} ${endpoint}${retryCount > 0 ? ` (retry ${retryCount}/${MAX_RETRIES})` : ''}`)
     console.log(`📍 [API] Full URL: ${url}`)

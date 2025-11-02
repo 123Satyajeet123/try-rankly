@@ -21,15 +21,6 @@ import { truncateForDisplay, truncateForChart, truncateForRanking, truncateForTo
 
 // ✅ No more default fallback data - use real data from API
 
-interface CitationShareSectionProps {
-  filterContext?: {
-    selectedTopics: string[]
-    selectedPersonas: string[]
-    selectedPlatforms: string[]
-  }
-  dashboardData?: any
-}
-
 import { frontendConfig } from '@/lib/config'
 
 // Use centralized brand color palette
@@ -109,7 +100,9 @@ interface CitationShareSectionProps {
     selectedTopics: string[]
     selectedPersonas: string[]
     selectedPlatforms: string[]
+    selectedAnalysisId?: string | null
   }
+  dashboardData?: any
 }
 
 function CitationShareSection({ filterContext, dashboardData }: CitationShareSectionProps) {
@@ -118,22 +111,6 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
   
   // Get rankings from dashboard data
   const allRankings = getRankingsFromDashboard(dashboardData)
-
-  // Handle empty data state
-  if (currentChartData.length === 0) {
-    return (
-      <UnifiedCard className="h-full">
-        <UnifiedCardContent className="flex items-center justify-center h-full">
-          <div className="text-center">
-            <h3 className="text-lg font-semibold text-muted-foreground">No Citation Data Available</h3>
-            <p className="text-sm text-muted-foreground mt-2">
-              Citation data will appear here once prompt tests are completed and citations are analyzed.
-            </p>
-          </div>
-        </UnifiedCardContent>
-      </UnifiedCard>
-    )
-  }
   
   // Apply filtering based on filter context
   const getFilteredData = () => {
@@ -141,7 +118,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
 
     const { selectedTopics, selectedPersonas, selectedPlatforms } = filterContext
     
-    let filteredChartData = [...currentChartData]
+    const filteredChartData = [...currentChartData]
     let filteredTrendData: any[] = [] // No trend data for now
     let filteredRankings = [...allRankings]
 
@@ -199,6 +176,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
   const userBrandFromChart = chartData.find(item => item.isOwner === true)
   const userBrandValue = userBrandFromChart?.score || chartData[0]?.score || 0
 
+  // All hooks must be called before any conditional returns
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
   const [chartType, setChartType] = useState('donut')
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
@@ -234,6 +212,22 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
       setActivePlatform(newFilteredChartData[0]?.name || 'JPMorgan Chase')
     }
   }, [filterContext?.selectedAnalysisId]) // Only trigger when analysis changes, not on filter changes
+
+  // Handle empty data state - must be after all hooks
+  if (currentChartData.length === 0) {
+    return (
+      <UnifiedCard className="h-full">
+        <UnifiedCardContent className="flex items-center justify-center h-full">
+          <div className="text-center">
+            <h3 className="text-lg font-semibold text-muted-foreground">No Citation Data Available</h3>
+            <p className="text-sm text-muted-foreground mt-2">
+              Citation data will appear here once prompt tests are completed and citations are analyzed.
+            </p>
+          </div>
+        </UnifiedCardContent>
+      </UnifiedCard>
+    )
+  }
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { 

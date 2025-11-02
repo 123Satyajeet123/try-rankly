@@ -234,3 +234,4 @@ const calculatedAvgSQS = totalSessionsForAvg > 0 ? (weightedSQS / totalSessionsF
    - Ensure calculations are correct
 
 
+

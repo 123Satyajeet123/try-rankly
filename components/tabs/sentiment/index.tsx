@@ -12,11 +12,12 @@ interface SentimentTabProps {
     selectedTopics: string[]
     selectedPersonas: string[]
     selectedPlatforms: string[]
+    selectedAnalysisId?: string | null
   }
   dashboardData?: any
 }
 
-export function SentimentTab({ filterContext, dashboardData }: SentimentTabProps) {
+function SentimentTab({ filterContext, dashboardData }: SentimentTabProps) {
   return (
     <div className="space-y-6">
       <UnifiedSentimentSection filterContext={filterContext} dashboardData={dashboardData} />

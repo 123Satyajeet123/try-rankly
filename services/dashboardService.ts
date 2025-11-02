@@ -47,14 +47,6 @@ class DashboardService {
     this.clearCacheByPattern(pattern)
   }
 
-  /**
-   * Clear prompts cache for specific analysis
-   */
-  clearPromptsCacheForAnalysis(analysisId: string): void {
-    const cacheKey = `prompts-${analysisId}`
-    console.log('🧹 [DashboardService] Clearing prompts cache for analysis:', analysisId)
-    this.cache.delete(cacheKey)
-  }
 
   /**
    * Trigger insights generation for all tabs in background
@@ -463,11 +455,14 @@ class DashboardService {
                     })
                     
                     // Re-fetch competitors, topics, personas
-                    [competitors, topics, personas] = await Promise.all([
+                    const [newCompetitors, newTopics, newPersonas] = await Promise.all([
                       apiService.getCompetitors(urlAnalysisId).catch(e => ({ success: false, data: [] })),
                       apiService.getTopics(urlAnalysisId).catch(e => ({ success: false, data: [] })),
                       apiService.getPersonas(urlAnalysisId).catch(e => ({ success: false, data: [] }))
                     ])
+                    competitors = newCompetitors
+                    topics = newTopics
+                    personas = newPersonas
                     
                     console.log('🔍 [DashboardService] DEBUG - After reprocessing:', {
                       hasOverallMetrics: !!overallMetrics.data,

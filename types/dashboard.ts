@@ -85,6 +85,10 @@ export interface FilterState {
 }
 
 export interface VisibilityMetrics {
+  competitorsByDepth?: Competitor[]
+  competitorsByPosition?: Competitor[]
+  competitorsBySov?: Competitor[]
+  competitorsByCitation?: Competitor[]
   visibilityScore: Metric
   shareOfVoice: Metric
   averagePosition: Metric
@@ -96,6 +100,8 @@ export interface VisibilityMetrics {
   competitors: Competitor[]
   // ✅ Add platform-specific metrics for detailed citation analysis
   platformMetrics?: any[]
+  topics?: any[]
+  personas?: any[]
 }
 
 export interface DashboardData {

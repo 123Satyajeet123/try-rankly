@@ -38,6 +38,7 @@ interface UnifiedSentimentSectionProps {
     selectedTopics: string[]
     selectedPersonas: string[]
     selectedPlatforms: string[]
+    selectedAnalysisId?: string | null
   }
   dashboardData?: any
 }
@@ -53,7 +54,7 @@ const getSentimentDataFromDashboard = (dashboardData: any, filterContext?: any) 
     return defaultSentimentData
   }
 
-  let filteredCompetitors = dashboardData.metrics.competitors
+  const filteredCompetitors = dashboardData.metrics.competitors
 
   // Apply global filter filtering with real-time updates
   if (filterContext) {
@@ -128,7 +129,9 @@ interface UnifiedSentimentSectionProps {
     selectedTopics: string[]
     selectedPersonas: string[]
     selectedPlatforms: string[]
+    selectedAnalysisId?: string | null
   }
+  dashboardData?: any
 }
 
 export function UnifiedSentimentSection({ filterContext, dashboardData }: UnifiedSentimentSectionProps) {

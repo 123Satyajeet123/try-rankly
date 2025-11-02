@@ -29,8 +29,8 @@ function Layout({ children, showNav = true }: LayoutProps) {
 
   const getUserInitials = () => {
     if (!user) return 'U'
-    const firstInitial = user.firstName?.charAt(0).toUpperCase() || ''
-    const lastInitial = user.lastName?.charAt(0).toUpperCase() || ''
+    const firstInitial = user.profile?.firstName?.charAt(0).toUpperCase() || ''
+    const lastInitial = user.profile?.lastName?.charAt(0).toUpperCase() || ''
     return firstInitial + lastInitial || user.email?.charAt(0).toUpperCase() || 'U'
   }
 
@@ -147,11 +147,11 @@ function Layout({ children, showNav = true }: LayoutProps) {
                     <div className="flex items-center justify-start gap-2 p-2">
                       <div className="flex flex-col space-y-1">
                         <p className="text-sm font-medium leading-none">
-                          {user.firstName && user.lastName 
-                            ? `${user.firstName} ${user.lastName}`
+                          {user.profile?.firstName && user.profile?.lastName 
+                            ? `${user.profile.firstName} ${user.profile.lastName}`
                             : user.email}
                         </p>
-                        {user.firstName && user.lastName && (
+                        {user.profile?.firstName && user.profile?.lastName && (
                           <p className="text-xs leading-none text-muted-foreground">
                             {user.email}
                           </p>

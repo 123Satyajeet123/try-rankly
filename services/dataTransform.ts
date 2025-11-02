@@ -32,6 +32,9 @@ interface BackendBrandMetric {
   count1st: number
   count2nd: number
   count3rd: number
+  rank1st?: number
+  rank2nd?: number
+  rank3rd?: number
   totalAppearances: number
   isOwner?: boolean // Whether this is the user's brand
 }
@@ -456,6 +459,8 @@ function createCompleteCompetitorList(
       const zeroMetricBrand: BackendBrandMetric = {
         brandId: competitorName.replace(/\s+/g, '').toLowerCase(),
         brandName: selectedCompetitors.find(c => c.name.toLowerCase() === competitorName)?.name || competitorName,
+        visibilityScore: 0,
+        visibilityRank: completeList.length + 1,
         totalMentions: 0,
         mentionRank: completeList.length + 1,
         shareOfVoice: 0,
@@ -620,7 +625,7 @@ export function calculateTrend(current: number, previous: number): 'up' | 'down'
  */
 export function calculatePercentageChange(current: number, previous: number): number {
   if (previous === 0) return 0
-  return parseFloat(((current - previous) / previous) * 100).toFixed(2)
+  return parseFloat((((current - previous) / previous) * 100).toFixed(2))
 }
 
 /**

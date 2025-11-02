@@ -31,6 +31,7 @@ interface CitationTypesSectionProps {
     selectedTopics: string[]
     selectedPersonas: string[]
     selectedPlatforms: string[]
+    selectedAnalysisId?: string | null
   }
   dashboardData?: any
 }
@@ -80,7 +81,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
   
   // Apply global filtering with real-time updates
   const getFilteredData = () => {
-    let filteredData = [...currentCitationData]
+    const filteredData = [...currentCitationData]
     
     if (filterContext) {
       const { selectedTopics, selectedPersonas, selectedPlatforms } = filterContext
@@ -101,6 +102,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
   // ✅ Find user's brand from citation data to ensure we display correct metrics
   const userBrandFromData = filteredCitationData.find(item => item.isOwner === true)
   
+  // All hooks must be called before any conditional returns
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
   const [chartType, setChartType] = useState('donut')
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date())
@@ -118,7 +120,18 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
   // Skeleton loading - only show when data is actually loading
   const { showSkeleton, isVisible } = useSkeletonLoadingWithData(filteredCitationData, filterContext)
 
-  // Handle empty data
+  // Auto-switch chart type based on date selection
+  useEffect(() => {
+    if (comparisonDate) {
+      // Range mode - use line chart for trend view
+      setChartType('line')
+    } else {
+      // Single date mode - use donut chart for brand share view
+      setChartType('donut')
+    }
+  }, [comparisonDate])
+
+  // Handle empty data - must be after all hooks
   if (filteredCitationData.length === 0) {
     return (
       <UnifiedCard className="h-full">
@@ -133,17 +146,6 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
       </UnifiedCard>
     )
   }
-
-  // Auto-switch chart type based on date selection
-  useEffect(() => {
-    if (comparisonDate) {
-      // Range mode - use line chart for trend view
-      setChartType('line')
-    } else {
-      // Single date mode - use donut chart for brand share view
-      setChartType('donut')
-    }
-  }, [comparisonDate])
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', { 
@@ -595,7 +597,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                     <div className="h-full w-full">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart
-                          data={trendData.map(item => ({
+                          data={[].map(item => ({
                             month: item.month,
                             'US Bank': (item['US Bank'] as any)[selectedCitationType],
                             'Citibank': (item['Citibank'] as any)[selectedCitationType],

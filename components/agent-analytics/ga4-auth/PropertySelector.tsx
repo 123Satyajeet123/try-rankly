@@ -3,7 +3,8 @@
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { getAccountsProperties, saveProperty, type GA4Account } from '@/services/ga4Api'
+import { getAccountsProperties, saveProperty } from '@/services/ga4Api'
+import type { GA4Account } from '@/types/ga4'
 import { toast } from 'sonner'
 import { Loader2 } from 'lucide-react'
 

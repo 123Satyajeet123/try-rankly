@@ -198,24 +198,18 @@ export function PagesTab({
       try {
         const days = parseInt(dateRange.split(' ')[0])
         const { startDate, endDate } = getDateRange(days)
-        const response = await getPages(startDate, endDate, 100, dateRange, selectedConversionEvent, false)
+        const response = await getPages(startDate, endDate, 100, dateRange, selectedConversionEvent)
         
         console.log('📊 [PagesTab] Pages API response:', {
           success: response.success,
           hasData: !!response.data,
-          pagesCount: response.data?.pages?.length || 0,
-          conversionEvent: selectedConversionEvent,
-          warning: response.warning
+          pagesCount: response.data?.length || 0,
+          conversionEvent: selectedConversionEvent
         })
         
-        if (response.success && response.data?.pages) {
-          setPagesData(response.data.pages)
-          console.log('✅ [PagesTab] Updated pages data:', response.data.pages?.slice(0, 2))
-          
-          // Show warning if conversion event was not available
-          if (response.warning) {
-            console.warn('⚠️ [PagesTab]', response.warning)
-          }
+        if (response.success && response.data) {
+          setPagesData(response.data)
+          console.log('✅ [PagesTab] Updated pages data:', response.data?.slice(0, 2))
         } else {
           console.error('❌ [PagesTab] API error:', response.error)
         }

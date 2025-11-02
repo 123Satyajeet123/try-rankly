@@ -35,6 +35,7 @@ export function withSkeletonLoading<T extends object>(
       selectedTopics: string[]
       selectedPersonas: string[]
       selectedPlatforms: string[]
+      selectedAnalysisId?: string | null
     }
   }) {
     const { filterContext, ...componentProps } = props
@@ -90,6 +91,7 @@ export function useSkeletonLoading(
     selectedTopics: string[]
     selectedPersonas: string[]
     selectedPlatforms: string[]
+    selectedAnalysisId?: string | null
   },
   options: WithSkeletonLoadingOptions = {}
 ) {
@@ -132,6 +134,7 @@ export function useSkeletonLoadingWithData<T>(
     selectedTopics: string[]
     selectedPersonas: string[]
     selectedPlatforms: string[]
+    selectedAnalysisId?: string | null
   },
   options: WithSkeletonLoadingOptions = {}
 ) {

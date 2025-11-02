@@ -35,6 +35,7 @@ interface UnifiedDepthOfMentionSectionProps {
     selectedTopics: string[]
     selectedPersonas: string[]
     selectedPlatforms: string[]
+    selectedAnalysisId?: string | null
   }
   dashboardData?: any
 }
@@ -102,7 +103,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
   // Apply global filtering with real-time updates
   const getFilteredData = () => {
     let baseChartData = getChartDataFromDashboard()
-    let baseRankings = getRankingsFromDashboard()
+    const baseRankings = getRankingsFromDashboard()
 
     // Apply global filter filtering with real-time updates
     if (filterContext) {

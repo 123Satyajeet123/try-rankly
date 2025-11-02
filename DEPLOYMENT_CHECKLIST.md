@@ -352,3 +352,4 @@ If you encounter issues:
 4. Test backend directly: `curl http://localhost:5000/health`
 5. Test frontend directly: `curl http://localhost:3000`
 
+

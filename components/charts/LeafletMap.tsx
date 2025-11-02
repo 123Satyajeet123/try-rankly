@@ -53,7 +53,7 @@ function Legend({ totalSessions }: { totalSessions: number }) {
   const map = useMap()
 
   useEffect(() => {
-    const legend = L.control({ position: 'bottomright' })
+    const legend = (L.control as any)({ position: 'bottomright' })
 
     legend.onAdd = () => {
       const div = L.DomUtil.create('div', 'legend')
