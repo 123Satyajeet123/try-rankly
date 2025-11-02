@@ -155,6 +155,10 @@ function formatErrorResponse(error, req) {
 function logError(error, req) {
   const isDevelopment = process.env.NODE_ENV === 'development';
   
+  // Log Authorization header presence for debugging (don't log the actual token)
+  const hasAuthHeader = !!req.headers.authorization;
+  const authHeaderLength = req.headers.authorization ? req.headers.authorization.length : 0;
+  
   const errorContext = {
     message: error.message,
     stack: error.stack,
@@ -165,6 +169,8 @@ function logError(error, req) {
     ip: req.ip,
     userAgent: req.get('user-agent'),
     userId: req.userId || req.user?.id || 'anonymous',
+    hasAuthHeader: hasAuthHeader,
+    authHeaderLength: authHeaderLength,
     timestamp: new Date().toISOString(),
   };
 

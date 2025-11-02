@@ -58,6 +58,7 @@ const authenticateToken = (req, res, next) => {
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 
   if (!token) {
+    console.warn(`⚠️ [AUTH] No token provided for ${req.method} ${req.path} from IP: ${req.ip}`);
     return next(new AuthenticationError('No token provided'));
   }
 
@@ -66,21 +67,31 @@ const authenticateToken = (req, res, next) => {
     req.userId = decoded.userId;
     
     if (!req.userId) {
+      console.error(`❌ [AUTH] Token verified but no userId found in decoded token:`, decoded);
       return next(new AuthenticationError('Invalid token: no userId'));
     }
     
     // Log successful authentication (userId comes from JWT token created during Google OAuth)
-    console.log(`✅ [AUTH] Authenticated user: ${req.userId} (from JWT token)`);
+    console.log(`✅ [AUTH] Authenticated user: ${req.userId} (from JWT token) for ${req.method} ${req.path}`);
     
     next();
   } catch (error) {
+    // Log the actual error for debugging
+    console.error(`❌ [AUTH] JWT verification failed for ${req.method} ${req.path}:`, {
+      errorName: error.name,
+      errorMessage: error.message,
+      hasToken: !!token,
+      tokenLength: token ? token.length : 0,
+      ip: req.ip
+    });
+    
     if (error.name === 'TokenExpiredError') {
       return next(new AuthenticationError('Token expired'));
     }
     if (error.name === 'JsonWebTokenError') {
-      return next(new AuthenticationError('Invalid token'));
+      return next(new AuthenticationError(`Invalid token: ${error.message}`));
     }
-    return next(new AuthenticationError('Token verification failed'));
+    return next(new AuthenticationError(`Token verification failed: ${error.message}`));
   }
 };
 

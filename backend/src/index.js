@@ -23,8 +23,10 @@ if (process.env.NODE_ENV === 'production') {
 
 // Security middleware
 app.use(helmet({
-  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? undefined : false,
+  contentSecurityPolicy: false, // Disable CSP to avoid blocking API requests
   crossOriginEmbedderPolicy: false,
+  // Explicitly allow all headers including Authorization
+  permittedCrossDomainPolicies: false,
 }));
 
 // CORS configuration - support multiple origins in production
@@ -108,6 +110,20 @@ if (process.env.NODE_ENV === 'production') {
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Debug middleware to log incoming requests (production debugging)
+if (process.env.NODE_ENV === 'production' && process.env.DEBUG_REQUESTS === 'true') {
+  app.use((req, res, next) => {
+    console.log(`📥 [REQUEST] ${req.method} ${req.path}`, {
+      hasAuth: !!req.headers.authorization,
+      authLength: req.headers.authorization ? req.headers.authorization.length : 0,
+      contentType: req.headers['content-type'],
+      origin: req.headers.origin,
+      ip: req.ip
+    });
+    next();
+  });
+}
 
 // Cookie parser middleware
 app.use(cookieParser());
