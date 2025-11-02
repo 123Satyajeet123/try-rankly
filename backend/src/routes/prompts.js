@@ -295,8 +295,22 @@ router.post('/generate', authenticateToken, async (req, res) => {
 
     console.log(`✨ Generated ${generatedPrompts.length} prompts`);
 
-    // Save prompts to database
+    // Save prompts to database with tracking per combination
     const savedPrompts = [];
+    const combinationCounts = {}; // Track how many prompts saved per combination
+    const combinationKeys = {}; // Map combination keys to topic/persona objects
+    
+    // Initialize combination tracking
+    for (const topic of selectedTopics) {
+      for (const persona of selectedPersonas) {
+        const key = `${topic._id}_${persona._id}`;
+        combinationCounts[key] = 0;
+        combinationKeys[key] = { topic, persona };
+      }
+    }
+    
+    // First pass: Save prompts and track per combination
+    const skippedPrompts = []; // Track skipped prompts for potential retry
     for (const promptData of generatedPrompts) {
       // TOFU/Commercial strictness: Only allow 'Commercial' queryType
       if (promptData.queryType !== 'Commercial') {
@@ -307,6 +321,15 @@ router.post('/generate', authenticateToken, async (req, res) => {
       const topic = selectedTopics.find(t => t._id.toString() === promptData.topicId);
       const persona = selectedPersonas.find(p => p._id.toString() === promptData.personaId);
       if (!topic || !persona) continue;
+      
+      const combinationKey = `${topic._id}_${persona._id}`;
+      
+      // Skip if this combination already has enough prompts
+      if (combinationCounts[combinationKey] >= promptsPerCombination) {
+        skippedPrompts.push(promptData);
+        continue;
+      }
+      
       const normalized = normalizePromptText(promptData.promptText);
       const exists = await Prompt.findOne({
         userId,
@@ -316,7 +339,8 @@ router.post('/generate', authenticateToken, async (req, res) => {
         text: { $regex: new RegExp('^' + normalized + '$', 'i') }
       });
       if (exists) {
-        console.log('⏩ Skipping duplicate prompt:', promptData.promptText);
+        console.log(`⏩ Skipping duplicate prompt for ${topic.name} × ${persona.type}:`, promptData.promptText.substring(0, 50));
+        skippedPrompts.push(promptData);
         continue;
       }
       // Save commercial prompt
@@ -334,6 +358,7 @@ router.post('/generate', authenticateToken, async (req, res) => {
         }
       });
       await prompt.save();
+      combinationCounts[combinationKey]++;
       savedPrompts.push({
         id: prompt._id,
         topicName: topic.name,
@@ -342,12 +367,40 @@ router.post('/generate', authenticateToken, async (req, res) => {
         promptIndex: promptData.promptIndex
       });
     }
+    
+    // Check which combinations are short and log
+    console.log(`\n📊 Prompts saved per combination:`);
+    const shortCombinations = [];
+    for (const [key, count] of Object.entries(combinationCounts)) {
+      const { topic, persona } = combinationKeys[key];
+      const status = count === promptsPerCombination ? '✅' : '⚠️';
+      console.log(`   ${status} ${topic.name} × ${persona.type}: ${count}/${promptsPerCombination} prompts`);
+      if (count < promptsPerCombination) {
+        shortCombinations.push({ key, topic, persona, needed: promptsPerCombination - count });
+      }
+    }
+    
+    // Log short combinations - these may need additional generation in future
+    // Note: With 80% over-generation and proper deduplication, this should be rare
+    if (shortCombinations.length > 0) {
+      console.warn(`\n⚠️  ${shortCombinations.length} combination(s) are short after database deduplication:`);
+      for (const combo of shortCombinations) {
+        console.warn(`   - ${combo.topic.name} × ${combo.persona.type}: ${combinationCounts[combo.key]}/${promptsPerCombination} prompts (needs ${combo.needed} more)`);
+      }
+      console.log(`   💡 This may be due to many database duplicates. Consider generating additional prompts for these combinations.`);
+    }
 
-    // Update topic and persona prompt counts
+    // Update topic prompt counts based on ACTUAL database count, not just savedPrompts
+    // This ensures accuracy even if some prompts were skipped
     for (const topic of selectedTopics) {
-      const count = savedPrompts.filter(p => p.topicName === topic.name).length;
-      topic.promptCount = (topic.promptCount || 0) + count;
+      const actualCount = await Prompt.countDocuments({ 
+        userId, 
+        topicId: topic._id,
+        status: 'active' // Only count active prompts (excludes archived)
+      });
+      topic.promptCount = actualCount;
       await topic.save();
+      console.log(`   📊 Updated ${topic.name} prompt count to ${actualCount} (from database)`);
     }
 
     console.log(`💾 Saved ${savedPrompts.length} prompts to database`);

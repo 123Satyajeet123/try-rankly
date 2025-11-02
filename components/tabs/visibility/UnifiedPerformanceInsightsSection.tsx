@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { UnifiedCard, UnifiedCardContent } from '@/components/ui/unified-card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -20,7 +20,8 @@ import {
   ExternalLink,
   Target,
   Zap,
-  Shield
+  Shield,
+  Loader2
 } from 'lucide-react'
 import { useSkeletonLoading } from '@/components/ui/with-skeleton-loading'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
@@ -50,6 +51,15 @@ export function UnifiedPerformanceInsightsSection({ filterContext, dashboardData
     needsAttention: []
   })
   const [isLoading, setIsLoading] = useState(true)
+  
+  // Frontend cache: Store insights per tab to avoid redundant API calls
+  // Using useRef to avoid dependency issues in useEffect
+  const insightsCacheRef = useRef<Record<string, {
+    whatsWorking: any[]
+    needsAttention: any[]
+    performanceInsights?: any[]
+    timestamp?: number
+  }>>({})
 
   // ✅ Use AI-powered Performance Insights from dashboard data (integrated in main flow)
   const getInsightsFromDashboard = () => {
@@ -182,30 +192,111 @@ export function UnifiedPerformanceInsightsSection({ filterContext, dashboardData
   // Get insights data from dashboard and fetch tab-specific insights
   useEffect(() => {
     const loadInsights = async () => {
+      // Always show loader immediately when tabType changes
       setIsLoading(true)
+      
+      // Small delay to ensure loader is visible (helps with tab switching UX)
+      await new Promise(resolve => setTimeout(resolve, 100))
+      
       try {
         const urlAnalysisId = dashboardData?.currentUrlAnalysisId || dashboardData?.meta?.currentUrlAnalysisId
+        const cacheKey = `${tabType}-${urlAnalysisId || 'default'}`
+        
+        // Check frontend cache first
+        if (insightsCacheRef.current[cacheKey]) {
+          const cached = insightsCacheRef.current[cacheKey]
+          // Cache is valid for 24 hours (same as backend)
+          const cacheAge = cached.timestamp ? Date.now() - cached.timestamp : Infinity
+          const CACHE_EXPIRY = 24 * 60 * 60 * 1000 // 24 hours
+          
+          if (cacheAge < CACHE_EXPIRY) {
+            console.log(`✅ [PerformanceInsights] Using frontend cache for ${tabType} (${Math.round(cacheAge / 1000 / 60)} minutes old)`)
+            setInsightsData({
+              whatsWorking: cached.whatsWorking || [],
+              needsAttention: cached.needsAttention || []
+            })
+            // Small delay to show completion
+            await new Promise(resolve => setTimeout(resolve, 200))
+            setIsLoading(false)
+            return
+          } else {
+            console.log(`⏰ [PerformanceInsights] Frontend cache expired for ${tabType}, fetching fresh data`)
+          }
+        }
+        
         // First try to get insights from dashboard data
         const dashboardInsights = getInsightsFromDashboard()
         if (dashboardInsights.whatsWorking.length > 0 || dashboardInsights.needsAttention.length > 0) {
           setInsightsData(dashboardInsights)
+          // Cache the dashboard insights
+          insightsCacheRef.current[cacheKey] = {
+            ...dashboardInsights,
+            timestamp: Date.now()
+          }
           console.log('✅ [PerformanceInsights] Insights loaded from dashboard:', dashboardInsights.whatsWorking.length, 'working,', dashboardInsights.needsAttention.length, 'attention')
+          // Small delay to show completion
+          await new Promise(resolve => setTimeout(resolve, 200))
+          setIsLoading(false)
+          return
         } else {
           // If no dashboard insights, try to get existing insights from database first
           console.log(`🔄 [PerformanceInsights] Fetching existing insights for ${tabType}...`)
           try {
+            // Transform API response to frontend format
+            const transformApiInsight = (insight: any) => ({
+              insight: insight.description || insight.insight || 'No description',
+              description: insight.description || insight.insight,
+              metric: insight.metric || null,
+              value: insight.value || null,
+              impact: insight.impact || 'Medium',
+              recommendation: insight.recommendation || 'No recommendation',
+              trend: insight.trend || 'neutral',
+              icon: insight.icon || 'Info',
+              insightId: insight.id || insight.insightId || `insight-${Date.now()}-${Math.random()}`
+            })
+
             // First try to get existing insights from database
             const existingResponse = await apiService.getInsightsForTab(tabType, urlAnalysisId)
             if (existingResponse.success && existingResponse.data) {
-              setInsightsData(existingResponse.data)
-              console.log('✅ [PerformanceInsights] Existing insights loaded from database:', existingResponse.data.whatsWorking?.length || 0, 'working,', existingResponse.data.needsAttention?.length || 0, 'attention')
+              const responseData = existingResponse.data
+              const transformedData = {
+                whatsWorking: (responseData.whatsWorking || []).map(transformApiInsight),
+                needsAttention: (responseData.needsAttention || []).map(transformApiInsight)
+              }
+              setInsightsData(transformedData)
+              // Cache the transformed API response
+              insightsCacheRef.current[cacheKey] = {
+                ...transformedData,
+                performanceInsights: responseData.performanceInsights || [],
+                timestamp: Date.now()
+              }
+              console.log('✅ [PerformanceInsights] Existing insights loaded from database (cached):', transformedData.whatsWorking?.length || 0, 'working,', transformedData.needsAttention?.length || 0, 'attention')
+              // Small delay to show completion
+              await new Promise(resolve => setTimeout(resolve, 200))
+              setIsLoading(false)
+              return
             } else {
               // If no existing insights, generate new ones
               console.log(`🔄 [PerformanceInsights] No existing insights found, generating new ones for ${tabType}...`)
               const response = await apiService.generateInsightsForTab(tabType, urlAnalysisId)
               if (response.success && response.data) {
-                setInsightsData(response.data)
-                console.log('✅ [PerformanceInsights] New insights generated:', response.data.whatsWorking?.length || 0, 'working,', response.data.needsAttention?.length || 0, 'attention')
+                const responseData = response.data
+                const transformedData = {
+                  whatsWorking: (responseData.whatsWorking || []).map(transformApiInsight),
+                  needsAttention: (responseData.needsAttention || []).map(transformApiInsight)
+                }
+                setInsightsData(transformedData)
+                // Cache the transformed newly generated insights
+                insightsCacheRef.current[cacheKey] = {
+                  ...transformedData,
+                  performanceInsights: responseData.performanceInsights || [],
+                  timestamp: Date.now()
+                }
+                console.log('✅ [PerformanceInsights] New insights generated (cached):', transformedData.whatsWorking?.length || 0, 'working,', transformedData.needsAttention?.length || 0, 'attention')
+                // Small delay to show completion
+                await new Promise(resolve => setTimeout(resolve, 200))
+                setIsLoading(false)
+                return
               } else {
                 throw new Error('Failed to generate new insights')
               }
@@ -215,6 +306,11 @@ export function UnifiedPerformanceInsightsSection({ filterContext, dashboardData
             // Fallback to manual generation
             const fallbackData = generateInsightsFromMetrics()
             setInsightsData(fallbackData)
+            // Don't cache fallback data as it's not reliable
+            // Small delay to show completion
+            await new Promise(resolve => setTimeout(resolve, 200))
+            setIsLoading(false)
+            return
           }
         }
       } catch (error) {
@@ -223,12 +319,13 @@ export function UnifiedPerformanceInsightsSection({ filterContext, dashboardData
         const fallbackData = generateInsightsFromMetrics()
         setInsightsData(fallbackData)
       } finally {
+        // Ensure loading state is cleared
         setIsLoading(false)
       }
     }
 
     loadInsights()
-  }, [dashboardData]) // Re-calculate when dashboard data changes
+  }, [dashboardData, tabType]) // Re-calculate when dashboard data OR tabType changes
 
   const { whatsWorking, needsAttention } = insightsData
   const hasData = whatsWorking.length > 0 || needsAttention.length > 0
@@ -279,22 +376,46 @@ export function UnifiedPerformanceInsightsSection({ filterContext, dashboardData
   // Show loading state while fetching insights
   if (isLoading) {
     return (
-      <SkeletonWrapper
-        show={true}
-        isVisible={isVisible}
-        skeleton={<UnifiedCardSkeleton type="table" tableColumns={3} tableRows={4} />}
-      >
-        <UnifiedCard>
-          <UnifiedCardContent className="p-6">
-            <div className="flex items-center justify-center py-12">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
-                <p className="text-muted-foreground">Loading performance insights...</p>
+      <UnifiedCard>
+        <UnifiedCardContent className="p-6">
+          <div className="space-y-4 mb-6">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xl font-semibold leading-none tracking-tight text-foreground">Performance Insights</h2>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="w-4 h-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                  </TooltipTrigger>
+                  <TooltipContent side="top" className="max-w-xs">
+                    <p className="text-sm leading-relaxed">
+                      Performance Insights provides AI-generated actionable recommendations based on your metrics. It identifies what's working well and what needs attention to help optimize your brand visibility.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <p className="body-text text-muted-foreground mt-1">
+              Actionable insights derived from your visibility metrics to guide strategic decisions
+            </p>
+          </div>
+          
+          <div className="flex items-center justify-center py-16 border rounded-lg">
+            <div className="text-center space-y-4">
+              <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto" />
+              <div className="space-y-1">
+                <p className="font-medium text-foreground">Loading performance insights...</p>
+                <p className="text-sm text-muted-foreground">
+                  {tabType === 'visibility' && 'Analyzing visibility metrics across platforms, topics, and personas'}
+                  {tabType === 'prompts' && 'Analyzing prompt performance and engagement metrics'}
+                  {tabType === 'citations' && 'Analyzing citation share and reference patterns'}
+                  {tabType === 'sentiment' && 'Analyzing sentiment distribution across interactions'}
+                  {!['visibility', 'prompts', 'citations', 'sentiment'].includes(tabType || '') && 'Processing insights data...'}
+                </p>
               </div>
             </div>
-          </UnifiedCardContent>
-        </UnifiedCard>
-      </SkeletonWrapper>
+          </div>
+        </UnifiedCardContent>
+      </UnifiedCard>
     )
   }
 

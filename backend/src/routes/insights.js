@@ -74,9 +74,11 @@ router.get('/:tabType', authenticateToken, async (req, res) => {
       });
     }
 
-    // Transform insights to ensure only description, impact, recommendation fields
+    // Transform insights to include metric and value fields for frontend display
     const transformInsight = (insight) => ({
       description: insight.description,
+      metric: insight.metric || null, // Include metric name for frontend display
+      value: insight.value || null, // Include value for frontend display
       impact: insight.impact,
       recommendation: insight.recommendation
     });
@@ -114,14 +116,14 @@ router.delete('/:tabType', authenticateToken, async (req, res) => {
     const { urlAnalysisId } = req.query;
     const userId = req.userId;
 
-    console.log(`🗑️ [Insights API] Clearing ${tabType} insights for user ${userId}`);
+    console.log(`🗑️ [Insights API] Clearing ${tabType} insights for user ${userId}${urlAnalysisId ? ` (urlAnalysisId: ${urlAnalysisId})` : ''}`);
 
-    // This would need to be implemented in the service
-    // await insightsService.clearInsights(userId, urlAnalysisId, tabType);
+    const result = await insightsService.clearInsights(userId, urlAnalysisId, tabType);
     
     res.json({
       success: true,
-      message: `${tabType} insights cleared successfully`
+      deletedCount: result.deletedCount,
+      message: `Cleared ${result.deletedCount} ${tabType} insights successfully`
     });
 
   } catch (error) {
@@ -130,6 +132,34 @@ router.delete('/:tabType', authenticateToken, async (req, res) => {
       success: false,
       error: error.message,
       message: 'Failed to clear insights'
+    });
+  }
+});
+
+/**
+ * DELETE /api/insights/clear/all
+ * Clear ALL stored insights for all tabs for the authenticated user
+ */
+router.delete('/clear/all', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.userId;
+
+    console.log(`🗑️ [Insights API] Clearing ALL insights for user ${userId}`);
+
+    const result = await insightsService.clearAllInsights(userId);
+    
+    res.json({
+      success: true,
+      deletedCount: result.deletedCount,
+      message: `Cleared ${result.deletedCount} insights across all tabs successfully`
+    });
+
+  } catch (error) {
+    console.error(`❌ [Insights API] Error clearing all insights:`, error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      message: 'Failed to clear all insights'
     });
   }
 });

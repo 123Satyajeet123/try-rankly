@@ -37,9 +37,11 @@ async function generatePrompts({
   websiteUrl = '',
   brandContext = '',
   competitors = [],
-  totalPrompts = 20, // Use maxToTest as the total number of prompts to generate
+  totalPrompts = 20, // Default: 20 prompts per combination. This is the count per topic-persona combination.
   options = null // Optional override
 }) {
+  // Ensure totalPrompts is a valid number, default to 20 if not provided or invalid
+  const promptsPerCombination = Number.isInteger(totalPrompts) && totalPrompts > 0 ? totalPrompts : 20;
   try {
     console.log('🎯 Starting prompt generation...');
     console.log(`Topics: ${topics.length}, Personas: ${personas.length}`);
@@ -56,9 +58,9 @@ async function generatePrompts({
 
     // Generate prompts for each topic-persona combination
     // Ensure equal number of prompts per combination
-    const promptsPerCombination = totalPrompts; // This is the count per combination
-    // Over-generate by 50% to account for duplicates during deduplication
-    const overGenerationFactor = 1.5;
+    // Over-generate by 80% to account for duplicates during both in-memory and database deduplication
+    // Higher factor ensures we have enough unique prompts even if many are duplicates
+    const overGenerationFactor = 1.8;
     const promptsToGenerate = Math.ceil(promptsPerCombination * overGenerationFactor);
     
     let combinationCount = 0;
@@ -119,17 +121,34 @@ async function generatePrompts({
     });
 
     // Step 1: Deduplicate WITHIN each combination first (per-combination deduplication)
+    // Also check for diversity to ensure prompts are meaningfully different
     const deduplicatedByCombination = {};
     for (const [key, prompts] of Object.entries(promptsByCombination)) {
       const seen = [];
       const unique = [];
+      const uniqueTexts = []; // Track normalized texts for diversity checking
+      
       for (const prompt of prompts) {
         const normText = normalizePromptText(prompt.promptText);
-        if (seen.some(p => isNearDuplicate(p, normText))) continue;
+        
+        // Check for exact/near duplicates
+        if (seen.some(p => isNearDuplicate(p, normText))) {
+          continue;
+        }
+        
+        // Check for diversity - ensure prompt is meaningfully different from existing ones
+        if (!hasGoodDiversity(normText, uniqueTexts, 0.25)) {
+          // Still accept if not a near-duplicate, but log for awareness
+          // We'll include it since diversity check might be too strict
+        }
+        
         seen.push(normText);
+        uniqueTexts.push(normText);
         unique.push(prompt);
       }
+      
       deduplicatedByCombination[key] = unique;
+      console.log(`   ✅ ${key}: Deduplicated from ${prompts.length} to ${unique.length} unique prompts`);
     }
     
     // Step 2: Cross-combination deduplication with deterministic equal distribution
@@ -145,7 +164,7 @@ async function generatePrompts({
       finalPromptsByCombination[key] = [];
       let added = 0;
       
-      // Add prompts from this combination, skipping global duplicates
+      // First pass: Add prompts from this combination, skipping global duplicates
       for (const prompt of prompts) {
         if (added >= promptsPerCombination) break; // We have enough
         
@@ -161,8 +180,8 @@ async function generatePrompts({
         }
       }
       
-      // If we don't have enough prompts after deduplication, use remaining prompts from this combination
-      // (even if they're duplicates with other combinations, prioritize keeping this combination full)
+      // Second pass: If we still don't have enough, use remaining unique prompts from this combination
+      // (prioritize keeping this combination full - duplicates across combinations are acceptable)
       if (added < promptsPerCombination) {
         for (const prompt of prompts) {
           if (added >= promptsPerCombination) break;
@@ -174,10 +193,16 @@ async function generatePrompts({
           
           if (!alreadyInThisCombo) {
             // Add even if it's a global duplicate - maintain combination count
+            // This ensures each combination gets exactly promptsPerCombination prompts
             finalPromptsByCombination[key].push(prompt);
             added++;
           }
         }
+      }
+      
+      // Log if combination is still short (this shouldn't happen often with 50% over-generation)
+      if (added < promptsPerCombination) {
+        console.warn(`   ⚠️  Combination ${key} only has ${added}/${promptsPerCombination} prompts after deduplication`);
       }
     }
     
@@ -187,10 +212,51 @@ async function generatePrompts({
       uniquePrompts.push(...prompts);
     }
     
+    // Final diversity validation pass - check for any remaining near-duplicates across all prompts
+    console.log(`\n🔍 Final diversity validation pass...`);
+    const finalValidatedPrompts = [];
+    const finalSeen = [];
+    let duplicatesRemoved = 0;
+    
+    for (const prompt of uniquePrompts) {
+      const normText = normalizePromptText(prompt.promptText);
+      
+      // Check against all previously accepted prompts
+      const isDuplicate = finalSeen.some(seenText => isNearDuplicate(seenText, normText));
+      
+      if (isDuplicate) {
+        duplicatesRemoved++;
+        console.log(`   ⚠️  Removed final duplicate: "${prompt.promptText.substring(0, 60)}..."`);
+        continue;
+      }
+      
+      // Additional diversity check - ensure meaningful difference
+      if (!hasGoodDiversity(normText, finalSeen, 0.25)) {
+        // Warn but still include - diversity check might be too strict
+        console.log(`   💡 Low diversity detected but accepting: "${prompt.promptText.substring(0, 60)}..."`);
+      }
+      
+      finalSeen.push(normText);
+      finalValidatedPrompts.push(prompt);
+    }
+    
+    if (duplicatesRemoved > 0) {
+      console.log(`   ⚠️  Removed ${duplicatesRemoved} additional duplicates in final validation`);
+    }
+    
     // Log final distribution
-    console.log(`\n📋 Prompts per combination (after deterministic deduplication):`);
+    console.log(`\n📋 Prompts per combination (after final validation):`);
+    const validatedByCombination = {};
+    for (const prompt of finalValidatedPrompts) {
+      const key = `${prompt.topicId}_${prompt.personaId}`;
+      if (!validatedByCombination[key]) {
+        validatedByCombination[key] = [];
+      }
+      validatedByCombination[key].push(prompt);
+    }
+    
     let allEqual = true;
-    Object.entries(finalPromptsByCombination).forEach(([key, prompts]) => {
+    Object.entries(validatedByCombination).forEach(([key, prompts]) => {
       const topic = topics.find(t => t._id === prompts[0].topicId);
       const persona = personas.find(p => p._id === prompts[0].personaId);
       const count = prompts.length;
@@ -206,8 +272,23 @@ async function generatePrompts({
       console.warn(`\n⚠️  Some combinations don't have the expected count - may need over-generation`);
     }
     
-    console.log(`\n✅ Generated ${uniquePrompts.length} unique prompts successfully`);
-    return uniquePrompts;
+    // Log diversity statistics
+    const finalPromptCount = finalValidatedPrompts.length;
+    const uniqueTextCount = new Set(finalValidatedPrompts.map(p => normalizePromptText(p.promptText))).size;
+    const diversityRatio = (uniqueTextCount / finalPromptCount * 100).toFixed(1);
+    console.log(`\n📊 Diversity Statistics:`);
+    console.log(`   Total prompts: ${finalPromptCount}`);
+    console.log(`   Unique texts: ${uniqueTextCount}`);
+    console.log(`   Diversity ratio: ${diversityRatio}%`);
+    
+    if (diversityRatio < 95) {
+      console.warn(`   ⚠️  Diversity ratio is below 95% - some prompts may be too similar`);
+    } else {
+      console.log(`   ✅ Excellent diversity - prompts are well-distributed`);
+    }
+    
+    console.log(`\n✅ Generated ${finalValidatedPrompts.length} unique, diverse prompts successfully`);
+    return finalValidatedPrompts;
 
   } catch (error) {
     console.error('❌ Prompt generation failed:', error.message);
@@ -384,14 +465,16 @@ CRITICAL: Each prompt MUST be unique with different angles, focus areas, and wor
    - Use generic terms like "alternatives", "options", "solutions", "providers" instead
    - Generic comparisons only (e.g., "best personal loan options" NOT "Brand A vs Brand B")
 
-5. FAN OUT - SHORT & DIVERSIFIED ANGLES:
-   - Vary starting words: Use diverse openings - "Best", "Top", "Compare", "Which", "Should", "Is", "Options for", "Looking for", "Recommend", "Consider"
-   - Vary research angles: "best for [use case]", "top options", "compare", "which [category]", "should I [action]", "options for [scenario]"
-   - Vary buying contexts: different pain points, scenarios, use cases, user segments, urgency levels
-   - Each prompt must be UNIQUE with completely different focus/depth/angle/wording
+5. FAN OUT - SHORT & DIVERSIFIED ANGLES (CRITICAL FOR DIVERSITY):
+   - Vary starting words: Use diverse openings - "Best", "Top", "Compare", "Which", "Should", "Is", "Options for", "Looking for", "Recommend", "Consider", "What are", "Help me find", "I need", "Searching for"
+   - Vary research angles: "best for [use case]", "top options", "compare", "which [category]", "should I [action]", "options for [scenario]", "alternatives to", "recommendations for", "guide to choosing"
+   - Vary buying contexts: different pain points, scenarios, use cases, user segments, urgency levels, budgets, timeframes
+   - Each prompt must be UNIQUE with completely different focus/depth/angle/wording - NO repetition of similar structures
    - Each prompt must be SHORT: 5-12 words maximum
-   - Avoid repetitive patterns - if you use "Is X worth it for Y" once, use different structure for others
-   - Examples of DIVERSE prompts: "Best credit cards for travel rewards", "Which loan options suit debt consolidation", "Compare investment platforms for beginners", "Should I get a rewards card for online shopping"
+   - CRITICAL: Avoid repetitive patterns - if you use "Is X worth it for Y" once, NEVER use similar structure again
+   - CRITICAL: Vary keyword usage - don't repeat the same key phrases across multiple prompts
+   - CRITICAL: Use different question types - mix declarative ("Best X for Y"), interrogative ("Which X is best"), and imperative ("Compare X options") forms
+   - Examples of DIVERSE prompts: "Best credit cards for travel rewards", "Which loan options suit debt consolidation", "Compare investment platforms for beginners", "Should I get a rewards card for online shopping", "Help me find credit cards with no fees", "What are top cashback card options"
 
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -449,10 +532,12 @@ DISTRIBUTION RULES:
 - ALL ${totalPrompts} prompts MUST be SHORT: 5-12 words maximum
 - Write from the persona's perspective (their role, challenges, context)
 - Make prompts conversational and natural (like real human queries)
-- Each prompt must be UNIQUE
-- Fan out across different buying scenarios, use cases, pain points
+- Each prompt must be UNIQUE - absolutely NO duplicates or near-duplicates
+- CRITICAL DIVERSITY: Every prompt must use different words, structure, and angle - avoid any repetition
+- Fan out across different buying scenarios, use cases, pain points, question types, and phrasings
 - ${nonBrandedCount} non-branded + ${brandedCount} branded
 - DO NOT mention any competitor brand names
+- MAXIMUM DIVERSITY REQUIRED: If you find yourself using similar wording, STOP and think of a completely different way to phrase it
 
 OUTPUT FORMAT:
 Return ONLY a JSON array of EXACTLY ${totalPrompts} SHORT commercial prompt strings (5-12 words each).
@@ -568,12 +653,16 @@ TARGET: ${region}, ${language}
    ✓ Use generic terms: "alternatives", "options", "solutions", "providers", "companies"
    ✓ Generic comparisons only (e.g., "best ${topic.name} options" NOT "Brand A vs Brand B")
 
-5. FAN OUT - SHORT & DIVERSIFIED ANGLES:
-   - Vary research angles: "best for [use case]", "top options", "compare", "recommendations", "reviews"
-   - Vary buying contexts: different pain points, scenarios, use cases, budgets, urgency
-   - Each prompt MUST be unique with different focus/depth/angle
+5. FAN OUT - SHORT & DIVERSIFIED ANGLES (CRITICAL FOR DIVERSITY):
+   - Vary starting words: Use diverse openings - "Best", "Top", "Compare", "Which", "Should", "Is", "Options for", "Looking for", "Recommend", "Consider", "What are", "Help me find", "I need", "Searching for"
+   - Vary research angles: "best for [use case]", "top options", "compare", "recommendations", "reviews", "alternatives to", "guide to choosing", "help selecting"
+   - Vary buying contexts: different pain points, scenarios, use cases, budgets, urgency, timeframes, user types
+   - Each prompt MUST be unique with completely different focus/depth/angle/wording - NO similar patterns
    - Each prompt MUST be SHORT: 5-12 words maximum
    - Cover different stages: initial research → comparison → selection criteria
+   - CRITICAL: Use different question types - mix declarative, interrogative, and imperative forms
+   - CRITICAL: Vary keyword usage - don't repeat the same phrases across prompts
+   - CRITICAL: Avoid repetitive structures - if you use one pattern, use completely different patterns for others
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EXAMPLE COMMERCIAL TOFU QUERIES WITH BUYING INTENT - SHORT PROMPTS
@@ -618,8 +707,12 @@ DISTRIBUTION RULES
   ${brandContext && typeof brandContext === 'object' && brandContext.companyName ? `- Brand focus: ${brandContext.companyName}${brandContext.valueProposition ? ` - ${brandContext.valueProposition.substring(0, 80)}${brandContext.valueProposition.length > 80 ? '...' : ''}` : ''}` : ''}
   ${brandContext && typeof brandContext === 'object' && brandContext.keyServices && brandContext.keyServices.length > 0 ? `- Brand services: ${brandContext.keyServices.slice(0, 3).join(', ')}${brandContext.keyServices.length > 3 ? '...' : ''}` : ''}
 - Make prompts natural, conversational (like real user queries)
-- Each prompt: UNIQUE, varied angles, SHORT
-- Fan out: different use cases, scenarios, buying contexts
+- CRITICAL DIVERSITY RULES:
+  ✓ Each prompt: ABSOLUTELY UNIQUE - no duplicates, no near-duplicates, no similar structures
+  ✓ Vary angles, wording, question types, and keywords across ALL prompts
+  ✓ Fan out: different use cases, scenarios, buying contexts, phrasings
+  ✓ Avoid repetitive patterns - if one prompt uses "Best X for Y", use completely different structure for others
+  ✓ Maximum diversity: Every prompt should feel like a different user's search query
 - ${nonBrandedCount} non-branded + ${brandedCount} branded
 - NO competitor brand mentions
 
@@ -711,18 +804,132 @@ function normalizePromptText(text) {
     .trim();
 }
 
-// Utility for fuzzy/near-duplicate detection (basic substring or Levenshtein if available)
+/**
+ * Calculate Levenshtein distance between two strings
+ * Lower distance = more similar (0 = identical)
+ */
+function levenshteinDistance(str1, str2) {
+  const len1 = str1.length;
+  const len2 = str2.length;
+  
+  if (len1 === 0) return len2;
+  if (len2 === 0) return len1;
+  
+  const matrix = Array(len1 + 1).fill(null).map(() => Array(len2 + 1).fill(0));
+  
+  for (let i = 0; i <= len1; i++) matrix[i][0] = i;
+  for (let j = 0; j <= len2; j++) matrix[0][j] = j;
+  
+  for (let i = 1; i <= len1; i++) {
+    for (let j = 1; j <= len2; j++) {
+      const cost = str1[i - 1] === str2[j - 1] ? 0 : 1;
+      matrix[i][j] = Math.min(
+        matrix[i - 1][j] + 1,      // deletion
+        matrix[i][j - 1] + 1,      // insertion
+        matrix[i - 1][j - 1] + cost // substitution
+      );
+    }
+  }
+  
+  return matrix[len1][len2];
+}
+
+/**
+ * Calculate word-level similarity (Jaccard similarity on word sets)
+ * Returns a value between 0 (completely different) and 1 (identical word sets)
+ */
+function wordSimilarity(a, b) {
+  const wordsA = new Set(a.split(/\s+/).filter(w => w.length > 2)); // Ignore words <= 2 chars
+  const wordsB = new Set(b.split(/\s+/).filter(w => w.length > 2));
+  
+  if (wordsA.size === 0 && wordsB.size === 0) return 1;
+  if (wordsA.size === 0 || wordsB.size === 0) return 0;
+  
+  const intersection = new Set([...wordsA].filter(x => wordsB.has(x)));
+  const union = new Set([...wordsA, ...wordsB]);
+  
+  return intersection.size / union.size;
+}
+
+/**
+ * Enhanced near-duplicate detection with multiple similarity metrics
+ * Uses Levenshtein distance, word overlap, and substring matching
+ */
 function isNearDuplicate(a, b) {
   if (!a || !b) return false;
-  a = normalizePromptText(a)
-  b = normalizePromptText(b)
-  if (a === b) return true;
-  // Substring containment (major overlap)
-  if (a.length > 20 && b.length > 20) {
-    if (a.includes(b) || b.includes(a)) return true;
+  
+  const normA = normalizePromptText(a);
+  const normB = normalizePromptText(b);
+  
+  // Exact match after normalization
+  if (normA === normB) return true;
+  
+  // Short strings: stricter matching
+  if (normA.length < 15 || normB.length < 15) {
+    const distance = levenshteinDistance(normA, normB);
+    const maxLen = Math.max(normA.length, normB.length);
+    const similarity = 1 - (distance / maxLen);
+    // For short strings, require >85% similarity
+    if (similarity > 0.85) return true;
   }
-  // If a third-party fuzzy lib is available, can use here (e.g., distance < threshold)
+  
+  // Substring containment check (major overlap)
+  if (normA.length > 20 && normB.length > 20) {
+    const shorter = normA.length < normB.length ? normA : normB;
+    const longer = normA.length >= normB.length ? normA : normB;
+    // If shorter string is mostly contained in longer string
+    if (longer.includes(shorter)) {
+      // Check if overlap is significant (>= 70% of shorter string)
+      const overlapRatio = shorter.length / longer.length;
+      if (overlapRatio >= 0.7) return true;
+    }
+  }
+  
+  // Word-level similarity check
+  const wordSim = wordSimilarity(normA, normB);
+  // If >75% of words overlap, consider it a near-duplicate
+  if (wordSim > 0.75) return true;
+  
+  // Levenshtein distance check for longer strings
+  if (normA.length >= 20 && normB.length >= 20) {
+    const distance = levenshteinDistance(normA, normB);
+    const maxLen = Math.max(normA.length, normB.length);
+    const similarity = 1 - (distance / maxLen);
+    // For longer strings, >80% similarity indicates near-duplicate
+    if (similarity > 0.80) return true;
+  }
+  
   return false;
+}
+
+/**
+ * Check if a prompt has good diversity compared to existing prompts
+ * Returns true if prompt is diverse enough, false if too similar
+ */
+function hasGoodDiversity(promptText, existingPrompts, minDiversity = 0.3) {
+  const normPrompt = normalizePromptText(promptText);
+  
+  for (const existing of existingPrompts) {
+    const normExisting = normalizePromptText(existing);
+    
+    // Calculate word diversity
+    const wordSim = wordSimilarity(normPrompt, normExisting);
+    if (wordSim > (1 - minDiversity)) {
+      return false; // Too similar
+    }
+    
+    // Check structure similarity (same starting words pattern)
+    const promptWords = normPrompt.split(/\s+/).slice(0, 3); // First 3 words
+    const existingWords = normExisting.split(/\s+/).slice(0, 3);
+    const matchingStart = promptWords.filter(w => existingWords.includes(w)).length;
+    // If 2+ of first 3 words match, might be too similar structurally
+    if (matchingStart >= 2 && promptWords.length >= 2) {
+      // But allow if overall word similarity is still low
+      if (wordSim > 0.6) return false;
+    }
+  }
+  
+  return true;
 }
 
 module.exports = {

@@ -353,3 +353,4 @@ If you encounter issues:
 5. Test frontend directly: `curl http://localhost:3000`
 
 
+
