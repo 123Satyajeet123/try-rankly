@@ -5,7 +5,10 @@ const rateLimit = require('express-rate-limit');
 const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const mongoose = require('mongoose');
-require('dotenv').config();
+const path = require('path');
+
+// Load environment variables from backend/.env
+require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 
 // Import passport after dotenv config
 const passport = require('./config/passport');

@@ -3,13 +3,16 @@
  * Run: pm2 start ecosystem.config.js --env production
  */
 
+const path = require('path');
+
 module.exports = {
   apps: [
     {
       name: 'rankly-backend',
-      script: './backend/src/index.js',
-      instances: 2, // Use 2 instances for load balancing (or 'max' for CPU cores)
-      exec_mode: 'cluster',
+      script: path.resolve(__dirname, 'backend/src/index.js'),
+      cwd: path.resolve(__dirname),
+      instances: 1, // Start with 1 instance for debugging, increase later if needed
+      exec_mode: 'fork', // Use fork mode first, switch to cluster after confirming it works
       env: {
         NODE_ENV: 'development',
         PORT: 5000,
@@ -28,12 +31,14 @@ module.exports = {
       watch: false,
       max_restarts: 10,
       min_uptime: '10s',
+      // Ensure .env file is found
+      env_file: './backend/.env',
     },
     {
       name: 'rankly-frontend',
       script: 'npm',
       args: 'start',
-      cwd: './',
+      cwd: path.resolve(__dirname),
       instances: 1,
       exec_mode: 'fork',
       env: {
