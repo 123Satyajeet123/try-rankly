@@ -107,31 +107,49 @@ app.use(cors({
   maxAge: 86400, // 24 hours preflight cache
 }));
 
-// Rate limiting - More lenient for development
+// Rate limiting - DISABLED for LLM endpoints to allow long-running operations
+// LLM endpoints can take several minutes and shouldn't be rate-limited
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 1000, // limit each IP to 1000 requests per windowMs (increased from 100)
+  max: 10000, // Very high limit - primarily for non-LLM endpoints
   message: 'Too many requests from this IP, please try again later.',
   standardHeaders: true,
   legacyHeaders: false,
-  // Skip rate limiting for development
+  // Skip rate limiting for:
+  // 1. Development environment
+  // 2. LLM-related endpoints (can take minutes to complete)
+  // 3. Auth endpoints
   skip: (req) => {
-    return process.env.NODE_ENV === 'development' && req.ip === '127.0.0.1';
+    // Skip in development
+    if (process.env.NODE_ENV === 'development' && req.ip === '127.0.0.1') {
+      return true;
+    }
+    
+    // Skip for LLM endpoints (these can take several minutes)
+    const llmEndpoints = [
+      '/api/onboarding/analyze-website',
+      '/api/onboarding/generate-prompts',
+      '/api/onboarding/test-prompts',
+      '/api/insights/generate',
+      '/api/insights/regenerate',
+    ];
+    
+    const isLLMEndpoint = llmEndpoints.some(endpoint => req.path.startsWith(endpoint));
+    if (isLLMEndpoint) {
+      return true; // Skip rate limiting for LLM endpoints
+    }
+    
+    // Skip for auth endpoints
+    if (req.path.startsWith('/api/auth')) {
+      return true;
+    }
+    
+    return false;
   }
 });
 
-// Apply rate limiting to all routes except auth in development
-if (process.env.NODE_ENV === 'production') {
-  app.use(limiter);
-} else {
-  // In development, only apply to non-auth routes
-  app.use((req, res, next) => {
-    if (req.path.startsWith('/api/auth')) {
-      return next(); // Skip rate limiting for auth routes in development
-    }
-    return limiter(req, res, next);
-  });
-}
+// Apply rate limiting (with LLM endpoint exemptions)
+app.use(limiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));

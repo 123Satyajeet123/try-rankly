@@ -861,7 +861,7 @@ Identify 3-4 category-level personas:
           'HTTP-Referer': process.env.OPENROUTER_REFERER || 'https://rankly.ai',
           'X-Title': process.env.OPENROUTER_APP_NAME || 'Rankly'
         },
-        timeout: 60000 // 60 second timeout
+        timeout: 300000 // 5 minutes timeout for LLM calls (some operations can take longer)
       });
 
       // Check if response structure is valid

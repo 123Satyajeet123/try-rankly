@@ -58,9 +58,9 @@ async function generatePrompts({
 
     // Generate prompts for each topic-persona combination
     // Ensure equal number of prompts per combination
-    // Over-generate by 80% to account for duplicates during both in-memory and database deduplication
-    // Higher factor ensures we have enough unique prompts even if many are duplicates
-    const overGenerationFactor = 1.8;
+    // Over-generate by 100% (2x) to account for duplicates during both in-memory and cross-combination deduplication
+    // Higher factor ensures we have enough unique prompts even after final validation removes cross-combination duplicates
+    const overGenerationFactor = 2.0; // Increased from 1.8 to ensure we have enough after final validation
     const promptsToGenerate = Math.ceil(promptsPerCombination * overGenerationFactor);
     
     let combinationCount = 0;
@@ -213,31 +213,53 @@ async function generatePrompts({
     }
     
     // Final diversity validation pass - check for any remaining near-duplicates across all prompts
-    console.log(`\n🔍 Final diversity validation pass...`);
+    // BUT maintain per-combination counts - if removing a duplicate would drop a combination below target, keep it
+    console.log(`\n🔍 Final diversity validation pass (respecting per-combination counts)...`);
     const finalValidatedPrompts = [];
     const finalSeen = [];
+    const validatedCountsByCombination = {}; // Track counts per combination
+    
+    // Initialize counts
+    for (const prompt of uniquePrompts) {
+      const key = `${prompt.topicId}_${prompt.personaId}`;
+      if (!validatedCountsByCombination[key]) {
+        validatedCountsByCombination[key] = 0;
+      }
+    }
+    
     let duplicatesRemoved = 0;
     
     for (const prompt of uniquePrompts) {
+      const key = `${prompt.topicId}_${prompt.personaId}`;
       const normText = normalizePromptText(prompt.promptText);
       
       // Check against all previously accepted prompts
       const isDuplicate = finalSeen.some(seenText => isNearDuplicate(seenText, normText));
       
+      // If this is a duplicate, check if we can afford to remove it
       if (isDuplicate) {
-        duplicatesRemoved++;
-        console.log(`   ⚠️  Removed final duplicate: "${prompt.promptText.substring(0, 60)}..."`);
-        continue;
+        // If this combination already has enough prompts, remove the duplicate
+        if (validatedCountsByCombination[key] >= promptsPerCombination) {
+          duplicatesRemoved++;
+          console.log(`   ⚠️  Removed final duplicate: "${prompt.promptText.substring(0, 60)}..." (combination already has ${validatedCountsByCombination[key]} prompts)`);
+          continue;
+        } else {
+          // Keep it to maintain combination count (even if duplicate across combinations)
+          console.log(`   💡 Keeping duplicate to maintain combination count: "${prompt.promptText.substring(0, 60)}..."`);
+        }
       }
       
-      // Additional diversity check - ensure meaningful difference
-      if (!hasGoodDiversity(normText, finalSeen, 0.25)) {
+      // Additional diversity check - ensure meaningful difference (but don't enforce strictly)
+      if (!isDuplicate && !hasGoodDiversity(normText, finalSeen, 0.25)) {
         // Warn but still include - diversity check might be too strict
         console.log(`   💡 Low diversity detected but accepting: "${prompt.promptText.substring(0, 60)}..."`);
       }
       
-      finalSeen.push(normText);
+      if (!isDuplicate) {
+        finalSeen.push(normText);
+      }
       finalValidatedPrompts.push(prompt);
+      validatedCountsByCombination[key]++;
     }
     
     if (duplicatesRemoved > 0) {
@@ -364,7 +386,7 @@ async function generatePromptsForCombination({
           'HTTP-Referer': process.env.OPENROUTER_REFERER || process.env.FRONTEND_URL || websiteUrl || 'https://rankly.ai',
           'X-Title': 'Rankly Prompt Generator'
         },
-        timeout: 60000
+        timeout: 300000 // 5 minutes timeout for LLM calls (prompt generation can take time)
       }
     );
 

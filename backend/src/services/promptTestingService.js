@@ -366,7 +366,7 @@ Be thorough, accurate, and helpful in your responses.`;
             'X-Title': 'Rankly AEO Platform',
             'Content-Type': 'application/json'
           },
-          timeout: 45000 // 45 second timeout (reduced for faster parallelization)
+          timeout: 300000 // 5 minutes timeout for LLM calls (can take time with multiple providers)
         }
       );
 
