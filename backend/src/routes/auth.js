@@ -214,7 +214,8 @@ router.post('/verify-email', [
 
 // Google OAuth routes
 router.get('/google', passport.authenticate('google', {
-  scope: ['profile', 'email']
+  scope: ['profile', 'email'],
+  prompt: 'select_account' // Force Google to show account selection screen
 }));
 
 router.get('/google/callback', 

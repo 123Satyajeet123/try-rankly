@@ -3,6 +3,7 @@
 import { useEffect, useState, Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import apiService from '@/services/api'
 
 function OnboardingContent() {
   const searchParams = useSearchParams()
@@ -14,6 +15,7 @@ function OnboardingContent() {
   
   useEffect(() => {
     // If there's a token in URL, AuthContext is handling it - just wait
+    // Don't redirect here, let AuthContext handle the redirect after checking hasAnalysis
     if (token || isLoading) {
       return
     }
@@ -27,15 +29,30 @@ function OnboardingContent() {
       return
     }
     
-    // If authenticated, redirect to dashboard (this handles the case when AuthContext already processed the token)
-    if (isAuthenticated && !hasRedirected) {
-      setHasRedirected(true)
-      window.location.href = '/dashboard'
+    // If authenticated but no token in URL (means they navigated here directly)
+    // Check if they have analysis data before redirecting
+    if (isAuthenticated && !token && !hasRedirected && !isLoading) {
+      // Check if user has analysis - only redirect if they do
+      apiService.hasAnalysis()
+        .then((response) => {
+          const hasAnalysis = response?.data?.hasAnalysis || false
+          if (hasAnalysis && !hasRedirected) {
+            setHasRedirected(true)
+            window.location.href = '/dashboard'
+          } else {
+            // User is authenticated but has no analysis - stay on onboarding
+            // Don't redirect, let them continue with onboarding
+          }
+        })
+        .catch((error) => {
+          console.log('Could not check analysis status, staying on onboarding:', error)
+          // On error, assume they should stay on onboarding (safer default)
+        })
       return
     }
     
     // If not authenticated and no token, redirect to signup
-    if (!isAuthenticated && !token && !hasRedirected) {
+    if (!isAuthenticated && !token && !hasRedirected && !isLoading) {
       setHasRedirected(true)
       window.location.href = '/onboarding/signup'
     }
