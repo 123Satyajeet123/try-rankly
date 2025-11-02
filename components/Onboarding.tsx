@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent } from '@/components/ui/card'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { BackgroundBeams } from '@/components/ui/background-beams'
 import apiService from '@/services/api'
 import { frontendConfig, validateCompetitorCount, validateTopicCount, validatePersonaCount, getValidationMessage } from '@/lib/config'
 
@@ -1620,6 +1621,9 @@ function Onboarding() {
     <div className="min-h-screen flex">
       {/* Left Half - Dynamic Content */}
       <div className="flex-1 relative bg-background">
+        {/* Background Beams */}
+        <BackgroundBeams className="absolute inset-0 z-0" />
+        
         {/* Brand Logo - Top Left */}
         <div className="absolute top-6 left-6 z-10">
           <h1 className="text-3xl font-logo text-foreground">

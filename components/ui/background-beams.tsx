@@ -114,10 +114,10 @@ export const BackgroundBeams = React.memo(
               d={path}
               stroke={`url(#linearGradient-${index})`}
               strokeOpacity={isHovered ? (mounted && theme === 'dark' ? 0.8 : 0.6) : (mounted && theme === 'dark' ? 0.6 : 0.4)}
-              strokeWidth={isHovered ? 1.5 : 1}
+              strokeWidth={isHovered ? 0.8 : 0.5}
               animate={{
                 strokeOpacity: isHovered ? (mounted && theme === 'dark' ? 0.8 : 0.6) : (mounted && theme === 'dark' ? 0.6 : 0.4),
-                strokeWidth: isHovered ? 1.5 : 1,
+                strokeWidth: isHovered ? 0.8 : 0.5,
               }}
               transition={{
                 duration: 0.3,
@@ -147,7 +147,7 @@ export const BackgroundBeams = React.memo(
                   duration: Math.random() * 10 + 10,
                   ease: "easeInOut",
                   repeat: Infinity,
-                  delay: Math.random() * 10,
+                  delay: 0,
                 }}
               >
                 <stop stopColor={mounted && theme === 'dark' ? '#ffffff' : '#000000'} stopOpacity="0" />
