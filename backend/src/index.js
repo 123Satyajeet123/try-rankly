@@ -56,14 +56,39 @@ app.use(cors({
     
     // In production, check against allowed origins
     const originMatch = allowedOrigins.some(allowedOrigin => {
-      // Support exact match or subdomain match
+      // Support exact match
       if (origin === allowedOrigin) return true;
-      // Support wildcard subdomain (e.g., *.example.com)
-      if (allowedOrigin.startsWith('*.')) {
-        const domain = allowedOrigin.substring(2);
-        return origin.endsWith('.' + domain) || origin === `https://${domain}` || origin === `http://${domain}`;
+      
+      try {
+        const originUrl = new URL(origin);
+        const originHostname = originUrl.hostname;
+        
+        // Handle wildcard subdomain patterns (e.g., *.tryrankly.com or https://*.tryrankly.com)
+        if (allowedOrigin.includes('*.')) {
+          // Extract domain from pattern (handles both "*.tryrankly.com" and "https://*.tryrankly.com")
+          let domainPattern = allowedOrigin;
+          
+          // Strip protocol if present (https://*.tryrankly.com -> *.tryrankly.com)
+          domainPattern = domainPattern.replace(/^https?:\/\//, '');
+          
+          // Remove "*." prefix to get base domain (e.g., *.tryrankly.com -> tryrankly.com)
+          const baseDomain = domainPattern.replace(/^\*\./, '');
+          
+          // Check if origin hostname matches the base domain or is a subdomain
+          // Examples:
+          // - *.tryrankly.com should match: app.tryrankly.com, www.tryrankly.com, tryrankly.com
+          // - *.tryrankly.com should NOT match: other.com
+          if (originHostname === baseDomain || originHostname.endsWith('.' + baseDomain)) {
+            return true;
+          }
+        }
+        
+        // Support exact domain match (e.g., https://app.tryrankly.com)
+        return origin === allowedOrigin;
+      } catch (e) {
+        // If URL parsing fails, fall back to simple string match
+        return origin === allowedOrigin;
       }
-      return false;
     });
     
     if (originMatch) {
@@ -71,6 +96,7 @@ app.use(cors({
     } else {
       console.warn(`⚠️  CORS: Blocked request from origin: ${origin}`);
       console.warn(`⚠️  CORS: Allowed origins: ${allowedOrigins.join(', ')}`);
+      console.warn(`⚠️  CORS: Origin hostname: ${origin ? new URL(origin).hostname : 'N/A'}`);
       callback(new Error(`Not allowed by CORS. Origin ${origin} is not in allowed list.`));
     }
   },
