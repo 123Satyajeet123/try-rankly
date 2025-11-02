@@ -6,6 +6,7 @@ import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
 import { truncateForDisplay, truncateForChart, truncateForRanking, truncateForTooltip } from '@/lib/textUtils'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Info } from 'lucide-react'
 
 interface UnifiedPersonaRankingsSectionProps {
   filterContext?: {
@@ -65,7 +66,21 @@ function UnifiedPersonaRankingsSection({ filterContext, dashboardData }: Unified
       {/* Header Section - Outside the box */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold leading-none tracking-tight text-foreground">Visibility Ranking by User Personas</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-semibold leading-none tracking-tight text-foreground">Visibility Ranking by User Personas</h2>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="w-4 h-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  <p className="text-sm leading-relaxed">
+                    Visibility rankings by persona show how your brand performs for different user types. This helps identify which audiences drive the most brand visibility and where to focus messaging efforts.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
           <p className="text-sm text-muted-foreground mt-2">
             Your brand&apos;s visibility ranking across different user personas
           </p>

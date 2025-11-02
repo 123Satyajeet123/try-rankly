@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Settings, ChevronDown, Calendar as CalendarIcon, ArrowUp, ArrowDown, Expand } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Settings, ChevronDown, Calendar as CalendarIcon, ArrowUp, ArrowDown, Expand, Info } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -267,7 +268,21 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
           {/* Header Section - Inside the box */}
           <div className="space-y-4 mb-6">
             <div>
-              <h2 className="text-foreground">Visibility Score</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-foreground">Visibility Score</h2>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-4 h-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <p className="text-sm leading-relaxed">
+                        Visibility Score measures how often your brand appears in AI-generated answers compared to competitors. Higher scores indicate stronger brand presence across platforms, topics, and personas.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <p className="body-text text-muted-foreground mt-1">How often your brand appears in AI-generated answers</p>
             </div>
 

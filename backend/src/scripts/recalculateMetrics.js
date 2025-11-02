@@ -56,16 +56,16 @@ async function recalculateMetrics(userId = null) {
 
       // Recalculate all metrics
       try {
-        const result = await metricsAggregation.calculateAllMetrics(user._id.toString(), {
+        const result = await metricsAggregation.calculateMetrics(user._id.toString(), {
           forceRefresh: true
         });
 
         if (result.success) {
           console.log(`✅ Recalculated ${result.totalCalculations} metric sets`);
-          console.log(`   - Overall: ${result.overall ? 'Yes' : 'No'}`);
-          console.log(`   - Platforms: ${result.platforms.length}`);
-          console.log(`   - Topics: ${result.topics.length}`);
-          console.log(`   - Personas: ${result.personas.length}`);
+          console.log(`   - Overall: ${result.results?.overall ? 'Yes' : 'No'}`);
+          console.log(`   - Platforms: ${result.results?.platform?.length || 0}`);
+          console.log(`   - Topics: ${result.results?.topic?.length || 0}`);
+          console.log(`   - Personas: ${result.results?.persona?.length || 0}`);
           totalRecalculated += result.totalCalculations;
         } else {
           console.log(`⚠️  ${result.message}`);

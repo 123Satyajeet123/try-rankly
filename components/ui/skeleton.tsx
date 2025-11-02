@@ -23,10 +23,10 @@ function SkeletonShimmer({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-md bg-muted/30 dark:bg-muted/20",
+        "relative overflow-hidden rounded-md bg-muted/40 dark:bg-muted/30",
         "before:absolute before:inset-0 before:-translate-x-full before:animate-[shimmer_2s_infinite]",
-        "before:bg-gradient-to-r before:from-transparent before:via-white/10 before:to-transparent",
-        "dark:before:via-white/5",
+        "before:bg-gradient-to-r before:from-transparent before:via-white/30 before:via-white/40 before:to-transparent",
+        "dark:before:via-white/20 dark:before:via-white/25",
         className
       )}
       {...props}

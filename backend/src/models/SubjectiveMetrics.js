@@ -27,8 +27,7 @@ const subjectiveMetricsSchema = new mongoose.Schema({
   // Brand and Platform Info
   brandName: {
     type: String,
-    required: true,
-    index: true
+    required: true
   },
   platform: {
     type: String,

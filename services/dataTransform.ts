@@ -552,7 +552,7 @@ export function transformAggregatedMetricsToDashboardData(
       topics: transformTopicsToTopics(topics),
       personas: transformPersonasToPersonas(personas)
     },
-    lastUpdated: new Date(overallMetrics.lastCalculated)
+    lastUpdated: overallMetrics?.lastCalculated ? new Date(overallMetrics.lastCalculated) : new Date()
   }
 }
 

@@ -6,11 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
 import { UnifiedCard, UnifiedCardContent } from '@/components/ui/unified-card'
-import { Settings, ChevronDown, ArrowUp, ArrowDown, Expand, Calendar as CalendarIcon } from 'lucide-react'
+import { Settings, ChevronDown, ArrowUp, ArrowDown, Expand, Calendar as CalendarIcon, Info } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Label, LineChart, Line, Tooltip as RechartsTooltip } from 'recharts'
 import { format } from 'date-fns'
 import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
@@ -230,7 +231,21 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
           {/* Header Section - Inside the box */}
           <div className="space-y-4 mb-6">
             <div>
-              <h2 className="text-foreground">Sentiment Analysis</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-foreground">Sentiment Analysis</h2>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-4 h-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <p className="text-sm leading-relaxed">
+                        Sentiment Analysis measures how positively or negatively AI responses reference your brand. Positive sentiment indicates favorable mentions while negative sentiment may signal areas for reputation improvement.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <p className="body-text text-muted-foreground mt-1">How positively AI responses reference your brand across different sentiment categories</p>
             </div>
 

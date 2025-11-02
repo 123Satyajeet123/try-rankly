@@ -709,6 +709,20 @@ class ApiService {
     // Use the new sentiment/breakdown endpoint
     return this.request(`/sentiment/breakdown${params.toString() ? `?${params.toString()}` : ''}`)
   }
+
+  // Citation endpoints
+  async getCitationDetails(brandName: string, type: string) {
+    const encodedBrandName = encodeURIComponent(brandName)
+    const encodedType = encodeURIComponent(type)
+    return this.request(`/dashboard/citations/${encodedBrandName}/${encodedType}`)
+  }
+
+  async getPromptIdsForCitations(citationUrls: string[], brandName: string) {
+    return this.request('/dashboard/citations/prompt-ids', {
+      method: 'POST',
+      body: JSON.stringify({ citationUrls, brandName }),
+    })
+  }
 }
 
 export default new ApiService()

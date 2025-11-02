@@ -255,9 +255,7 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
     try {
       console.log(`📊 [CITATION DETAILS] Fetching real citations for ${brandName} - ${type}`)
       
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
-      const response = await fetch(`${apiUrl}/dashboard/citations/${encodeURIComponent(brandName)}/${encodeURIComponent(type)}`)
-      const result = await response.json()
+      const result = await apiService.getCitationDetails(brandName, type)
       
       if (result.success) {
         console.log(`✅ [CITATION DETAILS] Found ${result.data.details.length} real citations`)
@@ -381,30 +379,14 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
       }
       
       // Call API to find promptIds by URLs
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
-      const response = await fetch(`${apiUrl}/dashboard/citations/prompt-ids`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          citationUrls,
-          brandName
-        })
-      })
+      const result = await apiService.getPromptIdsForCitations(citationUrls, brandName)
       
-      if (response.ok) {
-        const result = await response.json()
-        if (result.success && result.data && result.data.promptIds) {
-          const uniquePromptIds = result.data.promptIds
-          setAvailablePromptIds(uniquePromptIds)
-          console.log(`✅ [CITATION METRICS] Found ${uniquePromptIds.length} prompt IDs via URL search`)
-        } else {
-          console.warn('⚠️ [CITATION METRICS] No prompt IDs found via URL search')
-          setAvailablePromptIds([])
-        }
+      if (result.success && result.data && result.data.promptIds) {
+        const uniquePromptIds = result.data.promptIds
+        setAvailablePromptIds(uniquePromptIds)
+        console.log(`✅ [CITATION METRICS] Found ${uniquePromptIds.length} prompt IDs via URL search`)
       } else {
-        console.error('❌ [CITATION METRICS] Failed to fetch prompt IDs:', response.statusText)
+        console.warn('⚠️ [CITATION METRICS] No prompt IDs found via URL search')
         setAvailablePromptIds([])
       }
     } catch (error) {

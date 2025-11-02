@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
-import { ChevronDown, ChevronRight, ArrowUpDown } from 'lucide-react'
+import { ChevronDown, ChevronRight, ArrowUpDown, Info } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { useSkeletonLoading } from '@/components/ui/with-skeleton-loading'
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
@@ -293,7 +293,21 @@ export function SentimentBreakdownSection({ filterContext, dashboardData }: Sent
         <UnifiedCardContent className="p-6">
           <div className="space-y-4 mb-6">
             <div>
-              <h2 className="text-foreground">Sentiment Breakdown</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-foreground">Sentiment Breakdown</h2>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-4 h-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <p className="text-sm leading-relaxed">
+                        Sentiment Breakdown provides detailed sentiment distribution across topics and personas. This helps identify which conversation themes and user types generate positive or negative sentiment for your brand.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <p className="body-text text-muted-foreground mt-1">Detailed analysis of sentiment drivers across different topics and user personas</p>
             </div>
 

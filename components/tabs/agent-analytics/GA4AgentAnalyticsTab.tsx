@@ -53,9 +53,12 @@ export function GA4AgentAnalyticsTab({
   // Track which data has been fetched
   const [fetchedCacheKeys, setFetchedCacheKeys] = useState<Set<string>>(new Set())
 
-  // Fetch data when tab/date range/conversion event changes (but NOT on tab switch if data exists)
+  // Fetch data when tab/date range/conversion event changes
   useEffect(() => {
     const cacheKey = getCacheKey(activeTab, selectedDateRange, selectedConversionEvent)
+    
+    // Always show loading state when filters change, then fetch or use cache
+    setIsLoadingData(true)
     
     // Only fetch if we don't have this data cached yet
     if (!fetchedCacheKeys.has(cacheKey)) {
@@ -64,6 +67,8 @@ export function GA4AgentAnalyticsTab({
       setFetchedCacheKeys(prev => new Set([...prev, cacheKey]))
     } else {
       console.log('✅ [GA4AgentAnalyticsTab] Using cached data for:', cacheKey)
+      // Show loading briefly even for cached data to indicate filter change
+      setTimeout(() => setIsLoadingData(false), 400)
     }
   }, [activeTab, selectedDateRange, selectedConversionEvent])
 

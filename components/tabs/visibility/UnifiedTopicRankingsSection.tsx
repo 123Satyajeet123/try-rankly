@@ -6,6 +6,7 @@ import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
 import { truncateForDisplay, truncateForChart, truncateForRanking, truncateForTooltip } from '@/lib/textUtils'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Info } from 'lucide-react'
 
 interface UnifiedTopicRankingsSectionProps {
   filterContext?: {
@@ -71,7 +72,21 @@ function UnifiedTopicRankingsSection({ filterContext, dashboardData }: UnifiedTo
       {/* Header Section - Outside the box */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-semibold leading-none tracking-tight text-foreground">Visibility Ranking by Topic</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-semibold leading-none tracking-tight text-foreground">Visibility Ranking by Topic</h2>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="w-4 h-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  <p className="text-sm leading-relaxed">
+                    Visibility rankings by topic show how your brand performs across different conversation themes. Rankings help identify which topics drive the most brand visibility and where you can improve.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
           <p className="text-sm text-muted-foreground mt-2">
             Your brand&apos;s visibility ranking across different topics
           </p>

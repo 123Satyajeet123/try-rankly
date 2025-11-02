@@ -41,8 +41,8 @@ export function Sidebar() {
     {
       title: 'Actionables',
       icon: Globe,
-      link: '#',
-      isActive: false,
+      link: '/actionables',
+      isActive: pathname === '/actionables' || pathname.startsWith('/actionables'),
     },
   ]
 

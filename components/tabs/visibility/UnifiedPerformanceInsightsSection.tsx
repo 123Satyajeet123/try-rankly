@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -308,6 +309,18 @@ export function UnifiedPerformanceInsightsSection({ filterContext, dashboardData
         <div className="space-y-4 mb-6">
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-semibold leading-none tracking-tight text-foreground">Performance Insights</h2>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="w-4 h-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-xs">
+                  <p className="text-sm leading-relaxed">
+                    Performance Insights provides AI-generated actionable recommendations based on your metrics. It identifies what's working well and what needs attention to help optimize your brand visibility.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           </div>
           <p className="body-text text-muted-foreground mt-1">
             Actionable insights derived from your visibility metrics to guide strategic decisions

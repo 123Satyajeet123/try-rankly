@@ -73,8 +73,8 @@ router.get('/all', authenticateToken, async (req, res) => {
       }
     }
 
-    const userBrandName = urlAnalysis?.brandContext?.companyName || null;
-    const currentUrlAnalysisId = urlAnalysis?._id;
+    let userBrandName = urlAnalysis?.brandContext?.companyName || null;
+    let currentUrlAnalysisId = urlAnalysis?._id;
 
     console.log(`📊 [DASHBOARD] User: ${userId}, URL Analysis ID: ${currentUrlAnalysisId}, Brand: ${userBrandName}`);
 
@@ -114,7 +114,7 @@ router.get('/all', authenticateToken, async (req, res) => {
       persona: personaQuery
     });
 
-    const [overall, platforms, allTopics, allPersonas] = await Promise.all([
+    let [overall, platforms, allTopics, allPersonas] = await Promise.all([
       AggregatedMetrics.findOne(overallQuery).sort({ lastCalculated: -1 }).lean(),
       AggregatedMetrics.find(platformQuery).sort({ lastCalculated: -1 }).lean(),
       AggregatedMetrics.find(topicQuery).sort({ lastCalculated: -1 }).lean(),
@@ -127,6 +127,132 @@ router.get('/all', authenticateToken, async (req, res) => {
       topics: allTopics?.length || 0,
       personas: allPersonas?.length || 0
     });
+
+    // ✅ FALLBACK: If no metrics found with current urlAnalysisId, try fallback to any available metrics
+    if (!overall && platforms?.length === 0 && allTopics?.length === 0 && allPersonas?.length === 0 && currentUrlAnalysisId) {
+      console.log('⚠️ [DASHBOARD] No metrics found for current urlAnalysisId, falling back to any available metrics...');
+      console.log(`🔍 [DASHBOARD] DEBUG - Fallback conditions:`, {
+        hasOverall: !!overall,
+        platformsCount: platforms?.length || 0,
+        allTopicsCount: allTopics?.length || 0,
+        allPersonasCount: allPersonas?.length || 0,
+        currentUrlAnalysisId: currentUrlAnalysisId
+      });
+      
+      // Find all metrics for this user (excluding null urlAnalysisId)
+      const fallbackMetrics = await AggregatedMetrics.find({ 
+        userId, 
+        urlAnalysisId: { $ne: null } // Only metrics with valid urlAnalysisId
+      }).sort({ lastCalculated: -1 }).lean();
+      
+      console.log(`🔍 [DASHBOARD] DEBUG - Found ${fallbackMetrics?.length || 0} metrics with urlAnalysisId`);
+      
+      if (fallbackMetrics && fallbackMetrics.length > 0) {
+        // Group metrics by urlAnalysisId to find the most complete set
+        const metricsByAnalysis = {};
+        fallbackMetrics.forEach(m => {
+          const id = m.urlAnalysisId?.toString();
+          if (!metricsByAnalysis[id]) {
+            metricsByAnalysis[id] = [];
+          }
+          metricsByAnalysis[id].push(m);
+        });
+        
+        console.log(`🔍 [DASHBOARD] DEBUG - Found ${Object.keys(metricsByAnalysis).length} distinct analyses with metrics`);
+        
+        // Find the analysis with the most complete metrics (prioritize those with overall + platform + topic + persona)
+        let bestAnalysisId = null;
+        let bestMetricsCount = 0;
+        let bestMetrics = null;
+        
+        Object.keys(metricsByAnalysis).forEach(analysisId => {
+          const metrics = metricsByAnalysis[analysisId];
+          const hasOverall = metrics.some(m => m.scope === 'overall');
+          const platformCount = metrics.filter(m => m.scope === 'platform').length;
+          const topicCount = metrics.filter(m => m.scope === 'topic').length;
+          const personaCount = metrics.filter(m => m.scope === 'persona').length;
+          
+          // Score completeness: overall presence + platform/topic/persona counts
+          const completenessScore = (hasOverall ? 10 : 0) + platformCount + topicCount + personaCount;
+          
+          console.log(`🔍 [DASHBOARD] DEBUG - Analysis ${analysisId}: score=${completenessScore}, overall=${hasOverall}, platforms=${platformCount}, topics=${topicCount}, personas=${personaCount}`);
+          
+          if (completenessScore > bestMetricsCount) {
+            bestAnalysisId = analysisId;
+            bestMetricsCount = completenessScore;
+            bestMetrics = metrics;
+          }
+        });
+        
+        console.log(`✅ [DASHBOARD] Selected best analysis: ${bestAnalysisId} with score ${bestMetricsCount}`);
+        console.log(`🔍 [DASHBOARD] DEBUG - Fallback metrics sample:`, bestMetrics.slice(0, 3).map(m => ({ 
+          scope: m.scope, 
+          urlAnalysisId: m.urlAnalysisId,
+          lastCalculated: m.lastCalculated 
+        })));
+        
+        // Group fallback metrics by scope
+        const fallbackOverall = bestMetrics.find(m => m.scope === 'overall');
+        const fallbackPlatforms = bestMetrics.filter(m => m.scope === 'platform');
+        const fallbackTopics = bestMetrics.filter(m => m.scope === 'topic');
+        const fallbackPersonas = bestMetrics.filter(m => m.scope === 'persona');
+        
+        console.log(`🔍 [DASHBOARD] DEBUG - Grouped fallback metrics:`, {
+          overall: !!fallbackOverall,
+          platforms: fallbackPlatforms.length,
+          topics: fallbackTopics.length,
+          personas: fallbackPersonas.length
+        });
+        
+        if (fallbackOverall) {
+          console.log('🔄 [DASHBOARD] DEBUG - Assigning fallback overall');
+          overall = fallbackOverall;
+        }
+        if (fallbackPlatforms.length > 0) {
+          console.log('🔄 [DASHBOARD] DEBUG - Assigning fallback platforms');
+          platforms = fallbackPlatforms;
+        }
+        if (fallbackTopics.length > 0) {
+          console.log('🔄 [DASHBOARD] DEBUG - Assigning fallback topics');
+          allTopics = fallbackTopics;
+        }
+        if (fallbackPersonas.length > 0) {
+          console.log('🔄 [DASHBOARD] DEBUG - Assigning fallback personas');
+          allPersonas = fallbackPersonas;
+        }
+        
+        console.log(`🔍 [DASHBOARD] DEBUG - After fallback assignment:`, {
+          hasOverall: !!overall,
+          platformsCount: platforms?.length || 0,
+          allTopicsCount: allTopics?.length || 0,
+          allPersonasCount: allPersonas?.length || 0
+        });
+        
+        // Update currentUrlAnalysisId to the fallback analysis
+        const fallbackUrlAnalysisId = fallbackOverall?.urlAnalysisId || fallbackPlatforms[0]?.urlAnalysisId;
+        console.log(`🔍 [DASHBOARD] DEBUG - Fallback urlAnalysisId:`, { fallbackUrlAnalysisId, currentUrlAnalysisId });
+        
+        if (fallbackUrlAnalysisId && currentUrlAnalysisId !== fallbackUrlAnalysisId) {
+          console.log(`🔄 [DASHBOARD] Switching to fallback urlAnalysisId: ${fallbackUrlAnalysisId}`);
+          currentUrlAnalysisId = fallbackUrlAnalysisId;
+          
+          // Re-fetch the urlAnalysis to get correct brand name
+          const fallbackUrlAnalysis = await UrlAnalysis.findOne({ _id: fallbackUrlAnalysisId, userId }).lean();
+          if (fallbackUrlAnalysis) {
+            userBrandName = fallbackUrlAnalysis.brandContext?.companyName || null;
+            console.log(`🔄 [DASHBOARD] Using fallback brand name: ${userBrandName}`);
+          } else {
+            console.log(`⚠️ [DASHBOARD] No urlAnalysis found for fallback urlAnalysisId: ${fallbackUrlAnalysisId}`);
+          }
+        } else if (!fallbackUrlAnalysisId) {
+          console.log(`⚠️ [DASHBOARD] No fallback urlAnalysisId found (metrics have null urlAnalysisId)`);
+        } else {
+          console.log(`ℹ️ [DASHBOARD] Fallback urlAnalysisId matches current, no switching needed`);
+        }
+      } else {
+        console.log(`❌ [DASHBOARD] No fallback metrics found for userId: ${userId}`);
+      }
+    }
 
     // Get selected topics and personas from their respective collections
     // Filter by urlAnalysisId if available, otherwise include null values

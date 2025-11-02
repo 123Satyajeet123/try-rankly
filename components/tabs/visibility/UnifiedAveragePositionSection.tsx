@@ -239,7 +239,21 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
           {/* Header Section - Inside the box */}
           <div className="space-y-4 mb-6">
             <div>
-              <h2 className="text-foreground">Average Position</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-foreground">Average Position</h2>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-4 h-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <p className="text-sm leading-relaxed">
+                        Average Position shows where your brand typically appears in AI answers. Lower numbers mean appearing earlier, which increases visibility and click-through rates.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <p className="body-text text-muted-foreground mt-1">The typical order where your brand appears in answers</p>
             </div>
 

@@ -5,7 +5,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
-import { Settings, ChevronDown, Calendar as CalendarIcon, ArrowUp, ArrowDown, Expand } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Settings, ChevronDown, Calendar as CalendarIcon, ArrowUp, ArrowDown, Expand, Info } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
@@ -256,7 +257,21 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
           {/* Header Section - Inside the box */}
           <div className="space-y-4 mb-6">
         <div>
-              <h2 className="text-foreground">Citation Types</h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-foreground">Citation Types</h2>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="w-4 h-4 text-muted-foreground cursor-help hover:text-foreground transition-colors" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-xs">
+                      <p className="text-sm leading-relaxed">
+                        Citation Types breakdown shows the distribution of brand, earned, and social citations across competitors. This helps understand citation quality and source diversity.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
               <p className="body-text text-muted-foreground mt-1">Citation breakdown by type in the selected period</p>
             </div>
 
@@ -793,7 +808,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                           Company
                         </TableHead>
                         <TableHead className="text-right caption text-muted-foreground py-2 px-3 w-16">
-                          Citation Share
+                          {getCitationTypeLabel(selectedCitationType)} %
                         </TableHead>
                       </TableRow>
                     </TableHeader>

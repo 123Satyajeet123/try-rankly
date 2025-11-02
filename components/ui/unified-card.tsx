@@ -1,5 +1,6 @@
-import * as React from "react"
+"use client"
 
+import * as React from "react"
 import { cn } from "@/lib/utils"
 
 const UnifiedCard = React.forwardRef<
@@ -9,7 +10,12 @@ const UnifiedCard = React.forwardRef<
   <div
     ref={ref}
     className={cn(
-      "rounded-lg border bg-card text-card-foreground shadow-sm",
+      // Unified design system
+      "rounded-xl border border-border/60 bg-card text-card-foreground",
+      // Shadow system
+      "shadow-sm hover:shadow-md transition-shadow duration-200",
+      // Dark mode support
+      "dark:bg-neutral-900 dark:border-neutral-800",
       className
     )}
     {...props}
@@ -36,7 +42,7 @@ const UnifiedCardTitle = React.forwardRef<
   <h3
     ref={ref}
     className={cn(
-      "text-2xl font-semibold leading-none tracking-tight",
+      "text-lg font-semibold leading-none tracking-tight text-foreground",
       className
     )}
     {...props}
