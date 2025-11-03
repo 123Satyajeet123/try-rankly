@@ -1,4 +1,4 @@
-import type { GA4ApiResponse, GA4Account, GA4Connection, PageData, GeoData, DeviceData } from '@/types/ga4'
+import type { GA4ApiResponse, GA4Account, GA4Connection, PageData, GeoData, DeviceData, PagesResponse } from '@/types/ga4'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
 
@@ -231,7 +231,7 @@ export const getPlatformSplit = async (startDate: string, endDate: string, dateR
   }
 }
 
-export const getPages = async (startDate: string, endDate: string, limit: number = 10, dateRange?: string, conversionEvent: string = 'conversions'): Promise<GA4ApiResponse<Array<PageData>>> => {
+export const getPages = async (startDate: string, endDate: string, limit: number = 10, dateRange?: string, conversionEvent: string = 'conversions'): Promise<GA4ApiResponse<PagesResponse>> => {
   const dateRangeParam = dateRange ? `&dateRange=${encodeURIComponent(dateRange)}` : '';
   const conversionEventParam = conversionEvent ? `&conversionEvent=${encodeURIComponent(conversionEvent)}` : '';
   const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/pages?startDate=${startDate}&endDate=${endDate}&limit=${limit}${dateRangeParam}${conversionEventParam}`)

@@ -165,13 +165,11 @@ export const getFaviconUrlForIdentifier = (identifier: string, size: number = 16
  * Gets dynamic favicon URL - now supports URL or company name
  * @param identifier - Company name, URL, or domain
  * @param size - Favicon size (default: 16)
- * @param ausDarkMode - Optional dark mode flag (for future use)
  * @returns Favicon URL
  */
 export const getDynamicFaviconUrl = (
   identifier: string | { url?: string; name: string }, 
-  size: number = 16, 
-  _isDarkMode?: boolean
+  size: number = 16
 ): string => {
   // Support object format with url and name
   if (typeof identifier === 'object' && identifier !== null) {

@@ -67,3 +67,12 @@ export interface GA4ApiResponse<T> {
   error?: string
 }
 
+export interface PagesResponse {
+  pages: PageData[]
+  summary: {
+    totalSessions: number
+    totalPages: number
+    avgSQS: number
+  }
+}
+

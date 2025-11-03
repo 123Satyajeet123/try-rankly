@@ -49,17 +49,16 @@ export function applyGlobalFilters<T extends Record<string, any>>(
 export function getFilteredMockData(section: string, options: FilteredDataOptions) {
   // This is a placeholder - in a real implementation, you would have
   // different data sets for different filter combinations
-  const baseData = getBaseMockData(section)
+  const baseData = getBaseMockData()
   
   return applyGlobalFilters(baseData, options)
 }
 
 /**
  * Gets base mock data for a section
- * @param section - The section name
  * @returns Base mock data
  */
-function getBaseMockData(section: string) {
+function getBaseMockData() {
   // This would contain the actual mock data for each section
   // For now, returning empty array as placeholder
   return []
@@ -68,10 +67,9 @@ function getBaseMockData(section: string) {
 /**
  * Updates metrics based on filtered data
  * @param filteredData - The filtered data
- * @param section - The section name
  * @returns Updated metrics
  */
-export function calculateFilteredMetrics<T>(filteredData: T[], section: string) {
+export function calculateFilteredMetrics<T>(filteredData: T[]) {
   // This would contain logic to recalculate metrics based on filtered data
   // For now, returning the original data as placeholder
   return filteredData
