@@ -10,8 +10,10 @@ const {
 } = require('../../utils/ga4DataTransformer');
 const { normalizeDateRange } = require('../../utils/ga4DateHelpers');
 const { getConversionEventMetric } = require('../../utils/ga4MetricHelpers');
+const { getCachedData, setCachedData } = require('../../services/ga4CacheService');
 
 const router = express.Router();
+const CACHE_DURATION_MINUTES = 5; // Cache for 5 minutes
 
 /**
  * GET /api/ga4/geo
@@ -21,9 +23,25 @@ router.get('/geo', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req, re
   try {
     const { propertyId, accessToken } = req.ga4Connection;
     const { startDate, endDate, dateRange } = req.query;
+    const userId = req.session.userId;
     
     // Normalize date range consistently
     const { startDate: finalStartDate, endDate: finalEndDate } = normalizeDateRange(startDate, endDate, dateRange);
+
+    // Check cache first
+    const cacheKey = 'geo';
+    const cachedData = await getCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate);
+    
+    if (cachedData) {
+      console.log('✅ [geo] Returning cached data');
+      return res.json({
+        success: true,
+        data: cachedData,
+        cached: true
+      });
+    }
+    
+    console.log('🔄 [geo] No cache found, fetching fresh data');
 
     // Main geo report - fetch ALL traffic, filter LLMs in transformer (same approach as llm-platforms)
     // This ensures we catch LLM traffic from sessionSource, sessionMedium, AND pageReferrer
@@ -175,6 +193,10 @@ router.get('/geo', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req, re
       platformBreakdown
     };
 
+    // Save to cache
+    await setCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate, finalData, CACHE_DURATION_MINUTES);
+    console.log('💾 [geo] Data cached');
+
     res.json({
       success: true,
       data: finalData
@@ -196,11 +218,27 @@ router.get('/devices', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req
   try {
     const { propertyId, accessToken } = req.ga4Connection;
     const { startDate, endDate, dateRange, conversionEvent = 'conversions' } = req.query;
+    const userId = req.session.userId;
     
     // Normalize date range consistently
     const { startDate: finalStartDate, endDate: finalEndDate } = normalizeDateRange(startDate, endDate, dateRange);
 
     const conversionMetric = getConversionEventMetric(conversionEvent);
+
+    // Check cache first
+    const cacheKey = `devices-${conversionEvent}`;
+    const cachedData = await getCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate);
+    
+    if (cachedData) {
+      console.log('✅ [devices] Returning cached data');
+      return res.json({
+        success: true,
+        data: cachedData,
+        cached: true
+      });
+    }
+    
+    console.log('🔄 [devices] No cache found, fetching fresh data');
 
     const reportConfig = {
       dateRanges: [{ startDate: finalStartDate, endDate: finalEndDate }],
@@ -252,6 +290,10 @@ router.get('/devices', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req
       deviceBreakdownCount: deviceData.deviceBreakdown?.length || 0,
       dateRange: { finalStartDate, finalEndDate }
     });
+
+    // Save to cache
+    await setCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate, deviceData, CACHE_DURATION_MINUTES);
+    console.log('💾 [devices] Data cached');
 
     res.json({
       success: true,

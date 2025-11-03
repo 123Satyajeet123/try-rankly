@@ -203,13 +203,13 @@ export function PagesTab({
         console.log('📊 [PagesTab] Pages API response:', {
           success: response.success,
           hasData: !!response.data,
-          pagesCount: response.data?.length || 0,
+          pagesCount: response.data?.pages?.length || 0,
           conversionEvent: selectedConversionEvent
         })
         
-        if (response.success && response.data) {
-          setPagesData(response.data)
-          console.log('✅ [PagesTab] Updated pages data:', response.data?.slice(0, 2))
+        if (response.success && response.data && response.data.pages) {
+          setPagesData(response.data.pages)
+          console.log('✅ [PagesTab] Updated pages data:', response.data.pages.slice(0, 2))
         } else {
           console.error('❌ [PagesTab] API error:', response.error)
         }
@@ -345,7 +345,7 @@ export function PagesTab({
                     </TooltipProvider>
                     <span className="text-lg font-semibold text-foreground ml-1">
                       {realPagesData?.data?.summary?.totalSessions ?? 
-                        pagesData.reduce((sum: number, page: any) => sum + (page.sessions || 0), 0)}
+                        pages.reduce((sum: number, page: any) => sum + (page.sessions || 0), 0)}
                     </span>
                   </div>
                   <div className="text-sm text-muted-foreground">
@@ -354,10 +354,10 @@ export function PagesTab({
                         // Use summary.avgSQS from backend if available (matches Platform Tab calculation)
                         // Otherwise calculate weighted average SQS
                         const totalSessions = realPagesData?.data?.summary?.totalSessions ?? 
-                          pagesData.reduce((sum: number, page: any) => sum + (page.sessions || 0), 0);
+                          pages.reduce((sum: number, page: any) => sum + (page.sessions || 0), 0);
                         const avgSQS = realPagesData?.data?.summary?.avgSQS ?? 
                           (() => {
-                            const weightedSQS = pagesData.reduce((sum: number, page: any) => 
+                            const weightedSQS = pages.reduce((sum: number, page: any) => 
                               sum + (parseFloat(page.sqs || 0) * (page.sessions || 0)), 0);
                             return totalSessions > 0 ? (weightedSQS / totalSessions) : 0;
                           })();
@@ -566,7 +566,7 @@ export function PagesTab({
 
                   {/* Table Body */}
                       <TableBody>
-                        {pagesData.slice(0, 20).map((page: any, index: number) => (
+                        {pages.slice(0, 20).map((page: any, index: number) => (
                       <TableRow key={index} className="hover:bg-muted/50 transition-colors">
                         <TableCell className="w-[320px] text-left align-middle">
                           <div className="space-y-0.5">

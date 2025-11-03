@@ -37,14 +37,19 @@ function AgentAnalyticsContent() {
   useEffect(() => {
     const checkConnection = async () => {
       try {
+        console.log('🔍 [AgentAnalyticsPage] Checking connection status...')
         const response = await checkGA4Connection()
-        if (response.data?.connected && response.data?.isActive) {
+        console.log('📦 [AgentAnalyticsPage] Connection response:', response)
+        
+        if (response.success && response.data?.connected && response.data?.isActive) {
+          console.log('✅ [AgentAnalyticsPage] Already connected, setting isConnected to true')
           setIsConnected(true)
         } else {
+          console.log('❌ [AgentAnalyticsPage] Not connected or not active')
           setIsConnected(false)
         }
       } catch (error) {
-        console.error('Error checking connection:', error)
+        console.error('❌ [AgentAnalyticsPage] Error checking connection:', error)
         setIsConnected(false)
       }
     }
@@ -98,17 +103,23 @@ function AgentAnalyticsContent() {
   }
 
   const handleSetupComplete = async () => {
+    console.log('🎉 [AgentAnalyticsPage] handleSetupComplete called')
     // Wait a moment for backend to process
     await new Promise(resolve => setTimeout(resolve, 500))
     
     // Refresh connection status
     try {
       const response = await checkGA4Connection()
-      if (response.data?.connected && response.data?.isActive) {
+      console.log('📦 [AgentAnalyticsPage] SetupComplete response:', response)
+      
+      if (response.success && response.data?.connected && response.data?.isActive) {
+        console.log('✅ [AgentAnalyticsPage] Setup complete, setting isConnected to true')
         setIsConnected(true)
+      } else {
+        console.log('❌ [AgentAnalyticsPage] Setup complete but not connected')
       }
     } catch (error) {
-      console.error('Error checking connection:', error)
+      console.error('❌ [AgentAnalyticsPage] Error checking connection after setup:', error)
     }
   }
 

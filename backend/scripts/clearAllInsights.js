@@ -155,3 +155,4 @@ if (require.main === module) {
 
 module.exports = { clearAllInsights, showInsightsCount };
 
+

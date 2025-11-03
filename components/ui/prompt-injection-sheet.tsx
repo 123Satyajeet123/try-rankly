@@ -283,8 +283,8 @@ export function PromptInjectionSheet({ isOpen, onClose, pageData }: PromptInject
     const prompts = promptTemplates[promptType][platformId as keyof typeof promptTemplates[typeof promptType]] || []
     
     // Replace placeholder URLs with actual full page URL
-    // If pageData.url doesn't start with http, prepend https://fibr.ai
-    const fullUrl = pageData?.url.startsWith('http') ? pageData.url : `https://fibr.ai${pageData?.url}`
+    // If pageData.url doesn't start with http, prepend https://acme.com
+    const fullUrl = pageData?.url.startsWith('http') ? pageData.url : `https://acme.com${pageData?.url}`
     return prompts.map(prompt => ({
       ...prompt,
       prompt: prompt.prompt.replace(/https:\/\/example\.com\/[^)]+\)/g, `(${fullUrl})`)
@@ -490,6 +490,7 @@ export function PromptInjectionSheet({ isOpen, onClose, pageData }: PromptInject
     </Sheet>
   )
 }
+
 
 
 

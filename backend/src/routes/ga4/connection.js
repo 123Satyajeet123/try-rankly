@@ -210,6 +210,7 @@ router.post('/save-property', ga4SessionMiddleware, async (req, res) => {
 router.get('/connection-status', ga4SessionMiddleware, async (req, res) => {
   try {
     const { userId } = req.ga4Session;
+    console.log('🔍 [connection-status] Checking status for user:', userId);
 
     const gaConnection = await GAConnection.findOne({
       userId,
@@ -217,11 +218,18 @@ router.get('/connection-status', ga4SessionMiddleware, async (req, res) => {
     });
 
     if (!gaConnection) {
+      console.log('❌ [connection-status] No connection found for user:', userId);
       return res.json({
         connected: false,
         isActive: false
       });
     }
+
+    console.log('✅ [connection-status] Connection found:', {
+      userId,
+      isActive: gaConnection.isActive,
+      propertyName: gaConnection.propertyName
+    });
 
     res.json({
       connected: true,
@@ -230,7 +238,7 @@ router.get('/connection-status', ga4SessionMiddleware, async (req, res) => {
       accountName: gaConnection.accountName
     });
   } catch (error) {
-    console.error('Error checking connection status:', error);
+    console.error('❌ [connection-status] Error checking connection status:', error);
     res.status(500).json({
       success: false,
       error: 'Failed to check connection status'

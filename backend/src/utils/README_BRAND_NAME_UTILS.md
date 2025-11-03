@@ -182,3 +182,4 @@ The utility handles:
 Previously, brand name shortening was hardcoded in `insightsService.js`. This has been refactored to use the modular utility. The `insightsService.js` now imports and uses the utility, maintaining backward compatibility while enabling reuse across the codebase.
 
 
+

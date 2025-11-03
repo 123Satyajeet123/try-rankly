@@ -46,7 +46,12 @@ export const checkGA4Connection = async (): Promise<GA4ApiResponse<GA4Connection
     }
     
     const data = await response.json();
-    return data;
+    // Backend returns {connected, isActive, propertyName, accountName}
+    // Wrap it in the GA4ApiResponse format
+    return {
+      success: true,
+      data: data
+    };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Network error occurred';
     console.error('❌ [checkGA4Connection] Network/unexpected error:', errorMessage);

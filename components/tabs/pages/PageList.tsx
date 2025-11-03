@@ -839,7 +839,7 @@ This showcase demonstrates the **complete range** of text formats supported by o
   const mockPagesData = [
     {
       title: "AI Tools Comparison Guide",
-      url: "/ai-tools-comparison",
+      url: "https://acme.com/ai-tools-comparison",
       sessions: 1247,
       sqs: 8.2,
       contentGroup: "Blog",
@@ -858,7 +858,7 @@ This showcase demonstrates the **complete range** of text formats supported by o
     },
     {
       title: "Pricing Plans",
-      url: "/pricing",
+      url: "https://acme.com/pricing",
       sessions: 892,
       sqs: 7.8,
       contentGroup: "Product",
@@ -877,7 +877,7 @@ This showcase demonstrates the **complete range** of text formats supported by o
     },
     {
       title: "API Documentation",
-      url: "/docs/api",
+      url: "https://acme.com/docs/api",
       sessions: 634,
       sqs: 9.1,
       contentGroup: "Docs",
@@ -896,7 +896,7 @@ This showcase demonstrates the **complete range** of text formats supported by o
     },
     {
       title: "Getting Started Guide",
-      url: "/getting-started",
+      url: "https://acme.com/getting-started",
       sessions: 456,
       sqs: 6.9,
       contentGroup: "Docs",
@@ -915,7 +915,7 @@ This showcase demonstrates the **complete range** of text formats supported by o
     },
     {
       title: "Contact Us",
-      url: "/contact",
+      url: "https://acme.com/contact",
       sessions: 234,
       sqs: 5.4,
       contentGroup: "Support",
@@ -1032,12 +1032,12 @@ This showcase demonstrates the **complete range** of text formats supported by o
                             </div>
                             <div className="text-xs text-muted-foreground truncate">
                               <a
-                                href={page.url?.startsWith('http') ? page.url : `https://fibr.ai${page.url}`}
+                                href={page.url?.startsWith('http') ? page.url : `https://acme.com${page.url}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className="hover:text-blue-500 transition-colors"
                               >
-                                {page.url?.startsWith('http') ? page.url : `https://fibr.ai${page.url}`}
+                                {page.url?.startsWith('http') ? page.url : `https://acme.com${page.url}`}
                               </a>
                             </div>
                           </div>
@@ -1150,7 +1150,7 @@ This showcase demonstrates the **complete range** of text formats supported by o
               <div className="p-4 bg-muted/50 rounded-lg">
                 <div className="text-sm font-medium">{selectedPage?.title}</div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  {selectedPage?.url?.startsWith('http') ? selectedPage?.url : `https://fibr.ai${selectedPage?.url}`}
+                  {selectedPage?.url?.startsWith('http') ? selectedPage?.url : `https://acme.com${selectedPage?.url}`}
                 </div>
               </div>
             </div>
@@ -1388,6 +1388,7 @@ This showcase demonstrates the **complete range** of text formats supported by o
     </div>
   )
 }
+
 
 
 

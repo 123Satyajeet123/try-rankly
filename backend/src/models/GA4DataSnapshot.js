@@ -5,8 +5,8 @@ const ga4DataSnapshotSchema = new mongoose.Schema({
   propertyId: { type: String, required: true },
   dataType: { 
     type: String, 
-    required: true,
-    enum: ['platform-split', 'llm-platforms', 'pages', 'geo', 'devices']
+    required: true
+    // Can be any string like 'llm-platforms', 'platform-split-conversions', etc.
   },
   startDate: { type: String, required: true },
   endDate: { type: String, required: true },

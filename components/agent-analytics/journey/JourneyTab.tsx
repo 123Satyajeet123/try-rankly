@@ -431,14 +431,17 @@ export function JourneyTab({ realJourneyData, dateRange = '7 days', isLoading = 
     console.log('🎨 [JourneyTab] Initializing Google Charts Sankey...', { 
       hasRef: !!chartRef.current, 
       hasGoogle: !!window.google,
+      hasVisualization: !!window.google?.visualization,
       sankeyDataLength: sankeyData.length,
       slugMapSize: slugToPagesMapRef.current.size
     })
     
-    if (!chartRef.current || !window.google) {
+    if (!chartRef.current || !window.google || !window.google.visualization || !window.google.visualization.Sankey) {
       console.warn('⚠️ [JourneyTab] Missing chart ref or Google Charts:', { 
         hasRef: !!chartRef.current, 
-        hasGoogle: !!window.google
+        hasGoogle: !!window.google,
+        hasVisualization: !!window.google?.visualization,
+        hasSankey: !!window.google?.visualization?.Sankey
       })
         return
       }
@@ -528,6 +531,11 @@ export function JourneyTab({ realJourneyData, dateRange = '7 days', isLoading = 
         firstRow: data.getNumberOfRows() > 0 ? data.getValue(0, 0) + ' -> ' + data.getValue(0, 1) + ' (' + data.getValue(0, 2) + ')' : 'No data',
         chartArea: options.chartArea
       });
+
+      // Clear any existing chart content before creating new one
+      if (chartRef.current) {
+        chartRef.current.innerHTML = ''
+      }
 
       // Create and draw chart
       const chart = new window.google.visualization.Sankey(chartRef.current)
@@ -767,19 +775,32 @@ export function JourneyTab({ realJourneyData, dateRange = '7 days', isLoading = 
         message: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
         sankeyData: sankeyData,
-        hasGoogle: !!window.google
+        hasGoogle: !!window.google,
+        hasVisualization: !!window.google?.visualization,
+        hasSankey: !!window.google?.visualization?.Sankey
       })
       }
       }, [sankeyData])
 
   const loadGoogleCharts = (): Promise<void> => {
       return new Promise((resolve, reject) => {
-      // Check if Google Charts is already loaded
-      if (window.google && window.google.charts) {
-        console.log('Google Charts already loaded')
+      // Check if Google Charts is already loaded and Sankey is ready
+      if (window.google && window.google.charts && window.google.visualization && window.google.visualization.Sankey) {
+        console.log('Google Charts already loaded with Sankey package')
+        resolve()
+        return
+      }
+
+      // Check if Google Charts is loaded but Sankey package isn't ready yet
+      if (window.google && window.google.charts && window.google.visualization) {
+        console.log('Google Charts loaded, loading Sankey package...')
+        window.google.charts.load('current', { packages: ['sankey'] })
+        window.google.charts.setOnLoadCallback(() => {
+          console.log('Google Charts Sankey package ready')
           resolve()
-          return
-        }
+        })
+        return
+      }
 
       console.log('Loading Google Charts...')
         const script = document.createElement('script')
@@ -802,39 +823,54 @@ export function JourneyTab({ realJourneyData, dateRange = '7 days', isLoading = 
 
 
 
+  // Load Google Charts library once
   useEffect(() => {
-    const initializeCharts = async () => {
+    const loadCharts = async () => {
       console.log('🚀 [JourneyTab] Starting Google Charts loading...')
       try {
         await loadGoogleCharts()
-        
-        console.log('✅ [JourneyTab] Google Charts loaded, initializing charts...')
-        initChart()
+        console.log('✅ [JourneyTab] Google Charts loaded')
       } catch (error) {
         console.error('❌ [JourneyTab] Failed to load Google Charts:', error)
       }
     }
 
-    initializeCharts()
+    loadCharts()
+  }, []) // Run only once on mount
 
-    // Cleanup
-    return () => {
-      // No cleanup needed for Google Charts
-    }
-  }, [initChart])
-
-  // Reinitialize charts when sankeyData changes
+  // Initialize chart when we have: loaded Google Charts, ref, and data
   useEffect(() => {
-    if (sankeyData.length > 0 && window.google && chartRef.current) {
-      console.log('🔄 [JourneyTab] Reinitializing charts with new data...', {
-        dataLength: sankeyData.length,
-        firstItems: sankeyData.slice(0, 3)
-      })
+    if (!isLoading && 
+        !(!realJourneyData || !realJourneyData.data || !realJourneyData.data.pages || realJourneyData.data.pages.length === 0) &&
+        !(!pagesData || pagesData.length === 0)) {
+      // Component is mounted and not showing skeleton
+      console.log('📊 [JourneyTab] Component ready for chart initialization')
       
-      // Reinitialize chart with new data
-      initChart()
+      const initializeWhenReady = async () => {
+        // Wait for Google Charts to be ready
+        if (!window.google?.visualization?.Sankey) {
+          console.log('⏳ [JourneyTab] Waiting for Google Charts Sankey...')
+          await loadGoogleCharts()
+        }
+        
+        // Now wait a tick for ref to be attached
+        setTimeout(() => {
+          if (sankeyData.length > 0 && chartRef.current && window.google?.visualization?.Sankey) {
+            console.log('✅ [JourneyTab] Initializing chart with data:', sankeyData.length)
+            initChart()
+          } else {
+            console.log('⏳ [JourneyTab] Not ready yet:', {
+              hasData: sankeyData.length > 0,
+              hasRef: !!chartRef.current,
+              hasSankey: !!window.google?.visualization?.Sankey
+            })
+          }
+        }, 200)
+      }
+      
+      initializeWhenReady()
     }
-  }, [sankeyData, initChart])
+  }, [isLoading, realJourneyData, pagesData, sankeyData, initChart])
 
   // Show skeleton when loading
   if (isLoading) {

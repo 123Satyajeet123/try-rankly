@@ -57,18 +57,15 @@ export function GA4AgentAnalyticsTab({
   useEffect(() => {
     const cacheKey = getCacheKey(activeTab, selectedDateRange, selectedConversionEvent)
     
-    // Always show loading state when filters change, then fetch or use cache
-    setIsLoadingData(true)
-    
     // Only fetch if we don't have this data cached yet
     if (!fetchedCacheKeys.has(cacheKey)) {
       console.log('🔄 [GA4AgentAnalyticsTab] Fetching data for cache key:', cacheKey)
-      fetchGA4Data()
+      fetchGA4Data() // This sets isLoadingData inside
       setFetchedCacheKeys(prev => new Set([...prev, cacheKey]))
     } else {
       console.log('✅ [GA4AgentAnalyticsTab] Using cached data for:', cacheKey)
-      // Show loading briefly even for cached data to indicate filter change
-      setTimeout(() => setIsLoadingData(false), 400)
+      // Don't show loading state for cached data
+      setIsLoadingData(false)
     }
   }, [activeTab, selectedDateRange, selectedConversionEvent])
 

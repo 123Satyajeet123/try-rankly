@@ -11,8 +11,10 @@ const {
 const GAConnection = require('../../models/GAConnection');
 const { normalizeDateRange } = require('../../utils/ga4DateHelpers');
 const { getConversionEventMetric } = require('../../utils/ga4MetricHelpers');
+const { getCachedData, setCachedData } = require('../../services/ga4CacheService');
 
 const router = express.Router();
+const CACHE_DURATION_MINUTES = 5; // Cache for 5 minutes
 
 /**
  * GET /api/ga4/pages
@@ -36,8 +38,20 @@ router.get('/pages', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req, 
     // Convert conversion event to valid GA4 metric name
     conversionMetric = getConversionEventMetric(conversionEvent);
 
-    // Cache disabled for agent analytics - always fetch fresh data
-    console.log('🔄 [pages] Fetching fresh data (cache disabled) for conversion metric:', conversionMetric);
+    // Check cache first
+    const cacheKey = `pages-${conversionEvent}`;
+    const cachedData = await getCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate);
+    
+    if (cachedData) {
+      console.log('✅ [pages] Returning cached data');
+      return res.json({
+        success: true,
+        data: cachedData,
+        cached: true
+      });
+    }
+    
+    console.log('🔄 [pages] No cache found, fetching fresh data for conversion metric:', conversionMetric);
 
     reportConfig = {
       dateRanges: [{ startDate: finalStartDate, endDate: finalEndDate }],
@@ -250,8 +264,9 @@ router.get('/pages', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req, 
       });
     }
 
-    // Cache disabled - don't save to cache
-    // await setCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate, pagesData);
+    // Save to cache
+    await setCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate, pagesData, CACHE_DURATION_MINUTES);
+    console.log('💾 [pages] Data cached');
 
     console.log('✅ Pages response:', {
       pagesCount: pagesData.pages?.length || 0,

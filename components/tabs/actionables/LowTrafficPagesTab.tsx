@@ -30,8 +30,8 @@ export function LowTrafficPagesTab() {
   const mockLowTrafficPages: LowTrafficPage[] = [
     {
       id: '1',
-      title: 'Pricing Plans',
-      url: '/pricing',
+      title: 'AI Tools Comparison Guide',
+      url: 'https://acme.com/ai-tools-comparison',
       sessions: 12,
       trafficBand: 'Very Low',
       hasCitation: true,
@@ -39,39 +39,39 @@ export function LowTrafficPagesTab() {
     },
     {
       id: '2',
+      title: 'Pricing Plans',
+      url: 'https://acme.com/pricing',
+      sessions: 12,
+      trafficBand: 'Very Low',
+      hasCitation: true,
+      suggestedAction: 'Regenerate Content'
+    },
+    {
+      id: '3',
       title: 'API Documentation',
-      url: '/docs/api',
+      url: 'https://acme.com/docs/api',
       sessions: 0,
       trafficBand: 'Zero',
       hasCitation: false,
       suggestedAction: 'Create New Content'
     },
     {
-      id: '3',
+      id: '4',
       title: 'Getting Started Guide',
-      url: '/getting-started',
+      url: 'https://acme.com/getting-started',
       sessions: 8,
       trafficBand: 'Low',
       hasCitation: false,
       suggestedAction: 'Create New Content'
     },
     {
-      id: '4',
+      id: '5',
       title: 'Contact Us',
-      url: '/contact',
+      url: 'https://acme.com/contact',
       sessions: 3,
       trafficBand: 'Very Low',
       hasCitation: true,
       suggestedAction: 'Regenerate Content'
-    },
-    {
-      id: '5',
-      title: 'Terms of Service',
-      url: '/terms',
-      sessions: 0,
-      trafficBand: 'Zero',
-      hasCitation: false,
-      suggestedAction: 'Create New Content'
     }
   ]
 
@@ -215,6 +215,7 @@ export function LowTrafficPagesTab() {
     </div>
   )
 }
+
 
 
 

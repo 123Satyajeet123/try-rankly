@@ -11,8 +11,10 @@ const {
 } = require('../../utils/ga4DataTransformer');
 const { normalizeDateRange } = require('../../utils/ga4DateHelpers');
 const { getConversionEventMetric } = require('../../utils/ga4MetricHelpers');
+const { getCachedData, setCachedData } = require('../../services/ga4CacheService');
 
 const router = express.Router();
+const CACHE_DURATION_MINUTES = 5; // Cache for 5 minutes
 
 /**
  * GET /api/ga4/llm-platforms
@@ -27,8 +29,20 @@ router.get('/llm-platforms', ga4SessionMiddleware, ga4ConnectionMiddleware, asyn
     // Normalize date range consistently
     const { startDate: finalStartDate, endDate: finalEndDate } = normalizeDateRange(startDate, endDate, dateRange);
 
-    // Cache disabled for agent analytics - always fetch fresh data
-    console.log('🔄 [llm-platforms] Fetching fresh data (cache disabled)');
+    // Check cache first
+    const cacheKey = `llm-platforms-${conversionEvent}`;
+    const cachedData = await getCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate);
+    
+    if (cachedData) {
+      console.log('✅ [llm-platforms] Returning cached data');
+      return res.json({
+        success: true,
+        data: cachedData,
+        cached: true
+      });
+    }
+    
+    console.log('🔄 [llm-platforms] No cache found, fetching fresh data');
 
     // Convert conversion event to valid GA4 metric name
     const conversionMetric = getConversionEventMetric(conversionEvent);
@@ -219,8 +233,9 @@ router.get('/llm-platforms', ga4SessionMiddleware, ga4ConnectionMiddleware, asyn
     // Transform with comparison
     const platforms = transformToLLMPlatforms(currentData, comparisonData);
 
-    // Cache disabled - don't save to cache
-    // await setCachedData(userId, propertyId, 'llm-platforms', finalStartDate, finalEndDate, platforms);
+    // Save to cache
+    await setCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate, platforms, CACHE_DURATION_MINUTES);
+    console.log('💾 [llm-platforms] Data cached');
 
     console.log('✅ [llm-platforms] LLM platforms response:', {
       platformsCount: platforms.platforms?.length || 0,
@@ -297,8 +312,20 @@ router.get('/platform-split', ga4SessionMiddleware, ga4ConnectionMiddleware, asy
     // Normalize date range consistently
     const { startDate: finalStartDate, endDate: finalEndDate } = normalizeDateRange(startDate, endDate, dateRange);
 
-    // Cache disabled for agent analytics - always fetch fresh data
-    console.log('🔄 [platform-split] Fetching fresh data (cache disabled)');
+    // Check cache first
+    const cacheKey = `platform-split-${conversionEvent}`;
+    const cachedData = await getCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate);
+    
+    if (cachedData) {
+      console.log('✅ [platform-split] Returning cached data');
+      return res.json({
+        success: true,
+        data: cachedData,
+        cached: true
+      });
+    }
+    
+    console.log('🔄 [platform-split] No cache found, fetching fresh data');
 
     // Convert conversion event to valid GA4 metric name
     const conversionMetric = getConversionEventMetric(conversionEvent);
@@ -463,8 +490,9 @@ router.get('/platform-split', ga4SessionMiddleware, ga4ConnectionMiddleware, asy
       console.warn('Could not validate LLM sessions:', validationError.message);
     }
 
-    // Cache disabled - don't save to cache
-    // await setCachedData(userId, propertyId, 'platform-split', finalStartDate, finalEndDate, transformed);
+    // Save to cache
+    await setCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate, transformed, CACHE_DURATION_MINUTES);
+    console.log('💾 [platform-split] Data cached');
 
     console.log('✅ Platform split response:', {
       platformSplitCount: transformed.platformSplit?.length || 0,

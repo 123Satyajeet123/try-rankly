@@ -42,6 +42,7 @@ export function SetupOptionsSection({ onSetupComplete }: SetupOptionsSectionProp
   }
 
   const handlePropertySelect = async (propertyId: string) => {
+    console.log('🔧 [SetupOptionsSection] handlePropertySelect called with propertyId:', propertyId)
     setSelectedProperty(propertyId)
     setIsConnecting(true)
 
@@ -53,7 +54,9 @@ export function SetupOptionsSection({ onSetupComplete }: SetupOptionsSectionProp
       }
 
       // Call the save-property endpoint
+      console.log('💾 [SetupOptionsSection] Saving property:', selectedProp)
       const response = await saveProperty(selectedProp.accountId, selectedProp.propertyId)
+      console.log('📦 [SetupOptionsSection] Save property response:', response)
 
       if (!response.success) {
         throw new Error('Failed to save property')
@@ -63,11 +66,12 @@ export function SetupOptionsSection({ onSetupComplete }: SetupOptionsSectionProp
       
       // Small delay for better UX
       setTimeout(() => {
+        console.log('✅ [SetupOptionsSection] Calling onSetupComplete')
         onSetupComplete?.()
       }, 1500)
 
     } catch (error) {
-      console.error('Error saving property:', error)
+      console.error('❌ [SetupOptionsSection] Error saving property:', error)
       toast.error('Failed to connect property')
       setIsConnecting(false)
     }
