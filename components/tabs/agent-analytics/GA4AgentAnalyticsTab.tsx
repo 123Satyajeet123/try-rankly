@@ -153,11 +153,133 @@ export function GA4AgentAnalyticsTab({
       }
 
       if (activeTab === 'pages') {
-        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange, selectedConversionEvent)
-        console.log('📄 Pages data received:', pagesResponse)
-        if (pagesResponse.success) {
-          setRealPagesData(pagesResponse)
+        // Use hardcoded mock data for demo instead of real GA4 data
+        const mockPagesData = {
+          success: true,
+          data: {
+            pages: [
+              {
+                url: 'https://www.acme.com/products/ai-assistant',
+                title: 'AI Assistant Pro - Smart Automation Tool',
+                sessions: 245,
+                sqs: 78,
+                contentGroup: 'Product',
+                conversionRate: 12.5,
+                bounce: 28,
+                pageType: 'Product',
+                timeOnPage: 342,
+                llmJourney: 'Entry',
+                provider: 'ChatGPT',
+                platformSessions: { 'ChatGPT': 180, 'Claude': 45, 'Gemini': 20 }
+              },
+              {
+                url: 'https://www.acme.com/pricing',
+                title: 'Choose Your Plan - Flexible Pricing',
+                sessions: 189,
+                sqs: 85,
+                contentGroup: 'Pricing',
+                conversionRate: 24.3,
+                bounce: 15,
+                pageType: 'Landing',
+                timeOnPage: 456,
+                llmJourney: 'Entry',
+                provider: 'ChatGPT',
+                platformSessions: { 'ChatGPT': 142, 'Perplexity': 47 }
+              },
+              {
+                url: 'https://www.acme.com/blog/getting-started-guide',
+                title: 'Getting Started with AI Automation',
+                sessions: 156,
+                sqs: 72,
+                contentGroup: 'Blog',
+                conversionRate: 8.9,
+                bounce: 35,
+                pageType: 'Content',
+                timeOnPage: 278,
+                llmJourney: 'Middle',
+                provider: 'Claude',
+                platformSessions: { 'Claude': 98, 'ChatGPT': 58 }
+              },
+              {
+                url: 'https://www.acme.com/features/integrations',
+                title: '100+ Integrations Available',
+                sessions: 134,
+                sqs: 69,
+                contentGroup: 'Product',
+                conversionRate: 11.2,
+                bounce: 42,
+                pageType: 'Product',
+                timeOnPage: 234,
+                llmJourney: 'Middle',
+                provider: 'Gemini',
+                platformSessions: { 'Gemini': 89, 'ChatGPT': 35, 'Copilot': 10 }
+              },
+              {
+                url: 'https://www.acme.com/resources/case-studies',
+                title: 'Success Stories from Our Customers',
+                sessions: 98,
+                sqs: 65,
+                contentGroup: 'Resources',
+                conversionRate: 6.7,
+                bounce: 48,
+                pageType: 'Content',
+                timeOnPage: 198,
+                llmJourney: 'Middle',
+                provider: 'Perplexity',
+                platformSessions: { 'Perplexity': 67, 'Claude': 31 }
+              },
+              {
+                url: 'https://www.acme.com/docs/api-reference',
+                title: 'API Documentation - Developer Hub',
+                sessions: 87,
+                sqs: 81,
+                contentGroup: 'Docs',
+                conversionRate: 5.4,
+                bounce: 22,
+                pageType: 'Content',
+                timeOnPage: 567,
+                llmJourney: 'Middle',
+                provider: 'ChatGPT',
+                platformSessions: { 'ChatGPT': 72, 'Claude': 15 }
+              },
+              {
+                url: 'https://www.acme.com/solutions/enterprise',
+                title: 'Enterprise Solutions - Scale Your Business',
+                sessions: 76,
+                sqs: 88,
+                contentGroup: 'Product',
+                conversionRate: 18.9,
+                bounce: 12,
+                pageType: 'Product',
+                timeOnPage: 489,
+                llmJourney: 'Exit',
+                provider: 'ChatGPT',
+                platformSessions: { 'ChatGPT': 56, 'Gemini': 20 }
+              },
+              {
+                url: 'https://www.acme.com/security/compliance',
+                title: 'Security & Compliance Standards',
+                sessions: 65,
+                sqs: 74,
+                contentGroup: 'Resources',
+                conversionRate: 9.2,
+                bounce: 38,
+                pageType: 'Content',
+                timeOnPage: 312,
+                llmJourney: 'Exit',
+                provider: 'Claude',
+                platformSessions: { 'Claude': 45, 'ChatGPT': 20 }
+              }
+            ],
+            summary: {
+              totalSessions: 1050,
+              totalPages: 8,
+              avgSQS: 75.25
+            }
+          }
         }
+        console.log('📄 Using mock Pages data for demo')
+        setRealPagesData(mockPagesData)
       }
 
       if (activeTab === 'geo-device') {
@@ -176,11 +298,133 @@ export function GA4AgentAnalyticsTab({
       }
 
       if (activeTab === 'journey') {
-        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange, selectedConversionEvent)
-        console.log('📄 Journey data received:', pagesResponse)
-        if (pagesResponse.success) {
-          setRealPagesData(pagesResponse)
+        // Use hardcoded mock data for demo instead of real GA4 data
+        const mockPagesData = {
+          success: true,
+          data: {
+            pages: [
+              {
+                url: 'https://www.acme.com/products/ai-assistant',
+                title: 'AI Assistant Pro - Smart Automation Tool',
+                sessions: 245,
+                sqs: 78,
+                contentGroup: 'Product',
+                conversionRate: 12.5,
+                bounce: 28,
+                pageType: 'Product',
+                timeOnPage: 342,
+                llmJourney: 'Entry',
+                provider: 'ChatGPT',
+                platformSessions: { 'ChatGPT': 180, 'Claude': 45, 'Gemini': 20 }
+              },
+              {
+                url: 'https://www.acme.com/pricing',
+                title: 'Choose Your Plan - Flexible Pricing',
+                sessions: 189,
+                sqs: 85,
+                contentGroup: 'Pricing',
+                conversionRate: 24.3,
+                bounce: 15,
+                pageType: 'Landing',
+                timeOnPage: 456,
+                llmJourney: 'Entry',
+                provider: 'ChatGPT',
+                platformSessions: { 'ChatGPT': 142, 'Perplexity': 47 }
+              },
+              {
+                url: 'https://www.acme.com/blog/getting-started-guide',
+                title: 'Getting Started with AI Automation',
+                sessions: 156,
+                sqs: 72,
+                contentGroup: 'Blog',
+                conversionRate: 8.9,
+                bounce: 35,
+                pageType: 'Content',
+                timeOnPage: 278,
+                llmJourney: 'Middle',
+                provider: 'Claude',
+                platformSessions: { 'Claude': 98, 'ChatGPT': 58 }
+              },
+              {
+                url: 'https://www.acme.com/features/integrations',
+                title: '100+ Integrations Available',
+                sessions: 134,
+                sqs: 69,
+                contentGroup: 'Product',
+                conversionRate: 11.2,
+                bounce: 42,
+                pageType: 'Product',
+                timeOnPage: 234,
+                llmJourney: 'Middle',
+                provider: 'Gemini',
+                platformSessions: { 'Gemini': 89, 'ChatGPT': 35, 'Copilot': 10 }
+              },
+              {
+                url: 'https://www.acme.com/resources/case-studies',
+                title: 'Success Stories from Our Customers',
+                sessions: 98,
+                sqs: 65,
+                contentGroup: 'Resources',
+                conversionRate: 6.7,
+                bounce: 48,
+                pageType: 'Content',
+                timeOnPage: 198,
+                llmJourney: 'Middle',
+                provider: 'Perplexity',
+                platformSessions: { 'Perplexity': 67, 'Claude': 31 }
+              },
+              {
+                url: 'https://www.acme.com/docs/api-reference',
+                title: 'API Documentation - Developer Hub',
+                sessions: 87,
+                sqs: 81,
+                contentGroup: 'Docs',
+                conversionRate: 5.4,
+                bounce: 22,
+                pageType: 'Content',
+                timeOnPage: 567,
+                llmJourney: 'Middle',
+                provider: 'ChatGPT',
+                platformSessions: { 'ChatGPT': 72, 'Claude': 15 }
+              },
+              {
+                url: 'https://www.acme.com/solutions/enterprise',
+                title: 'Enterprise Solutions - Scale Your Business',
+                sessions: 76,
+                sqs: 88,
+                contentGroup: 'Product',
+                conversionRate: 18.9,
+                bounce: 12,
+                pageType: 'Product',
+                timeOnPage: 489,
+                llmJourney: 'Exit',
+                provider: 'ChatGPT',
+                platformSessions: { 'ChatGPT': 56, 'Gemini': 20 }
+              },
+              {
+                url: 'https://www.acme.com/security/compliance',
+                title: 'Security & Compliance Standards',
+                sessions: 65,
+                sqs: 74,
+                contentGroup: 'Resources',
+                conversionRate: 9.2,
+                bounce: 38,
+                pageType: 'Content',
+                timeOnPage: 312,
+                llmJourney: 'Exit',
+                provider: 'Claude',
+                platformSessions: { 'Claude': 45, 'ChatGPT': 20 }
+              }
+            ],
+            summary: {
+              totalSessions: 1050,
+              totalPages: 8,
+              avgSQS: 75.25
+            }
+          }
         }
+        console.log('📄 Using mock Journey data for demo')
+        setRealPagesData(mockPagesData)
       }
     } catch (error) {
       console.error('Error fetching GA4 data:', error)
