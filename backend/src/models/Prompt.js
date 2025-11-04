@@ -6,6 +6,11 @@ const promptSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
+  urlAnalysisId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'UrlAnalysis',
+    index: true
+  },
   topicId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Topic',
@@ -15,12 +20,6 @@ const promptSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Persona',
     required: true
-  },
-  urlAnalysisId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'UrlAnalysis',
-    index: true,
-    required: false // Optional for backward compatibility with existing prompts
   },
   title: {
     type: String,
@@ -101,8 +100,8 @@ promptSchema.pre('save', function(next) {
 promptSchema.index({ userId: 1 });
 promptSchema.index({ userId: 1, topicId: 1 });
 promptSchema.index({ userId: 1, status: 1 });
-promptSchema.index({ userId: 1, urlAnalysisId: 1 }); // Index for filtering prompts by analysis
-promptSchema.index({ urlAnalysisId: 1 }); // Index for direct urlAnalysisId queries
+promptSchema.index({ userId: 1, urlAnalysisId: 1 }); // ✅ Index for urlAnalysisId filtering
+promptSchema.index({ userId: 1, urlAnalysisId: 1, status: 1 }); // ✅ Composite index for common queries
 
 module.exports = mongoose.model('Prompt', promptSchema);
 

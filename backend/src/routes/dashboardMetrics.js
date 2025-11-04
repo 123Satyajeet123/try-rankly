@@ -51,10 +51,43 @@ router.get('/all', authenticateToken, async (req, res) => {
       }).lean();
       
       if (!urlAnalysis) {
-        return res.status(404).json({
-          success: false,
-          message: 'URL analysis not found'
-        });
+        // ✅ FIX: Check if metrics exist for this urlAnalysisId before falling back
+        console.warn(`⚠️ [DASHBOARD] URL analysis ${urlAnalysisId} not found, checking if metrics exist...`);
+        
+        // Check if any metrics exist for this urlAnalysisId
+        const metricsForAnalysis = await AggregatedMetrics.findOne({
+          userId: userId,
+          urlAnalysisId: urlAnalysisId
+        }).lean();
+        
+        if (metricsForAnalysis) {
+          // Metrics exist but analysis doesn't - this is a data inconsistency issue
+          console.error(`❌ [DASHBOARD] DATA INCONSISTENCY: Metrics exist for analysis ${urlAnalysisId} but analysis document not found`);
+          console.error(`   This suggests the analysis was deleted after metrics were calculated`);
+          console.error(`   Attempting to find analysis by checking metrics...`);
+          
+          // Try to find the analysis by looking at the metrics' urlAnalysisId
+          // But since it doesn't exist, we should return an error or try to find a related analysis
+          // For now, fall through to latest analysis fallback
+        }
+        
+        // Try to get the latest analysis as fallback
+        console.warn(`⚠️ [DASHBOARD] Falling back to latest analysis...`);
+        urlAnalysis = await UrlAnalysis.findOne({
+          userId: userId
+        })
+        .sort({ analysisDate: -1 })
+        .lean();
+        
+        if (!urlAnalysis) {
+          return res.status(404).json({
+            success: false,
+            message: 'URL analysis not found. Please complete the onboarding flow first.'
+          });
+        }
+        
+        console.log(`✅ [DASHBOARD] Using latest analysis as fallback: ${urlAnalysis._id} (URL: ${urlAnalysis.url})`);
+        console.warn(`⚠️ [DASHBOARD] WARNING: Metrics may not match this analysis. Original analysis ${urlAnalysisId} was not found.`);
       }
     } else {
       // ⚠️ FALLBACK: Get the latest analysis (should be avoided if possible)
@@ -133,15 +166,34 @@ router.get('/all', authenticateToken, async (req, res) => {
     });
 
     // ✅ FALLBACK: If no metrics found with current urlAnalysisId, try fallback to any available metrics
+    // BUT: Only use fallback if the current analysis actually exists (not just missing)
     if (!overall && platforms?.length === 0 && allTopics?.length === 0 && allPersonas?.length === 0 && currentUrlAnalysisId) {
+      // ✅ FIX: Verify the analysis exists before using fallback metrics from different analysis
+      const analysisExists = await UrlAnalysis.findOne({ 
+        _id: currentUrlAnalysisId, 
+        userId: userId 
+      }).lean();
+      
+      if (!analysisExists) {
+        console.warn(`⚠️ [DASHBOARD] Analysis ${currentUrlAnalysisId} does not exist in database`);
+        console.warn(`⚠️ [DASHBOARD] This is a data inconsistency - metrics may exist but analysis was deleted`);
+      }
+      
       console.log('⚠️ [DASHBOARD] No metrics found for current urlAnalysisId, falling back to any available metrics...');
       console.log(`🔍 [DASHBOARD] DEBUG - Fallback conditions:`, {
         hasOverall: !!overall,
         platformsCount: platforms?.length || 0,
         allTopicsCount: allTopics?.length || 0,
         allPersonasCount: allPersonas?.length || 0,
-        currentUrlAnalysisId: currentUrlAnalysisId
+        currentUrlAnalysisId: currentUrlAnalysisId,
+        analysisExists: !!analysisExists
       });
+      
+      // ✅ FIX: Only use fallback if analysis doesn't exist OR if user explicitly wants to see other data
+      // For now, allow fallback but log a warning
+      if (analysisExists) {
+        console.warn(`⚠️ [DASHBOARD] Analysis exists but has no metrics - this may indicate metrics haven't been calculated yet`);
+      }
       
       // Find all metrics for this user (excluding null urlAnalysisId)
       const fallbackMetrics = await AggregatedMetrics.find({ 
@@ -236,17 +288,38 @@ router.get('/all', authenticateToken, async (req, res) => {
         const fallbackUrlAnalysisId = fallbackOverall?.urlAnalysisId || fallbackPlatforms[0]?.urlAnalysisId;
         console.log(`🔍 [DASHBOARD] DEBUG - Fallback urlAnalysisId:`, { fallbackUrlAnalysisId, currentUrlAnalysisId });
         
+        // ✅ FIX: Only switch to fallback if the original analysis doesn't exist
+        // If original analysis exists but has no metrics, show empty metrics instead of wrong data
         if (fallbackUrlAnalysisId && currentUrlAnalysisId !== fallbackUrlAnalysisId) {
-          console.log(`🔄 [DASHBOARD] Switching to fallback urlAnalysisId: ${fallbackUrlAnalysisId}`);
-          currentUrlAnalysisId = fallbackUrlAnalysisId;
+          // Check if original analysis exists
+          const originalAnalysisExists = await UrlAnalysis.findOne({ 
+            _id: currentUrlAnalysisId, 
+            userId: userId 
+          }).lean();
           
-          // Re-fetch the urlAnalysis to get correct brand name
-          const fallbackUrlAnalysis = await UrlAnalysis.findOne({ _id: fallbackUrlAnalysisId, userId }).lean();
-          if (fallbackUrlAnalysis) {
-            userBrandName = fallbackUrlAnalysis.brandContext?.companyName || null;
-            console.log(`🔄 [DASHBOARD] Using fallback brand name: ${userBrandName}`);
+          if (!originalAnalysisExists) {
+            // Original analysis doesn't exist - safe to switch to fallback
+            console.log(`🔄 [DASHBOARD] Original analysis ${currentUrlAnalysisId} doesn't exist, switching to fallback: ${fallbackUrlAnalysisId}`);
+            currentUrlAnalysisId = fallbackUrlAnalysisId;
+            
+            // Re-fetch the urlAnalysis to get correct brand name
+            const fallbackUrlAnalysis = await UrlAnalysis.findOne({ _id: fallbackUrlAnalysisId, userId }).lean();
+            if (fallbackUrlAnalysis) {
+              userBrandName = fallbackUrlAnalysis.brandContext?.companyName || null;
+              console.log(`🔄 [DASHBOARD] Using fallback brand name: ${userBrandName}`);
+              console.warn(`⚠️ [DASHBOARD] WARNING: Showing metrics from analysis ${fallbackUrlAnalysisId} because original analysis ${currentUrlAnalysisId} was not found`);
+            } else {
+              console.log(`⚠️ [DASHBOARD] No urlAnalysis found for fallback urlAnalysisId: ${fallbackUrlAnalysisId}`);
+            }
           } else {
-            console.log(`⚠️ [DASHBOARD] No urlAnalysis found for fallback urlAnalysisId: ${fallbackUrlAnalysisId}`);
+            // Original analysis exists but has no metrics - don't show wrong data!
+            console.warn(`⚠️ [DASHBOARD] Original analysis ${currentUrlAnalysisId} exists but has no metrics`);
+            console.warn(`⚠️ [DASHBOARD] NOT switching to fallback - will show empty metrics instead of wrong brand data`);
+            // Clear fallback metrics to prevent showing wrong data
+            overall = null;
+            platforms = [];
+            allTopics = [];
+            allPersonas = [];
           }
         } else if (!fallbackUrlAnalysisId) {
           console.log(`⚠️ [DASHBOARD] No fallback urlAnalysisId found (metrics have null urlAnalysisId)`);
@@ -418,20 +491,22 @@ router.get('/all', authenticateToken, async (req, res) => {
           visibilityScore: formatVisibilityData(filteredOverall, userBrandName),
           depthOfMention: formatDepthData(filteredOverall, userBrandName),
           averagePosition: formatAveragePositionData(filteredOverall, userBrandName),
-          topicRankings: formatTopicRankings(topics, userBrandName),
-          personaRankings: formatPersonaRankings(personas, userBrandName),
+          topicRankings: await formatTopicRankings(topics, userBrandName, userId, currentUrlAnalysisId), // ✅ FIX: Added await and missing params
+          personaRankings: await formatPersonaRankings(personas, userBrandName, userId, currentUrlAnalysisId), // ✅ FIX: Added await and missing params
           performanceInsights: formatPerformanceInsights(filteredOverall, userBrandName),
           competitors: await formatCompetitorsData(filteredOverall, userBrandName, userId, currentUrlAnalysisId),
           // ✅ NEW: Citation-specific data structure for Citations tab
-          competitorsByCitation: await formatCompetitorsByCitationData(filteredOverall, userBrandName, userId, currentUrlAnalysisId)
+          competitorsByCitation: await formatCompetitorsByCitationData(filteredOverall, userBrandName, userId, currentUrlAnalysisId),
+          // ✅ NEW: Citation share formatted data (similar to visibilityScore) for consistent fallback
+          citationShare: formatCitationShareData(filteredOverall, userBrandName)
         },
         
         // ✅ Keep backward compatibility (using filtered overall)
         visibility: formatVisibilityData(filteredOverall, userBrandName),
         depthOfMention: formatDepthData(filteredOverall, userBrandName),
         averagePosition: formatAveragePositionData(filteredOverall, userBrandName),
-        topicRankings: formatTopicRankings(topics, userBrandName),
-        personaRankings: formatPersonaRankings(personas, userBrandName),
+        topicRankings: await formatTopicRankings(topics, userBrandName, userId, currentUrlAnalysisId),
+        personaRankings: await formatPersonaRankings(personas, userBrandName, userId, currentUrlAnalysisId),
         performanceInsights: formatPerformanceInsights(filteredOverall, userBrandName),
         competitors: await formatCompetitorsData(filteredOverall, userBrandName, userId, currentUrlAnalysisId),
         
@@ -487,7 +562,10 @@ function formatVisibilityData(metrics, userBrandName) {
     };
   }
 
-  const userBrand = metrics.brandMetrics.find(b => b.brandName === userBrandName) || metrics.brandMetrics[0];
+  // ✅ Find user's brand using isOwner flag from aggregated metrics (priority), then fallback to name match
+  const userBrand = metrics.brandMetrics.find(b => b.isOwner === true) || 
+                    metrics.brandMetrics.find(b => b.brandName === userBrandName) || 
+                    metrics.brandMetrics[0];
   
   // Check if userBrand exists and has required properties
   if (!userBrand || typeof userBrand.visibilityScore === 'undefined') {
@@ -528,7 +606,73 @@ function formatVisibilityData(metrics, userBrandName) {
       name: b.brandName || 'Unknown',
       score: b.visibilityScore || 0,
       rank: b.visibilityRank || 0,
-      isOwner: b.brandName === userBrandName,
+      // ✅ Use isOwner from aggregated metrics (already set correctly) instead of name comparison
+      isOwner: b.isOwner !== undefined ? b.isOwner : (b.brandName === userBrandName),
+      color: getColorForBrand(b.brandName)
+    }))
+  };
+}
+
+/**
+ * Format citation share data for frontend (similar to formatVisibilityData)
+ */
+function formatCitationShareData(metrics, userBrandName) {
+  if (!metrics || !metrics.brandMetrics || metrics.brandMetrics.length === 0) {
+    console.log('⚠️ [formatCitationShareData] No metrics or brand metrics found');
+    return {
+      value: 0,
+      data: [],
+      current: { score: 0, rank: 0 },
+      brands: []
+    };
+  }
+
+  // ✅ Find user's brand using isOwner flag from aggregated metrics
+  const userBrand = metrics.brandMetrics.find(b => b.isOwner === true) || 
+                    metrics.brandMetrics.find(b => b.brandName === userBrandName) || 
+                    metrics.brandMetrics[0];
+  
+  // Check if userBrand exists and has required properties
+  if (!userBrand || typeof userBrand.citationShare === 'undefined') {
+    console.log('⚠️ [formatCitationShareData] User brand not found or missing citationShare:', {
+      userBrandName,
+      userBrand: userBrand ? 'exists' : 'null',
+      citationShare: userBrand?.citationShare
+    });
+    return {
+      value: 0,
+      data: [],
+      current: { score: 0, rank: 0 },
+      brands: []
+    };
+  }
+  
+  // Sort brands by citation share rank for consistent ordering
+  const sortedBrands = metrics.brandMetrics
+    .sort((a, b) => (a.citationShareRank || 0) - (b.citationShareRank || 0));
+
+  return {
+    // ✅ Frontend expects 'value' property for the main metric
+    value: userBrand.citationShare || 0,
+    
+    // ✅ Frontend expects 'data' array for chart visualization
+    data: sortedBrands.map(b => ({
+      name: b.brandName || 'Unknown',
+      value: b.citationShare || 0,
+      fill: getColorForBrand(b.brandName)
+    })),
+    
+    // ✅ Keep existing structure for backward compatibility
+    current: {
+      score: userBrand.citationShare || 0,
+      rank: userBrand.citationShareRank || 0
+    },
+    brands: sortedBrands.map(b => ({
+      name: b.brandName || 'Unknown',
+      score: b.citationShare || 0,
+      rank: b.citationShareRank || 0,
+      // ✅ Use isOwner from aggregated metrics (already set correctly) instead of name comparison
+      isOwner: b.isOwner !== undefined ? b.isOwner : (b.brandName === userBrandName),
       color: getColorForBrand(b.brandName)
     }))
   };
@@ -548,7 +692,10 @@ function formatDepthData(metrics, userBrandName) {
     };
   }
 
-  const userBrand = metrics.brandMetrics.find(b => b.brandName === userBrandName) || metrics.brandMetrics[0];
+  // ✅ Find user's brand using isOwner flag from aggregated metrics (priority), then fallback to name match
+  const userBrand = metrics.brandMetrics.find(b => b.isOwner === true) || 
+                    metrics.brandMetrics.find(b => b.brandName === userBrandName) || 
+                    metrics.brandMetrics[0];
   
   // Check if userBrand exists and has required properties
   if (!userBrand || typeof userBrand.depthOfMention === 'undefined') {
@@ -609,7 +756,10 @@ function formatAveragePositionData(metrics, userBrandName) {
     };
   }
 
-  const userBrand = metrics.brandMetrics.find(b => b.brandName === userBrandName) || metrics.brandMetrics[0];
+  // ✅ Find user's brand using isOwner flag from aggregated metrics (priority), then fallback to name match
+  const userBrand = metrics.brandMetrics.find(b => b.isOwner === true) || 
+                    metrics.brandMetrics.find(b => b.brandName === userBrandName) || 
+                    metrics.brandMetrics[0];
   
   // Check if userBrand exists and has required properties
   if (!userBrand || typeof userBrand.avgPosition === 'undefined') {
@@ -659,9 +809,51 @@ function formatAveragePositionData(metrics, userBrandName) {
 /**
  * Format topic rankings for frontend
  */
-function formatTopicRankings(topicMetrics, userBrandName) {
-  return topicMetrics.map(topic => {
-    const userBrand = topic.brandMetrics.find(b => b.brandName === userBrandName);
+async function formatTopicRankings(topicMetrics, userBrandName, userId, urlAnalysisId) {
+  if (!topicMetrics || topicMetrics.length === 0) {
+    console.log('⚠️ [formatTopicRankings] No topic metrics provided');
+    return [];
+  }
+
+  console.log(`🔍 [formatTopicRankings] Processing ${topicMetrics.length} topic metrics`);
+  
+  // ✅ FIX: Get selected competitors for filtering
+  let selectedCompetitorNames = new Set();
+  try {
+    const selectedCompetitorsQuery = {
+      userId: userId,
+      selected: true
+    };
+    if (urlAnalysisId) {
+      selectedCompetitorsQuery.urlAnalysisId = urlAnalysisId;
+    }
+    const selectedCompetitors = await Competitor.find(selectedCompetitorsQuery).select('name').lean();
+    selectedCompetitorNames = new Set(selectedCompetitors.map(c => c.name));
+    console.log(`🔍 [formatTopicRankings] Found ${selectedCompetitorNames.size} selected competitors:`, Array.from(selectedCompetitorNames));
+  } catch (error) {
+    console.error('❌ [formatTopicRankings] Error fetching selected competitors:', error);
+  }
+
+  const results = topicMetrics.map(topic => {
+    if (!topic.brandMetrics || topic.brandMetrics.length === 0) {
+      console.log(`⚠️ [formatTopicRankings] Topic "${topic.scopeValue}" has no brandMetrics`);
+      return null;
+    }
+
+    // ✅ FIX: Filter brandMetrics to only include selected competitors OR user's brand
+    const filteredBrandMetrics = topic.brandMetrics.filter(brand => {
+      const brandName = brand.brandName || 'Unknown';
+      const isSelected = brand.isOwner === true || selectedCompetitorNames.has(brandName);
+      if (!isSelected) {
+        console.log(`🔍 [formatTopicRankings] Filtering out brand "${brandName}" for topic "${topic.scopeValue}"`);
+      }
+      return isSelected;
+    });
+
+    console.log(`🔍 [formatTopicRankings] Topic "${topic.scopeValue}": ${topic.brandMetrics.length} total brands, ${filteredBrandMetrics.length} after filtering`);
+
+    const userBrand = filteredBrandMetrics.find(b => b.isOwner === true) || 
+                      filteredBrandMetrics.find(b => b.brandName === userBrandName);
     const yourRank = userBrand?.visibilityRank || 999;
     
     // Determine status
@@ -677,31 +869,78 @@ function formatTopicRankings(topicMetrics, userBrandName) {
       statusColor = 'red';
     }
     
+    const rankings = filteredBrandMetrics
+      .sort((a, b) => a.visibilityRank - b.visibilityRank)
+      .slice(0, 5)
+      .map(b => ({
+        rank: b.visibilityRank,
+        name: b.brandName,
+        score: b.visibilityScore,
+        isOwner: b.isOwner !== undefined ? b.isOwner : (b.brandName === userBrandName)
+      }));
+
     return {
       topic: topic.scopeValue,
       status,
       statusColor,
       yourRank,
       yourScore: userBrand?.visibilityScore || 0,
-      rankings: topic.brandMetrics
-        .sort((a, b) => a.visibilityRank - b.visibilityRank)
-        .slice(0, 5)
-        .map(b => ({
-          rank: b.visibilityRank,
-          name: b.brandName,
-          score: b.visibilityScore,
-          isOwner: b.brandName === userBrandName
-        }))
+      rankings: rankings
     };
-  });
+  }).filter(result => result !== null); // Remove null results
+
+  console.log(`✅ [formatTopicRankings] Returning ${results.length} topic rankings`);
+  return results;
 }
 
 /**
  * Format persona rankings for frontend
  */
-function formatPersonaRankings(personaMetrics, userBrandName) {
-  return personaMetrics.map(persona => {
-    const userBrand = persona.brandMetrics.find(b => b.brandName === userBrandName);
+async function formatPersonaRankings(personaMetrics, userBrandName, userId, urlAnalysisId) {
+  if (!personaMetrics || personaMetrics.length === 0) {
+    console.log('⚠️ [formatPersonaRankings] No persona metrics provided');
+    return [];
+  }
+
+  console.log(`🔍 [formatPersonaRankings] Processing ${personaMetrics.length} persona metrics`);
+  
+  // ✅ FIX: Get selected competitors for filtering
+  let selectedCompetitorNames = new Set();
+  try {
+    const selectedCompetitorsQuery = {
+      userId: userId,
+      selected: true
+    };
+    if (urlAnalysisId) {
+      selectedCompetitorsQuery.urlAnalysisId = urlAnalysisId;
+    }
+    const selectedCompetitors = await Competitor.find(selectedCompetitorsQuery).select('name').lean();
+    selectedCompetitorNames = new Set(selectedCompetitors.map(c => c.name));
+    console.log(`🔍 [formatPersonaRankings] Found ${selectedCompetitorNames.size} selected competitors:`, Array.from(selectedCompetitorNames));
+  } catch (error) {
+    console.error('❌ [formatPersonaRankings] Error fetching selected competitors:', error);
+  }
+
+  const results = personaMetrics.map(persona => {
+    if (!persona.brandMetrics || persona.brandMetrics.length === 0) {
+      console.log(`⚠️ [formatPersonaRankings] Persona "${persona.scopeValue}" has no brandMetrics`);
+      return null;
+    }
+
+    // ✅ FIX: Filter brandMetrics to only include selected competitors OR user's brand
+    const filteredBrandMetrics = persona.brandMetrics.filter(brand => {
+      const brandName = brand.brandName || 'Unknown';
+      const isSelected = brand.isOwner === true || selectedCompetitorNames.has(brandName);
+      if (!isSelected) {
+        console.log(`🔍 [formatPersonaRankings] Filtering out brand "${brandName}" for persona "${persona.scopeValue}"`);
+      }
+      return isSelected;
+    });
+
+    console.log(`🔍 [formatPersonaRankings] Persona "${persona.scopeValue}": ${persona.brandMetrics.length} total brands, ${filteredBrandMetrics.length} after filtering`);
+
+    const userBrand = filteredBrandMetrics.find(b => b.isOwner === true) || 
+                      filteredBrandMetrics.find(b => b.brandName === userBrandName);
     const yourRank = userBrand?.visibilityRank || 999;
     
     // Determine status
@@ -714,23 +953,28 @@ function formatPersonaRankings(personaMetrics, userBrandName) {
       statusColor = 'red';
     }
     
+    const rankings = filteredBrandMetrics
+      .sort((a, b) => a.visibilityRank - b.visibilityRank)
+      .slice(0, 5)
+      .map(b => ({
+        rank: b.visibilityRank,
+        name: b.brandName,
+        score: b.visibilityScore,
+        isOwner: b.isOwner !== undefined ? b.isOwner : (b.brandName === userBrandName)
+      }));
+
     return {
       persona: persona.scopeValue,
       status,
       statusColor,
       yourRank,
       yourScore: userBrand?.visibilityScore || 0,
-      rankings: persona.brandMetrics
-        .sort((a, b) => a.visibilityRank - b.visibilityRank)
-        .slice(0, 5)
-        .map(b => ({
-          rank: b.visibilityRank,
-          name: b.brandName,
-          score: b.visibilityScore,
-          isOwner: b.brandName === userBrandName
-        }))
+      rankings: rankings
     };
-  });
+  }).filter(result => result !== null); // Remove null results
+
+  console.log(`✅ [formatPersonaRankings] Returning ${results.length} persona rankings`);
+  return results;
 }
 
 /**
@@ -751,7 +995,10 @@ function formatPerformanceInsights(metrics, userBrandName) {
     };
   }
 
-  const userBrand = metrics.brandMetrics.find(b => b.brandName === userBrandName) || metrics.brandMetrics[0];
+  // ✅ Find user's brand using isOwner flag from aggregated metrics (priority), then fallback to name match
+  const userBrand = metrics.brandMetrics.find(b => b.isOwner === true) || 
+                    metrics.brandMetrics.find(b => b.brandName === userBrandName) || 
+                    metrics.brandMetrics[0];
   
   // Check if userBrand exists and has required properties
   if (!userBrand) {
@@ -836,15 +1083,25 @@ async function getCompetitorUrlMap(userId, urlAnalysisId, brandNames) {
   }
 
   try {
+    // ✅ FIX: Only fetch SELECTED competitors for this specific urlAnalysisId
     const query = {
       userId: userId,
+      selected: true, // ✅ Only selected competitors
       name: { $in: brandNames }
     };
     
+    // ✅ FIX: Filter by urlAnalysisId if provided
     if (urlAnalysisId) {
       query.urlAnalysisId = urlAnalysisId;
     }
-
+    
+    console.log('🔍 [getCompetitorUrlMap] Fetching selected competitors:', {
+      userId,
+      urlAnalysisId,
+      brandNamesCount: brandNames.length,
+      query
+    });
+    
     const competitors = await Competitor.find(query).select('name url').lean();
     const urlMap = new Map();
     
@@ -871,11 +1128,54 @@ async function formatCompetitorsData(metrics, userBrandName, userId, urlAnalysis
     return [];
   }
 
+  // ✅ FIX: First, get the list of SELECTED competitors for this urlAnalysisId
+  // This ensures we only show competitors that were selected during onboarding
+  let selectedCompetitorNames = new Set();
+  try {
+    const selectedCompetitorsQuery = {
+      userId: userId,
+      selected: true // ✅ Only selected competitors
+    };
+    
+    // ✅ FIX: Filter by urlAnalysisId if provided
+    if (urlAnalysisId) {
+      selectedCompetitorsQuery.urlAnalysisId = urlAnalysisId;
+    }
+    
+    const selectedCompetitors = await Competitor.find(selectedCompetitorsQuery).select('name').lean();
+    selectedCompetitorNames = new Set(selectedCompetitors.map(c => c.name));
+    
+    console.log('🔍 [formatCompetitorsData] Selected competitors:', {
+      count: selectedCompetitorNames.size,
+      names: Array.from(selectedCompetitorNames),
+      urlAnalysisId
+    });
+  } catch (error) {
+    console.error('❌ [formatCompetitorsData] Error fetching selected competitors:', error);
+    // Continue with empty set - will filter out all competitors
+  }
+
+  // ✅ FIX: Filter brandMetrics to only include selected competitors OR user's brand
+  const filteredBrandMetrics = metrics.brandMetrics.filter(brand => {
+    const brandName = brand.brandName || 'Unknown';
+    // Include user's brand (isOwner) OR selected competitors
+    return brand.isOwner === true || selectedCompetitorNames.has(brandName);
+  });
+
+  if (filteredBrandMetrics.length === 0) {
+    console.log('⚠️ [formatCompetitorsData] No selected competitors found after filtering');
+    // Still include user's brand if it exists
+    const userBrand = metrics.brandMetrics.find(b => b.isOwner === true);
+    if (userBrand) {
+      filteredBrandMetrics.push(userBrand);
+    }
+  }
+
   // Sort brands by visibility rank for consistent ordering
-  const sortedBrands = metrics.brandMetrics
+  const sortedBrands = filteredBrandMetrics
     .sort((a, b) => (a.visibilityRank || 0) - (b.visibilityRank || 0));
 
-  // Batch fetch competitor URLs to avoid N+1 queries
+  // Batch fetch competitor URLs to avoid N+1 queries (only for selected competitors)
   const brandNames = sortedBrands.map(brand => brand.brandName || 'Unknown').filter(Boolean);
   const competitorUrlMap = await getCompetitorUrlMap(userId, urlAnalysisId, brandNames);
 
@@ -888,7 +1188,9 @@ async function formatCompetitorsData(metrics, userBrandName, userId, urlAnalysis
     rank: brand.visibilityRank || 0,
     change: 0, // TODO: Calculate from historical data
     trend: 'stable', // TODO: Calculate from historical data
-    isOwner: (brand.brandName || 'Unknown') === userBrandName, // Mark user's brand
+    // ✅ Use isOwner from aggregated metrics (already set correctly) instead of name comparison
+    // This ensures consistency when brand names have special characters, whitespace, or capitalization differences
+    isOwner: brand.isOwner !== undefined ? brand.isOwner : ((brand.brandName || 'Unknown') === userBrandName),
     // Sentiment data
     sentimentScore: brand.sentimentScore || 0,
     sentimentBreakdown: brand.sentimentBreakdown || { positive: 0, neutral: 0, negative: 0, mixed: 0 },
@@ -918,8 +1220,47 @@ async function formatCompetitorsByCitationData(metrics, userBrandName, userId, u
     return [];
   }
 
+  // ✅ FIX: First, get the list of SELECTED competitors for this urlAnalysisId
+  let selectedCompetitorNames = new Set();
+  try {
+    const selectedCompetitorsQuery = {
+      userId: userId,
+      selected: true // ✅ Only selected competitors
+    };
+    
+    // ✅ FIX: Filter by urlAnalysisId if provided
+    if (urlAnalysisId) {
+      selectedCompetitorsQuery.urlAnalysisId = urlAnalysisId;
+    }
+    
+    const selectedCompetitors = await Competitor.find(selectedCompetitorsQuery).select('name').lean();
+    selectedCompetitorNames = new Set(selectedCompetitors.map(c => c.name));
+    
+    console.log('🔍 [formatCompetitorsByCitationData] Selected competitors:', {
+      count: selectedCompetitorNames.size,
+      names: Array.from(selectedCompetitorNames),
+      urlAnalysisId
+    });
+  } catch (error) {
+    console.error('❌ [formatCompetitorsByCitationData] Error fetching selected competitors:', error);
+  }
+
+  // ✅ FIX: Filter brandMetrics to only include selected competitors OR user's brand
+  const filteredBrandMetrics = metrics.brandMetrics.filter(brand => {
+    const brandName = brand.brandName || 'Unknown';
+    return brand.isOwner === true || selectedCompetitorNames.has(brandName);
+  });
+
+  if (filteredBrandMetrics.length === 0) {
+    // Still include user's brand if it exists
+    const userBrand = metrics.brandMetrics.find(b => b.isOwner === true);
+    if (userBrand) {
+      filteredBrandMetrics.push(userBrand);
+    }
+  }
+
   // Sort brands by citation share rank for citation-specific ordering
-  const sortedBrands = metrics.brandMetrics
+  const sortedBrands = filteredBrandMetrics
     .sort((a, b) => (a.citationShareRank || 0) - (b.citationShareRank || 0));
 
   // Batch fetch competitor URLs to avoid N+1 queries
@@ -943,7 +1284,9 @@ async function formatCompetitorsByCitationData(metrics, userBrandName, userId, u
     socialCitationsTotal: brand.socialCitationsTotal || 0,
     totalCitations: brand.totalCitations || 0,
     // Additional citation data
-    isOwner: brand.brandName === userBrandName
+    // ✅ Use isOwner from aggregated metrics (already set correctly) instead of name comparison
+    // This ensures consistency when brand names have special characters, whitespace, or capitalization differences
+    isOwner: brand.isOwner !== undefined ? brand.isOwner : (brand.brandName === userBrandName)
   }));
 }
 

@@ -173,8 +173,9 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
   const rankings = getDisplayRankings(filteredRankings)
   
   // ✅ Find user's brand from chart data to ensure we display correct metrics
+  // Pattern matches Visibility tab: try chartData first, then fallback to formatted metric value
   const userBrandFromChart = chartData.find(item => item.isOwner === true)
-  const userBrandValue = userBrandFromChart?.score || chartData[0]?.score || 0
+  const userBrandValue = userBrandFromChart?.score || dashboardData?.metrics?.citationShare?.value || 0
 
   // All hooks must be called before any conditional returns
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
@@ -518,7 +519,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                       {/* Current period (outer ring) */}
                       <Pie
                         data={chartData}
-                        dataKey={selectedCitationType}
+                        dataKey="score"
                         nameKey="name"
                         innerRadius={showComparison ? 55 : 40}
                         outerRadius={80}
@@ -551,6 +552,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                               // ✅ Default to user's brand if no active index, not just first item
                               const userBrandData = chartData.find(item => item.isOwner === true)
                               const activeData = chartData[activeIndex] || userBrandData || chartData[0]
+                              // ✅ Use score (citationShare) for Citation Share metric, not selectedCitationType (breakdown)
                               return (
                                 <text
                                   x={viewBox.cx}
@@ -564,7 +566,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                                     y={viewBox.cy}
                                     className="fill-foreground text-lg font-bold transition-all duration-500 ease-in-out"
                                   >
-                                    {(activeData as any)[selectedCitationType]}%
+                                    {activeData.score?.toFixed(2) || '0.00'}%
                                   </tspan>
                                   <tspan
                                     x={viewBox.cx}
@@ -623,13 +625,14 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                         <span className="caption text-muted-foreground">
                           {showComparison ? (
                             <div className="flex flex-col">
-                              <span className="transition-all duration-500 ease-in-out">{(item as any)[selectedCitationType]}%</span>
+                              {/* ✅ Use score (citationShare) for Citation Share metric, not selectedCitationType (breakdown) */}
+                              <span className="transition-all duration-500 ease-in-out">{item.score?.toFixed(2) || '0.00'}%</span>
                               <span className="text-[10px] opacity-70">
-                                {item.comparisonScore}%
+                                {item.comparisonScore?.toFixed(2) || '0.00'}%
                               </span>
                             </div>
                           ) : (
-                            <span className="transition-all duration-500 ease-in-out">{(item as any)[selectedCitationType]}%</span>
+                            <span className="transition-all duration-500 ease-in-out">{item.score?.toFixed(2) || '0.00'}%</span>
                           )}
                         </span>
                       </div>

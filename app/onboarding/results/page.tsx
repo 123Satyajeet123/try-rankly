@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
@@ -17,11 +17,13 @@ import apiService from '@/services/api'
 export default function ResultsPage() {
   const router = useRouter()
   const { data } = useOnboarding()
-  const { isAuthenticated, isLoading } = useAuth()
+  const { isAuthenticated, isLoading, user } = useAuth()
   const [isOpening, setIsOpening] = useState(false)
   const [dataLoading, setDataLoading] = useState(true)
   const [metricsData, setMetricsData] = useState<any>(null)
   const [metricsError, setMetricsError] = useState<string | null>(null)
+  const [showBookDemo, setShowBookDemo] = useState(false)
+  const [checkingAccess, setCheckingAccess] = useState(false)
   
   // Debug logging
   useEffect(() => {
@@ -46,11 +48,55 @@ export default function ResultsPage() {
     }
   }, [isAuthenticated, isLoading, router, data.analysisCompleted])
   
+  // ✅ FIX: Use ref to track if we've already fetched to prevent infinite loops
+  const hasFetchedMetrics = useRef(false)
+  
   // Fetch real metrics data
   useEffect(() => {
+    // ✅ FIX: Prevent multiple fetches
+    if (hasFetchedMetrics.current && data.urlAnalysisId) {
+      return
+    }
+    
     const fetchMetrics = async () => {
+      // Wait for urlAnalysisId to be available
+      if (!data.urlAnalysisId) {
+        console.log('⏳ Waiting for urlAnalysisId before fetching metrics...')
+        // ✅ FIX: Only try once to fetch latest analysis if urlAnalysisId is not available
+        if (!hasFetchedMetrics.current) {
+          hasFetchedMetrics.current = true
+          try {
+            console.log('📊 Trying to fetch latest analysis from backend...')
+            const latestAnalysis = await apiService.getLatestAnalysis()
+            if (latestAnalysis.success && latestAnalysis.data?.urlAnalysisId) {
+              console.log('✅ Found latest analysis:', latestAnalysis.data.urlAnalysisId)
+              // Update context with the latest analysis ID
+              // Note: This won't update the context immediately, but we can use it for fetching
+              const response = await apiService.getDashboardAll({ 
+                urlAnalysisId: latestAnalysis.data.urlAnalysisId 
+              })
+              if (response.success) {
+                setMetricsData(response.data)
+                setDataLoading(false)
+                return
+              }
+            }
+          } catch (err) {
+            console.log('⚠️ Could not fetch latest analysis:', err)
+          }
+        }
+        setDataLoading(false)
+        return
+      }
+      
+      // ✅ FIX: Mark as fetched when we have urlAnalysisId
+      if (data.urlAnalysisId && !hasFetchedMetrics.current) {
+        hasFetchedMetrics.current = true
+      }
+
       try {
         console.log('📊 Fetching dashboard metrics from /api/dashboard/all...')
+        console.log('🔍 Using urlAnalysisId:', data.urlAnalysisId)
         const response = await apiService.getDashboardAll({ urlAnalysisId: data.urlAnalysisId })
         
         if (response.success) {
@@ -67,24 +113,73 @@ export default function ResultsPage() {
           setMetricsData(response.data)
         } else {
           console.error('❌ Failed to fetch metrics:', response.message)
-          setMetricsError(response.message)
+          setMetricsError(response.message || 'Failed to load metrics')
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('❌ Error fetching metrics:', error)
-        setMetricsError('Failed to load metrics')
+        // Provide more specific error message
+        const errorMessage = error?.message || 'Failed to load metrics'
+        if (errorMessage.includes('URL analysis not found')) {
+          // ✅ FIX: Only try fallback once to prevent infinite loops
+          if (!hasFetchedMetrics.current) {
+            hasFetchedMetrics.current = true
+            // Try to fetch latest analysis as fallback
+            console.log('🔄 Analysis not found, trying to fetch latest analysis...')
+            try {
+              const latestAnalysis = await apiService.getLatestAnalysis()
+              if (latestAnalysis.success && latestAnalysis.data?.urlAnalysisId) {
+                console.log('✅ Found latest analysis, retrying with:', latestAnalysis.data.urlAnalysisId)
+                const retryResponse = await apiService.getDashboardAll({ 
+                  urlAnalysisId: latestAnalysis.data.urlAnalysisId 
+                })
+                if (retryResponse.success) {
+                  setMetricsData(retryResponse.data)
+                  return
+                }
+              }
+            } catch (fallbackError) {
+              console.error('❌ Fallback also failed:', fallbackError)
+            }
+          }
+          setMetricsError('Analysis not found. Please complete the analysis first.')
+        } else {
+          setMetricsError(errorMessage)
+        }
       } finally {
         setDataLoading(false)
       }
     }
 
-    // Always fetch real metrics data from API
-    fetchMetrics()
-  }, [data.generatedPrompts])
+    // Fetch metrics when urlAnalysisId is available
+        fetchMetrics()
+      }, [data.urlAnalysisId]) // ✅ FIX: Removed data.generatedPrompts to prevent re-fetching
 
   const handleOpenDashboard = async () => {
     setIsOpening(true)
+    setCheckingAccess(true)
     
     try {
+      // Check user access first
+      const userResponse = await apiService.getCurrentUser()
+      const userData = userResponse.data?.user || userResponse.data
+      const hasAccess = userData?.access === true
+      
+      // Check if email is in allowed list (fallback check)
+      const allowedEmails = ['sj@tryrankly.com', 'satyajeetdas225@gmail.com']
+      const userEmail = userData?.email?.toLowerCase() || user?.email?.toLowerCase()
+      const isAllowedEmail = userEmail && allowedEmails.includes(userEmail)
+      
+      const finalAccess = hasAccess || isAllowedEmail
+      
+      if (!finalAccess) {
+        // User doesn't have access - show book a demo section
+        console.log('⚠️ [ResultsPage] User does not have dashboard access')
+        setShowBookDemo(true)
+        setIsOpening(false)
+        setCheckingAccess(false)
+        return
+      }
+      
       // ✅ Pass urlAnalysisId as URL parameter so dashboard can use it immediately
       const urlAnalysisId = data.urlAnalysisId
       const dashboardUrl = urlAnalysisId 
@@ -98,9 +193,12 @@ export default function ResultsPage() {
         router.push(dashboardUrl)
       }, 1000)
     } catch (err) {
-      console.error('Failed to open dashboard:', err)
+      console.error('Failed to check access or open dashboard:', err)
+      // On error, assume no access and show book demo
+      setShowBookDemo(true)
     } finally {
       setIsOpening(false)
+      setCheckingAccess(false)
     }
   }
 
@@ -151,31 +249,56 @@ export default function ResultsPage() {
                 previousPath="/onboarding/llm-platforms"
                 showNext={false}
               />
-              <div className="space-y-6 w-full">
-                <div className="text-left">
-                  <h1 className="text-xl font-semibold tracking-tight text-foreground mb-1">
-                    View dashboard for detailed insights
-                  </h1>
-                  <p className="text-sm font-normal leading-[1.4] text-muted-foreground">
-                    Open your results with live metrics and opportunities
+              {showBookDemo ? (
+                <div className="space-y-6 w-full">
+                  <div className="text-left">
+                    <h1 className="text-xl font-semibold tracking-tight text-foreground mb-1">
+                      Request Dashboard Access
+                    </h1>
+                    <p className="text-sm font-normal leading-[1.4] text-muted-foreground">
+                      Schedule a demo to get full access to your dashboard and insights
+                    </p>
+                  </div>
+                  
+                  <Button
+                    onClick={() => window.open('https://cal.com/sj-rankly/30min', '_blank')}
+                    className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold"
+                  >
+                    Book a Demo
+                  </Button>
+                  <p className="text-center text-xs font-normal text-muted-foreground">
+                    Contact us to get full dashboard access
                   </p>
                 </div>
-                
-                <Button
-                  onClick={handleOpenDashboard}
-                  disabled={isOpening || dataLoading}
-                  className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {isOpening
-                    ? 'Opening…'
-                    : dataLoading
-                      ? 'Preparing results…'
-                      : 'Open Dashboard'}
-                </Button>
-                <p className="text-center text-xs font-normal text-muted-foreground">
-                  You can always access this from the dashboard later
-                </p>
-              </div>
+              ) : (
+                <div className="space-y-6 w-full">
+                  <div className="text-left">
+                    <h1 className="text-xl font-semibold tracking-tight text-foreground mb-1">
+                      View dashboard for detailed insights
+                    </h1>
+                    <p className="text-sm font-normal leading-[1.4] text-muted-foreground">
+                      Open your results with live metrics and opportunities
+                    </p>
+                  </div>
+                  
+                  <Button
+                    onClick={handleOpenDashboard}
+                    disabled={isOpening || dataLoading || checkingAccess}
+                    className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    {checkingAccess
+                      ? 'Checking access…'
+                      : isOpening
+                        ? 'Opening…'
+                        : dataLoading
+                          ? 'Preparing results…'
+                          : 'Open Dashboard'}
+                  </Button>
+                  <p className="text-center text-xs font-normal text-muted-foreground">
+                    You can always access this from the dashboard later
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Right Section - Results Summary (Dark Background) */}
@@ -198,18 +321,6 @@ export default function ResultsPage() {
                       <Skeleton className="h-6 w-12" />
                     </div>
                     <Skeleton className="h-3 w-full" />
-                  </div>
-                  
-                  {/* Skeleton for Opportunities */}
-                  <div className="bg-background/50 rounded-lg p-4">
-                    <Skeleton className="h-4 w-40 mb-3" />
-                    <Skeleton className="h-3 w-full mb-3" />
-                    <div className="space-y-2">
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-full" />
-                      <Skeleton className="h-4 w-3/4" />
-                    </div>
                   </div>
                 </div>
               ) : metricsError ? (
@@ -252,80 +363,9 @@ export default function ResultsPage() {
                         })()}
                       </span>
                     </div>
-                        <p className="text-xs font-normal leading-[1.4] text-muted-foreground">
-                          Your brand's share of total citations across all brands
-                        </p>
-                  </div>
-
-                  {/* Opportunities & Insights Card */}
-                  <div className="bg-background/50 rounded-lg p-4">
-                    <div className="mb-2">
-                      <h3 className="text-xs font-medium tracking-wide text-foreground">Opportunities & Insights</h3>
-                      <p className="text-xs font-normal leading-[1.4] text-muted-foreground">Key takeaways derived from your current metrics</p>
-                    </div>
-                    {(() => {
-                      // Derive simple insights from available metrics
-                      const overall = metricsData?.overall || {}
-                      const brand = overall?.brandMetrics?.[0] || {}
-                      const totalPrompts = overall?.totalPrompts || metricsData?.metrics?.totalPrompts || 0
-
-                      const whatsWorking: any[] = []
-                      const needsAttention: any[] = []
-
-                      if (typeof brand.shareOfVoice === 'number' && brand.shareOfVoice >= 70) {
-                        whatsWorking.push({ title: 'Dominant Share of Voice', recommendation: `Your brand commands ${Math.round(brand.shareOfVoice)}% of mentions indicating strong market presence.` })
-                      }
-                      if (typeof brand.avgPosition === 'number' && brand.avgPosition <= 2) {
-                        whatsWorking.push({ title: 'Excellent Average Position', recommendation: `Consistently ranking around #${Math.round(brand.avgPosition)} across prompts.` })
-                      }
-                      if (typeof brand.citationShare === 'number' && brand.citationShare === 0) {
-                        needsAttention.push({ title: 'No Citations Yet', recommendation: 'Improve authority with source-rich content to start earning citations.' })
-                      }
-                      if (totalPrompts > 0 && totalPrompts < 5) {
-                        needsAttention.push({ title: 'Limited Data Volume', recommendation: `Only ${totalPrompts} prompts analyzed. Run more tests for reliable insights.` })
-                      }
-
-                      const displayWorking = whatsWorking.slice(0, 3)
-                      const displayAttention = needsAttention.slice(0, 3)
-
-                      return (
-                        <div className="grid grid-cols-1 gap-4">
-                          {displayWorking.length > 0 && (
-                            <div className="space-y-2">
-                              <div className="text-[11px] font-semibold tracking-wide text-foreground">What's Working</div>
-                              <ul className="space-y-2">
-                                {displayWorking.map((item: any, idx: number) => (
-                                  <li key={`ok-${idx}`} className="text-xs">
-                                    <span className="font-medium text-foreground">{item.title}</span>
-                                    {item.recommendation && (
-                                      <span className="text-muted-foreground"> — {item.recommendation}</span>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {displayAttention.length > 0 && (
-                            <div className="space-y-2">
-                              <div className="text-[11px] font-semibold tracking-wide text-foreground">Needs Attention</div>
-                              <ul className="space-y-2">
-                                {displayAttention.map((item: any, idx: number) => (
-                                  <li key={`na-${idx}`} className="text-xs">
-                                    <span className="font-medium text-foreground">{item.title}</span>
-                                    {item.recommendation && (
-                                      <span className="text-muted-foreground"> — {item.recommendation}</span>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                          {displayWorking.length === 0 && displayAttention.length === 0 && (
-                            <div className="text-xs text-muted-foreground">Insights will appear here once enough data is available.</div>
-                          )}
-                        </div>
-                      )
-                    })()}
+                    <p className="text-xs font-normal leading-[1.4] text-muted-foreground">
+                      Your brand's share of total citations across all brands
+                    </p>
                   </div>
                 </div>
               )}

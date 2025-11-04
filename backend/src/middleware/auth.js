@@ -14,6 +14,7 @@
  */
 
 const jwt = require('jsonwebtoken');
+const User = require('../models/User');
 const { AuthenticationError } = require('./errorHandler');
 
 /**
@@ -22,7 +23,7 @@ const { AuthenticationError } = require('./errorHandler');
  * 
  * userId comes from JWT token created during Google OAuth login
  */
-const authenticateToken = (req, res, next) => {
+const authenticateToken = async (req, res, next) => {
   // ⚠️ DEVELOPMENT ONLY: Allow bypass with NODE_ENV=development and DEV_AUTH_BYPASS=true
   // ⚠️ WARNING: This bypass is ONLY for development! NEVER enable DEV_AUTH_BYPASS=true in production!
   // In production, NODE_ENV must be 'production' which prevents this bypass from working
@@ -69,6 +70,31 @@ const authenticateToken = (req, res, next) => {
     if (!req.userId) {
       console.error(`❌ [AUTH] Token verified but no userId found in decoded token:`, decoded);
       return next(new AuthenticationError('Invalid token: no userId'));
+    }
+    
+    // Check user access for dashboard routes
+    if (req.path.includes('/dashboard') || req.path.includes('/api/dashboard')) {
+      const user = await User.findById(req.userId);
+      if (!user) {
+        console.error(`❌ [AUTH] User not found: ${req.userId}`);
+        return next(new AuthenticationError('User not found'));
+      }
+      
+      // Check if user has access
+      const allowedEmails = ['sj@tryrankly.com', 'satyajeetdas225@gmail.com'];
+      const userEmail = user.email?.toLowerCase();
+      const hasAccess = user.access === true || (userEmail && allowedEmails.includes(userEmail));
+      
+      if (!hasAccess) {
+        console.warn(`⚠️ [AUTH] Access denied for user: ${req.userId} (${userEmail})`);
+        return res.status(403).json({
+          success: false,
+          message: 'Dashboard access denied. Please contact support to get access.',
+          code: 'ACCESS_DENIED'
+        });
+      }
+      
+      console.log(`✅ [AUTH] User has dashboard access: ${req.userId} (${userEmail})`);
     }
     
     // Log successful authentication (userId comes from JWT token created during Google OAuth)

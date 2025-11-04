@@ -292,8 +292,8 @@ class WebsiteAnalysisService {
       resultKeys = ['brandContext', 'competitors', 'topics', 'personas'];
     }
 
-    // Wrap each task with 90-second timeout for fast-fail (tasks typically complete in 30-60s)
-    const FAST_FAIL_TIMEOUT = 90000; // 90 seconds
+    // Wrap each task with 120-second timeout for fast-fail (tasks typically complete in 30-60s)
+    const FAST_FAIL_TIMEOUT = 120000; // 120 seconds
     const wrappedTasks = analysisTasks.map((task, index) => {
       const analysisType = resultKeys[index];
       const defaultResponse = this.getDefaultResponse(analysisType === 'brandContext' ? 'brandContext' : 
@@ -331,7 +331,7 @@ class WebsiteAnalysisService {
           }
           
           const defaultCompetitors = this.getDefaultResponse('competitors');
-          competitorsResult = await this.withTimeout(retryTask, 90000, 'competitors-retry', defaultCompetitors);
+          competitorsResult = await this.withTimeout(retryTask, 120000, 'competitors-retry', defaultCompetitors);
           
           // Update results array with retried competitor result
           results[1] = competitorsResult;

@@ -1,7 +1,7 @@
 import { classifyError, isRetryableError, getUserFriendlyMessage, sleep, getRetryDelay, type ApiError } from '@/lib/utils/errorUtils'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
-const DEFAULT_TIMEOUT = 600000 // 600 seconds (10 minutes) - increased for long-running LLM operations
+const DEFAULT_TIMEOUT = 120000 // 120 seconds (2 minutes) - increased for long-running operations
 const MAX_RETRIES = 3
 const RETRYABLE_STATUS_CODES = [408, 429, 500, 502, 503, 504]
 
@@ -319,14 +319,13 @@ class ApiService {
     return this.request('/onboarding/analyze-website', {
       method: 'POST',
       body: JSON.stringify({ url }),
-      timeout: 600000, // 10 minutes for website analysis (AI processing can take significant time)
+      timeout: 180000, // 3 minutes for website analysis (AI processing can take time)
     })
   }
 
   // Get latest analysis results
-  async getLatestAnalysis(urlAnalysisId?: string) {
-    const params = urlAnalysisId ? `?urlAnalysisId=${urlAnalysisId}` : '';
-    return this.request(`/onboarding/latest-analysis${params}`)
+  async getLatestAnalysis() {
+    return this.request('/onboarding/latest-analysis')
   }
 
   // Check if user has done URL analysis
@@ -335,13 +334,10 @@ class ApiService {
   }
 
   // Generate prompts based on selected topics and personas
-  async generatePrompts(urlAnalysisId?: string) {
+  async generatePrompts() {
     return this.request('/onboarding/generate-prompts', {
       method: 'POST',
-      body: JSON.stringify({
-        ...(urlAnalysisId && { urlAnalysisId }) // Include urlAnalysisId if provided
-      }),
-      timeout: 600000, // 10 minutes for prompt generation + testing (can involve multiple AI calls)
+      timeout: 180000, // 3 minutes for prompt generation + testing (can involve multiple AI calls)
     })
   }
 
@@ -362,7 +358,7 @@ class ApiService {
   async testPrompts() {
     return this.request('/prompts/test', {
       method: 'POST',
-      timeout: 600000, // 10 minutes for prompt testing (can involve multiple AI calls)
+      timeout: 180000, // 3 minutes for prompt testing (can involve multiple AI calls)
     })
   }
 
@@ -482,7 +478,7 @@ class ApiService {
     return this.request('/insights/generate', {
       method: 'POST',
       body: JSON.stringify({ urlAnalysisId }),
-      timeout: 600000, // 10 minutes for insights generation (AI processing can take significant time)
+      timeout: 180000, // 3 minutes for insights generation (AI processing can take time)
     })
   }
 
@@ -491,7 +487,7 @@ class ApiService {
     return this.request('/insights/generate', {
       method: 'POST',
       body: JSON.stringify({ tabType, urlAnalysisId }),
-      timeout: 600000, // 10 minutes for insights generation (AI processing can take significant time)
+      timeout: 180000, // 3 minutes for insights generation (AI processing can take time)
     })
   }
 

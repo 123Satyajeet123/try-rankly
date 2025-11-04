@@ -66,12 +66,18 @@ class PromptTestingService {
       
       // ✅ CRITICAL FIX: Filter by urlAnalysisId if provided in options
       if (options.urlAnalysisId) {
-        promptQuery.urlAnalysisId = options.urlAnalysisId;
-        console.log(`🔍 [FILTER] Filtering prompts by urlAnalysisId: ${options.urlAnalysisId}`);
+        // ✅ FIX: Ensure urlAnalysisId is properly converted to ObjectId for query
+        const mongoose = require('mongoose');
+        const urlAnalysisId = typeof options.urlAnalysisId === 'string' 
+          ? new mongoose.Types.ObjectId(options.urlAnalysisId)
+          : options.urlAnalysisId;
+        promptQuery.urlAnalysisId = urlAnalysisId;
+        console.log(`🔍 [FILTER] Filtering prompts by urlAnalysisId: ${urlAnalysisId} (type: ${typeof urlAnalysisId})`);
       } else {
         console.warn('⚠️ [WARNING] No urlAnalysisId provided - will test prompts from ALL analyses (may mix data)');
       }
       
+      console.log('🔍 [QUERY] Prompt query:', JSON.stringify(promptQuery, null, 2));
       const allPrompts = await Prompt.find(promptQuery)
         .populate('topicId')
         .populate('personaId')

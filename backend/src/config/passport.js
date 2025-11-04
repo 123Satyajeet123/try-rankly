@@ -16,6 +16,12 @@ passport.use(new GoogleStrategy({
     if (user) {
       // Update last login
       user.lastLogin = new Date();
+      // Update access if email is in allowed list (in case user was created before access field existed)
+      const allowedEmails = ['sj@tryrankly.com', 'satyajeetdas225@gmail.com'];
+      const userEmail = profile.emails[0].value.toLowerCase();
+      if (allowedEmails.includes(userEmail) && !user.access) {
+        user.access = true;
+      }
       await user.save();
       return done(null, user);
     }
@@ -27,17 +33,29 @@ passport.use(new GoogleStrategy({
       // Link Google account to existing user
       user.googleId = profile.id;
       user.lastLogin = new Date();
+      // Update access if email is in allowed list (in case user was created before access field existed)
+      const allowedEmails = ['sj@tryrankly.com', 'satyajeetdas225@gmail.com'];
+      const userEmail = profile.emails[0].value.toLowerCase();
+      if (allowedEmails.includes(userEmail) && !user.access) {
+        user.access = true;
+      }
       await user.save();
       return done(null, user);
     }
 
     // Create new user
+    // Check if email is in allowed list for dashboard access
+    const allowedEmails = ['sj@tryrankly.com', 'satyajeetdas225@gmail.com'];
+    const userEmail = profile.emails[0].value.toLowerCase();
+    const hasAccess = allowedEmails.includes(userEmail);
+    
     const newUser = new User({
       googleId: profile.id,
       email: profile.emails[0].value,
       firstName: profile.name.givenName,
       lastName: profile.name.familyName,
       isEmailVerified: true, // Google emails are pre-verified
+      access: hasAccess, // Set access based on email
       lastLogin: new Date()
     });
 

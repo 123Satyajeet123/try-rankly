@@ -6,6 +6,7 @@ import apiService from '@/services/api'
 interface User {
   id: string
   email: string
+  access?: boolean
   profile: {
     firstName: string
     lastName: string

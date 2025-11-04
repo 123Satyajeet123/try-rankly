@@ -40,13 +40,19 @@ router.post('/register', [
       });
     }
 
+    // Check if email is in allowed list for dashboard access
+    const allowedEmails = ['sj@tryrankly.com', 'satyajeetdas225@gmail.com'];
+    const userEmailLower = email.toLowerCase();
+    const hasAccess = allowedEmails.includes(userEmailLower);
+    
     // Create new user
     const user = new User({
       email,
       password,
       firstName,
       lastName,
-      companyName: companyName || ''
+      companyName: companyName || '',
+      access: hasAccess // Set access based on email
     });
 
     await user.save();
@@ -228,22 +234,11 @@ router.get('/google/callback',
       console.log('✅ Google OAuth successful for user:', req.user.email);
       console.log('✅ User saved to MongoDB with ID:', req.user._id);
       
-      // Check if user email is in the allowed list for normal onboarding flow
-      const allowedEmails = ['sj@tryrankly.com', 'satyajeetdas225@gmail.com'];
-      const userEmail = req.user.email.toLowerCase();
-      const isAllowedUser = allowedEmails.includes(userEmail);
-      
-      if (isAllowedUser) {
-        // Redirect to frontend with token and step parameter to go directly to website URL section
-        console.log('✅ [OAuth] Allowed user detected, redirecting to onboarding');
-        const redirectUrl = `${process.env.FRONTEND_URL}/onboarding?token=${token}&oauth=google&step=4`;
-        res.redirect(redirectUrl);
-      } else {
-        // Redirect to book a demo link for new users
-        console.log('✅ [OAuth] New user detected, redirecting to book a demo');
-        const bookDemoUrl = 'https://cal.com/sj-rankly/30min';
-        res.redirect(bookDemoUrl);
-      }
+      // All users can now complete onboarding - access check happens on results page
+      // Redirect to frontend with token and step parameter to go directly to website URL section
+      console.log('✅ [OAuth] User authenticated, redirecting to onboarding');
+      const redirectUrl = `${process.env.FRONTEND_URL}/onboarding?token=${token}&oauth=google&step=4`;
+      res.redirect(redirectUrl);
     } catch (error) {
       console.error('Google OAuth callback error:', error);
       res.redirect(`${process.env.FRONTEND_URL}/onboarding?error=oauth_callback_failed`);

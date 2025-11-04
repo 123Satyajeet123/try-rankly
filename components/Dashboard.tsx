@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Sidebar } from './layout/Sidebar'
 import { TopNav } from './layout/TopNav'
@@ -30,13 +30,15 @@ interface DashboardProps {
 export function Dashboard({ initialTab, urlAnalysisId: urlParamAnalysisId }: DashboardProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { isAuthenticated, isLoading: authLoading } = useAuth()
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth()
   const { data: onboardingData, updateData } = useOnboarding()
   const [activeTab, setActiveTab] = useState(initialTab || 'visibility')
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [isPromptBuilderFullScreen, setIsPromptBuilderFullScreen] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [accessChecked, setAccessChecked] = useState(false)
+  const [hasAccess, setHasAccess] = useState(false)
   const { selectedTopics, selectedPersonas, selectedPlatforms, selectedAnalysisId, setSelectedAnalysisId, setSelectedTopics, setSelectedPersonas, setSelectedPlatforms } = useFilters()
   
   // Track if we're fetching the latest analysis
@@ -116,12 +118,21 @@ export function Dashboard({ initialTab, urlAnalysisId: urlParamAnalysisId }: Das
     }
   }, [urlAnalysisIdFromUrl, onboardingData?.urlAnalysisId, selectedAnalysisId, setSelectedAnalysisId])
 
+  // ✅ FIX: Use ref to track if we've already fetched to prevent infinite loops
+  const hasFetchedLatestAnalysis = useRef(false)
+  
   // Fetch latest analysis ID if not available from URL param or context
   // Only fetch from API if URL param, context, and selectedAnalysisId don't have it
   useEffect(() => {
     const fetchLatestAnalysis = async () => {
       // Don't fetch if we already have an ID or are waiting for auth
       if (selectedAnalysisId || authLoading || !isAuthenticated || isFetchingLatestAnalysis) {
+        return
+      }
+      
+      // ✅ FIX: Prevent multiple fetches - only fetch once
+      if (hasFetchedLatestAnalysis.current) {
+        console.log('⏭️ [Dashboard] Already fetched latest analysis, skipping...')
         return
       }
       
@@ -139,8 +150,9 @@ export function Dashboard({ initialTab, urlAnalysisId: urlParamAnalysisId }: Das
         return
       }
       
-      // Only fetch from API if context doesn't have the ID
+      // Only fetch from API if context doesn't have the ID (and we haven't fetched yet)
       console.log('🔍 [Dashboard] No selectedAnalysisId in context, fetching latest analysis from API...')
+      hasFetchedLatestAnalysis.current = true // Mark as fetched
       setIsFetchingLatestAnalysis(true)
       try {
         console.log('🔍 [Dashboard] DEBUG - Calling getLatestAnalysis()')
@@ -202,7 +214,17 @@ export function Dashboard({ initialTab, urlAnalysisId: urlParamAnalysisId }: Das
     }
     
     fetchLatestAnalysis()
-  }, [selectedAnalysisId, authLoading, isAuthenticated, setSelectedAnalysisId, isFetchingLatestAnalysis, urlAnalysisIdFromUrl, onboardingData?.urlAnalysisId])
+    // ✅ FIX: Removed selectedAnalysisId and onboardingData?.urlAnalysisId from dependencies
+    // to prevent infinite loops. Only re-run when auth state changes or URL param changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, isAuthenticated, urlAnalysisIdFromUrl])
+  
+  // ✅ FIX: Reset fetch flag when URL param or context changes (so we can re-fetch if needed)
+  useEffect(() => {
+    if (urlAnalysisIdFromUrl || onboardingData?.urlAnalysisId) {
+      hasFetchedLatestAnalysis.current = false
+    }
+  }, [urlAnalysisIdFromUrl, onboardingData?.urlAnalysisId])
   
   // Redirect to signin if not authenticated
   useEffect(() => {
@@ -211,6 +233,51 @@ export function Dashboard({ initialTab, urlAnalysisId: urlParamAnalysisId }: Das
       router.push('/onboarding/signin')
     }
   }, [isAuthenticated, authLoading, router])
+
+  // Check user access to dashboard
+  useEffect(() => {
+    const checkAccess = async () => {
+      if (authLoading || !isAuthenticated) {
+        return
+      }
+
+      if (accessChecked) {
+        return
+      }
+
+      try {
+        setAccessChecked(true)
+        const userResponse = await apiService.getCurrentUser()
+        const userData = userResponse.data?.user || userResponse.data
+        const hasAccessField = userData?.access === true
+        
+        // Check if email is in allowed list (fallback check)
+        const allowedEmails = ['sj@tryrankly.com', 'satyajeetdas225@gmail.com']
+        const userEmail = userData?.email?.toLowerCase() || user?.email?.toLowerCase()
+        const isAllowedEmail = userEmail && allowedEmails.includes(userEmail)
+        
+        const finalAccess = hasAccessField || isAllowedEmail
+        
+        if (!finalAccess) {
+          console.warn('⚠️ [Dashboard] User does not have dashboard access, redirecting to results page')
+          setHasAccess(false)
+          // Redirect to results page or show access denied message
+          router.push('/onboarding/results')
+          return
+        }
+        
+        setHasAccess(true)
+        console.log('✅ [Dashboard] User has dashboard access')
+      } catch (error) {
+        console.error('❌ [Dashboard] Error checking access:', error)
+        // On error, assume no access
+        setHasAccess(false)
+        router.push('/onboarding/results')
+      }
+    }
+
+    checkAccess()
+  }, [authLoading, isAuthenticated, accessChecked, router, user])
   
   // Global skeleton loading state
   const [isGlobalLoading, setIsGlobalLoading] = useState(false)
@@ -221,7 +288,11 @@ export function Dashboard({ initialTab, urlAnalysisId: urlParamAnalysisId }: Das
 
   // Track previous analysis ID to detect changes
   const [previousAnalysisId, setPreviousAnalysisId] = useState<string | null>(null)
-
+  
+  // Don't render dashboard if access hasn't been checked or user doesn't have access
+  // ✅ MOVED: This check must happen AFTER all hooks are declared to avoid hook order issues
+  const shouldShowAccessCheck = !authLoading && isAuthenticated && (!accessChecked || !hasAccess)
+  
   // Load dashboard data when analysis OR filters change
   useEffect(() => {
     const loadDashboardData = async () => {
@@ -363,6 +434,18 @@ export function Dashboard({ initialTab, urlAnalysisId: urlParamAnalysisId }: Das
   }, [selectedAnalysisId, selectedTopics, selectedPersonas, selectedPlatforms, setGlobalLoading, previousAnalysisId, authLoading, isAuthenticated, isFetchingLatestAnalysis, urlAnalysisIdFromUrl, setSelectedAnalysisId]) // Reload when analysis OR filters change - INCLUDES urlAnalysisIdFromUrl to prevent stale ID usage
 
   // Remove redundant global loading effect since we now handle it directly in loadDashboardData
+
+  // ✅ EARLY RETURN: Now that all hooks are called, we can safely return early for access checks
+  if (shouldShowAccessCheck) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-background">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-foreground mx-auto mb-4"></div>
+          <div className="text-foreground">Checking access...</div>
+        </div>
+      </div>
+    )
+  }
 
   const handleTogglePromptBuilderFullScreen = (isFullScreen: boolean) => {
     setIsPromptBuilderFullScreen(isFullScreen)

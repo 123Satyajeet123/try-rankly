@@ -4,7 +4,6 @@ const Competitor = require('../models/Competitor');
 const Topic = require('../models/Topic');
 const Persona = require('../models/Persona');
 const UrlAnalysis = require('../models/UrlAnalysis');
-const { asyncHandler } = require('../middleware/errorHandler');
 const router = express.Router();
 
 /**
@@ -89,14 +88,12 @@ function extractBrandContext(urlAnalysis) {
   };
 }
 
-// JWT Authentication middleware
+// Authentication middleware (JWT-based)
 const { authenticateToken } = require('../middleware/auth');
 
 // Get onboarding data
-router.get('/', authenticateToken, asyncHandler(async (req, res) => {
+router.get('/', authenticateToken, async (req, res) => {
   try {
-    const { urlAnalysisId } = req.query; // ✅ Accept urlAnalysisId as query parameter
-    
     const user = await User.findById(req.userId);
     if (!user) {
       return res.status(404).json({
@@ -105,29 +102,10 @@ router.get('/', authenticateToken, asyncHandler(async (req, res) => {
       });
     }
 
-    // ✅ FIX: Get latest analysis if urlAnalysisId not provided, or use specific analysis
-    let targetAnalysis = null;
-    if (urlAnalysisId) {
-      targetAnalysis = await UrlAnalysis.findOne({ _id: urlAnalysisId, userId: req.userId }).lean();
-      if (!targetAnalysis) {
-        return res.status(404).json({
-          success: false,
-          message: 'URL analysis not found for the provided ID'
-        });
-      }
-    } else {
-      targetAnalysis = await UrlAnalysis.findOne({ userId: req.userId })
-        .sort({ createdAt: -1 })
-        .lean();
-    }
-
-    // ✅ FIX: Filter by urlAnalysisId if available, otherwise get all (backward compatibility)
-    const queryFilter = targetAnalysis ? { userId: req.userId, urlAnalysisId: targetAnalysis._id } : { userId: req.userId };
-    
-    // Get user's data (filtered by analysis if available)
-    const competitors = await Competitor.find(queryFilter);
-    const topics = await Topic.find(queryFilter);
-    const personas = await Persona.find(queryFilter);
+    // Get user's data
+    const competitors = await Competitor.find({ userId: req.userId });
+    const topics = await Topic.find({ userId: req.userId });
+    const personas = await Persona.find({ userId: req.userId });
 
     res.json({
       success: true,
@@ -157,15 +135,18 @@ router.get('/', authenticateToken, asyncHandler(async (req, res) => {
     });
 
   } catch (error) {
-    // Error will be handled by errorHandler middleware
-    throw error;
+    console.error('Get onboarding data error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get onboarding data'
+    });
   }
-}));
+});
 
 // Update onboarding data in bulk
-router.put('/bulk', authenticateToken, asyncHandler(async (req, res) => {
+router.put('/bulk', authenticateToken, async (req, res) => {
   try {
-    const { profile, websiteUrl, competitors, topics, personas, regions, languages, preferences, urlAnalysisId } = req.body;
+    const { profile, websiteUrl, competitors, topics, personas, regions, languages, preferences } = req.body;
 
     // Update user profile
     const user = await User.findById(req.userId);
@@ -174,23 +155,6 @@ router.put('/bulk', authenticateToken, asyncHandler(async (req, res) => {
         success: false,
         message: 'User not found'
       });
-    }
-
-    // ✅ FIX: Get target analysis if urlAnalysisId provided
-    let targetAnalysis = null;
-    if (urlAnalysisId) {
-      targetAnalysis = await UrlAnalysis.findOne({ _id: urlAnalysisId, userId: req.userId });
-      if (!targetAnalysis) {
-        return res.status(404).json({
-          success: false,
-          message: 'URL analysis not found for the provided ID'
-        });
-      }
-    } else {
-      // Fall back to latest analysis
-      targetAnalysis = await UrlAnalysis.findOne({ userId: req.userId })
-        .sort({ createdAt: -1 });
-      console.warn('⚠️ [BULK] No urlAnalysisId provided, using latest analysis');
     }
 
     // Update user data
@@ -217,20 +181,14 @@ router.put('/bulk', authenticateToken, asyncHandler(async (req, res) => {
     user.onboarding.isCompleted = true;
     await user.save();
 
-    // ✅ FIX: Update competitors - filter by urlAnalysisId if available
+    // Update competitors
     if (competitors && Array.isArray(competitors)) {
-      // Clear existing selections for this analysis (or all if no analysis)
-      const resetQuery = targetAnalysis 
-        ? { userId: req.userId, urlAnalysisId: targetAnalysis._id }
-        : { userId: req.userId };
-      await Competitor.updateMany(resetQuery, { selected: false });
+      // Clear existing selections
+      await Competitor.updateMany({ userId: req.userId }, { selected: false });
       
-      // Update selected competitors (match by URL and urlAnalysisId)
+      // Update selected competitors
       for (const url of competitors) {
-        const query = targetAnalysis
-          ? { userId: req.userId, url, urlAnalysisId: targetAnalysis._id }
-          : { userId: req.userId, url };
-        const competitor = await Competitor.findOne(query);
+        const competitor = await Competitor.findOne({ userId: req.userId, url });
         if (competitor) {
           competitor.selected = true;
           await competitor.save();
@@ -238,18 +196,14 @@ router.put('/bulk', authenticateToken, asyncHandler(async (req, res) => {
       }
     }
 
-    // ✅ FIX: Update topics - filter by urlAnalysisId if available
+    // Update topics
     if (topics && Array.isArray(topics)) {
-      const resetQuery = targetAnalysis
-        ? { userId: req.userId, urlAnalysisId: targetAnalysis._id }
-        : { userId: req.userId };
-      await Topic.updateMany(resetQuery, { selected: false });
+      // Clear existing selections
+      await Topic.updateMany({ userId: req.userId }, { selected: false });
       
+      // Update selected topics
       for (const name of topics) {
-        const query = targetAnalysis
-          ? { userId: req.userId, name, urlAnalysisId: targetAnalysis._id }
-          : { userId: req.userId, name };
-        const topic = await Topic.findOne(query);
+        const topic = await Topic.findOne({ userId: req.userId, name });
         if (topic) {
           topic.selected = true;
           await topic.save();
@@ -257,18 +211,14 @@ router.put('/bulk', authenticateToken, asyncHandler(async (req, res) => {
       }
     }
 
-    // ✅ FIX: Update personas - filter by urlAnalysisId if available
+    // Update personas
     if (personas && Array.isArray(personas)) {
-      const resetQuery = targetAnalysis
-        ? { userId: req.userId, urlAnalysisId: targetAnalysis._id }
-        : { userId: req.userId };
-      await Persona.updateMany(resetQuery, { selected: false });
+      // Clear existing selections
+      await Persona.updateMany({ userId: req.userId }, { selected: false });
       
+      // Update selected personas
       for (const description of personas) {
-        const query = targetAnalysis
-          ? { userId: req.userId, description, urlAnalysisId: targetAnalysis._id }
-          : { userId: req.userId, description };
-        const persona = await Persona.findOne(query);
+        const persona = await Persona.findOne({ userId: req.userId, description });
         if (persona) {
           persona.selected = true;
           await persona.save();
@@ -282,13 +232,16 @@ router.put('/bulk', authenticateToken, asyncHandler(async (req, res) => {
     });
 
   } catch (error) {
-    // Error will be handled by errorHandler middleware
-    throw error;
+    console.error('Update onboarding error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update onboarding data'
+    });
   }
-}));
+});
 
 // Analyze website endpoint with AI integration
-router.post('/analyze-website', authenticateToken, asyncHandler(async (req, res) => {
+router.post('/analyze-website', authenticateToken, async (req, res) => {
   try {
     const { url } = req.body;
     
@@ -509,16 +462,18 @@ router.post('/analyze-website', authenticateToken, asyncHandler(async (req, res)
     });
 
   } catch (error) {
-    // Error will be handled by errorHandler middleware
-    throw error;
+    console.error('Website analysis error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Website analysis failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : 'Analysis service temporarily unavailable'
+    });
   }
-}));
+});
 
 // Get latest website analysis results
-router.get('/latest-analysis', authenticateToken, asyncHandler(async (req, res) => {
+router.get('/latest-analysis', authenticateToken, async (req, res) => {
   try {
-    const { urlAnalysisId } = req.query; // ✅ Accept urlAnalysisId as query parameter
-    
     const user = await User.findById(req.userId);
     if (!user) {
       return res.status(404).json({
@@ -527,34 +482,28 @@ router.get('/latest-analysis', authenticateToken, asyncHandler(async (req, res) 
       });
     }
 
-    // ✅ FIX: Use provided urlAnalysisId or fall back to latest
-    const latestAnalysis = urlAnalysisId
-      ? await UrlAnalysis.findOne({ _id: urlAnalysisId, userId: req.userId }).lean()
-      : await UrlAnalysis.findOne({ userId: req.userId })
-          .sort({ createdAt: -1 })
-          .lean();
+    // Get the latest analysis for this user
+    const latestAnalysis = await UrlAnalysis.findOne({ userId: req.userId })
+      .sort({ createdAt: -1 })
+      .lean();
 
     if (!latestAnalysis) {
       return res.status(404).json({
         success: false,
-        message: urlAnalysisId 
-          ? 'URL analysis not found for the provided ID'
-          : 'No analysis found for this user'
+        message: 'No analysis found for this user'
       });
     }
 
-    // Get all available items (AI-generated + user-created) filtered by urlAnalysisId
-    // ✅ FIX: Filter by urlAnalysisId to ensure data isolation between analyses
+    // Get all available items (AI-generated + user-created)
     const [competitors, topics, personas] = await Promise.all([
-      Competitor.find({ userId: req.userId, urlAnalysisId: latestAnalysis._id }).lean(),
-      Topic.find({ userId: req.userId, urlAnalysisId: latestAnalysis._id }).lean(),
-      Persona.find({ userId: req.userId, urlAnalysisId: latestAnalysis._id }).lean()
+      Competitor.find({ userId: req.userId }).lean(),
+      Topic.find({ userId: req.userId }).lean(),
+      Persona.find({ userId: req.userId }).lean()
     ]);
 
     res.json({
       success: true,
       data: {
-        urlAnalysisId: latestAnalysis._id.toString(), // Add urlAnalysisId at top level for dashboard
         analysis: {
           id: latestAnalysis._id,
           url: latestAnalysis.url,
@@ -573,13 +522,16 @@ router.get('/latest-analysis', authenticateToken, asyncHandler(async (req, res) 
     });
 
   } catch (error) {
-    // Error will be handled by errorHandler middleware
-    throw error;
+    console.error('Get latest analysis error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get analysis data'
+    });
   }
-}));
+});
 
 // Check if user has done URL analysis before
-router.get('/has-analysis', authenticateToken, asyncHandler(async (req, res) => {
+router.get('/has-analysis', authenticateToken, async (req, res) => {
   try {
     const analysisCount = await UrlAnalysis.countDocuments({ userId: req.userId });
 
@@ -591,13 +543,16 @@ router.get('/has-analysis', authenticateToken, asyncHandler(async (req, res) => 
       }
     });
   } catch (error) {
-    // Error will be handled by errorHandler middleware
-    throw error;
+    console.error('Check analysis error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to check analysis status'
+    });
   }
-}));
+});
 
 // Cleanup URL data endpoint (for manual cleanup if needed)
-router.post('/cleanup-url', authenticateToken, asyncHandler(async (req, res) => {
+router.post('/cleanup-url', authenticateToken, async (req, res) => {
   try {
     const { url } = req.body;
     
@@ -641,10 +596,10 @@ router.post('/cleanup-url', authenticateToken, asyncHandler(async (req, res) => 
       error: process.env.NODE_ENV === 'development' ? error.message : 'Cleanup service temporarily unavailable'
     });
   }
-}));
+});
 
 // Update selections for competitors, topics, and personas
-router.post('/update-selections', authenticateToken, asyncHandler(async (req, res) => {
+router.post('/update-selections', authenticateToken, async (req, res) => {
   try {
     const { competitors = [], topics = [], personas = [], urlAnalysisId = null } = req.body;
     const userId = req.userId;
@@ -654,24 +609,6 @@ router.post('/update-selections', authenticateToken, asyncHandler(async (req, re
     console.log('Topic names:', topics);
     console.log('Persona types:', personas);
     console.log('URL Analysis ID:', urlAnalysisId);
-
-    // ✅ FIX: Validate urlAnalysisId is provided
-    if (!urlAnalysisId) {
-      return res.status(400).json({
-        success: false,
-        message: 'urlAnalysisId is required for data isolation. Please provide the analysis ID.'
-      });
-    }
-
-    // ✅ FIX: Verify urlAnalysisId exists and belongs to user
-    const UrlAnalysis = require('../models/UrlAnalysis');
-    const analysis = await UrlAnalysis.findOne({ _id: urlAnalysisId, userId });
-    if (!analysis) {
-      return res.status(404).json({
-        success: false,
-        message: 'URL analysis not found or does not belong to this user'
-      });
-    }
 
     // ✅ FIX: Only reset selections for the current analysis, not globally
     const resetQuery = { userId };
@@ -687,18 +624,12 @@ router.post('/update-selections', authenticateToken, asyncHandler(async (req, re
     let topicsUpdated = 0;
     let personasUpdated = 0;
 
-    // Update competitors - match by URL AND urlAnalysisId (ensures correct analysis)
+    // Update competitors - match by URL (most reliable identifier)
     for (const compUrl of competitors) {
-      // ✅ FIX: Match by both URL and urlAnalysisId to ensure we update the correct competitor
-      if (!urlAnalysisId) {
-        console.warn('⚠️  No urlAnalysisId provided for competitor selection, skipping:', compUrl);
-        continue;
-      }
-      
-      // First try to find existing competitor for this specific analysis
+      // First try to find existing competitor
       let result = await Competitor.updateOne(
-        { userId, url: compUrl, urlAnalysisId: urlAnalysisId }, // ✅ Match by both
-        { selected: true }
+        { userId, url: compUrl },
+        { selected: true, urlAnalysisId: urlAnalysisId } // ✅ FIX: Set urlAnalysisId
       );
       
       // If no existing competitor found, create a new one (for custom competitors)
@@ -721,17 +652,12 @@ router.post('/update-selections', authenticateToken, asyncHandler(async (req, re
       if (result.modifiedCount > 0) competitorsUpdated++;
     }
 
-    // Update topics - match by name AND urlAnalysisId
+    // Update topics - match by name
     for (const topicName of topics) {
-      if (!urlAnalysisId) {
-        console.warn('⚠️  No urlAnalysisId provided for topic selection, skipping:', topicName);
-        continue;
-      }
-      
-      // ✅ FIX: Match by both name and urlAnalysisId to ensure correct analysis
+      // First try to find existing topic
       let result = await Topic.updateOne(
-        { userId, name: topicName, urlAnalysisId: urlAnalysisId },
-        { selected: true }
+        { userId, name: topicName },
+        { selected: true, urlAnalysisId: urlAnalysisId }
       );
       
       // If no existing topic found, create a new one (for custom topics)
@@ -754,17 +680,12 @@ router.post('/update-selections', authenticateToken, asyncHandler(async (req, re
       if (result.modifiedCount > 0) topicsUpdated++;
     }
 
-    // Update personas - match by type AND urlAnalysisId
+    // Update personas - match by type
     for (const personaType of personas) {
-      if (!urlAnalysisId) {
-        console.warn('⚠️  No urlAnalysisId provided for persona selection, skipping:', personaType);
-        continue;
-      }
-      
-      // ✅ FIX: Match by both type and urlAnalysisId to ensure correct analysis
+      // First try to find existing persona
       let result = await Persona.updateOne(
-        { userId, type: personaType, urlAnalysisId: urlAnalysisId },
-        { selected: true }
+        { userId, type: personaType },
+        { selected: true, urlAnalysisId: urlAnalysisId }
       );
       
       // If no existing persona found, create a new one (for custom personas)
@@ -807,16 +728,13 @@ router.post('/update-selections', authenticateToken, asyncHandler(async (req, re
       message: 'Failed to update selections'
     });
   }
-}));
+});
 
 // Generate prompts based on user selections
-router.post('/generate-prompts', authenticateToken, asyncHandler(async (req, res) => {
+router.post('/generate-prompts', authenticateToken, async (req, res) => {
   try {
     const userId = req.userId;
-    const { urlAnalysisId } = req.body; // ✅ Accept urlAnalysisId from frontend
-    
     console.log('🎯 Starting prompt generation for user:', userId);
-    console.log('🔗 URL Analysis ID:', urlAnalysisId || 'using latest');
 
     // Get user data
     const user = await User.findById(userId);
@@ -827,41 +745,21 @@ router.post('/generate-prompts', authenticateToken, asyncHandler(async (req, res
       });
     }
 
-    // Get target analysis - use provided urlAnalysisId or fall back to latest
-    const targetAnalysis = urlAnalysisId
-      ? await UrlAnalysis.findOne({ _id: urlAnalysisId, userId })
-      : await UrlAnalysis.findOne({ userId }).sort({ analysisDate: -1 });
-    
-    if (!targetAnalysis) {
-      return res.status(404).json({
+    // Get latest analysis data first
+    const latestAnalysis = await UrlAnalysis.findOne({ userId })
+      .sort({ analysisDate: -1 });
+
+    if (!latestAnalysis) {
+      return res.status(400).json({
         success: false,
-        message: urlAnalysisId 
-          ? 'URL analysis not found for the provided ID'
-          : 'No website analysis found. Please analyze a website first.'
+        message: 'No website analysis found. Please analyze a website first.'
       });
     }
-    
-    const latestAnalysis = targetAnalysis; // Use for consistency with existing code
 
     // Get selected data for the latest analysis
     const selectedCompetitors = await Competitor.find({ userId, selected: true, urlAnalysisId: latestAnalysis._id });
     const selectedTopics = await Topic.find({ userId, selected: true, urlAnalysisId: latestAnalysis._id });
     const selectedPersonas = await Persona.find({ userId, selected: true, urlAnalysisId: latestAnalysis._id });
-
-    // ✅ FIX: Validate that we have selected topics and personas
-    if (selectedTopics.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No topics selected. Please select at least 1 topic to generate prompts.'
-      });
-    }
-
-    if (selectedPersonas.length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: 'No personas selected. Please select at least 1 persona to generate prompts.'
-      });
-    }
 
     // Prepare data for prompt generation
     // Use default configuration
@@ -900,7 +798,6 @@ router.post('/generate-prompts', authenticateToken, asyncHandler(async (req, res
 
     // Import prompt generation service
     const promptGenerationService = require('../services/promptGenerationService');
-    const { normalizePromptText } = require('../services/promptGenerationService');
     
     // Generate prompts
     const generatedPrompts = await promptGenerationService.generatePrompts(promptData);
@@ -911,84 +808,41 @@ router.post('/generate-prompts', authenticateToken, asyncHandler(async (req, res
     // Save prompts to database (required for testing service)
     const Prompt = require('../models/Prompt');
     const savedPrompts = [];
-    const skippedDuplicates = [];
     
     for (const promptData of generatedPrompts) {
       console.log('🔍 Processing prompt:', {
-        topicId: promptData.topicId,
         topicName: promptData.topicName,
-        personaId: promptData.personaId,
         personaType: promptData.personaType,
         queryType: promptData.queryType
       });
 
-      // ✅ Use IDs directly from generated prompts (Priority 2 fix)
-      // Convert to string for comparison (handles both ObjectId and string formats)
-      const topicIdStr = promptData.topicId?.toString();
-      const personaIdStr = promptData.personaId?.toString();
-      
-      let topic = selectedTopics.find(t => t._id.toString() === topicIdStr);
-      let persona = selectedPersonas.find(p => p._id.toString() === personaIdStr);
+      // Find the topic and persona ObjectIds by name/type (not by the input IDs)
+      const topic = selectedTopics.find(t => t.name === promptData.topicName);
+      const persona = selectedPersonas.find(p => p.type === promptData.personaType);
 
-      console.log('🔍 Matching results (by ID):', {
+      console.log('🔍 Matching results:', {
         topicFound: !!topic,
         personaFound: !!persona,
-        topicMatch: topic ? { _id: topic._id.toString(), name: topic.name } : null,
-        personaMatch: persona ? { _id: persona._id.toString(), type: persona.type } : null,
-        expectedTopicId: topicIdStr,
-        expectedPersonaId: personaIdStr
+        topicMatch: topic ? { _id: topic._id, name: topic.name } : null,
+        personaMatch: persona ? { _id: persona._id, type: persona.type } : null
       });
 
-      // Fallback: If ID matching fails, try name/type matching (backward compatibility)
       if (!topic || !persona) {
-        console.warn('⚠️  ID matching failed, trying name/type matching as fallback...');
-        const topicFallback = selectedTopics.find(t => t.name === promptData.topicName);
-        const personaFallback = selectedPersonas.find(p => p.type === promptData.personaType);
-        
-        if (topicFallback && personaFallback) {
-          console.log('✅ Fallback matching succeeded');
-          topic = topicFallback;
-          persona = personaFallback;
-        } else {
-          console.warn('❌ Skipping prompt - topic or persona not found by ID or name/type:', {
-            promptData: {
-              topicId: topicIdStr,
-              topicName: promptData.topicName,
-              personaId: personaIdStr,
-              personaType: promptData.personaType,
-              queryType: promptData.queryType
-            },
-            availableTopics: selectedTopics.map(t => ({ _id: t._id.toString(), name: t.name })),
-            availablePersonas: selectedPersonas.map(p => ({ _id: p._id.toString(), type: p.type }))
-          });
-          continue;
-        }
-      }
-
-      // ✅ FIX: Check for duplicate prompts in database before saving
-      const normalized = normalizePromptText(promptData.promptText);
-      const existingPrompt = await Prompt.findOne({
-        userId,
-        urlAnalysisId: latestAnalysis._id, // ✅ Check duplicates within same analysis
-        topicId: topic._id,
-        personaId: persona._id,
-        queryType: promptData.queryType,
-        text: { $regex: new RegExp('^' + normalized + '$', 'i') }
-      });
-      
-      if (existingPrompt) {
-        console.log(`⏩ Skipping duplicate prompt for ${topic.name} × ${persona.type}:`, promptData.promptText.substring(0, 50));
-        skippedDuplicates.push({
-          promptText: promptData.promptText.substring(0, 50),
-          topicName: topic.name,
-          personaType: persona.type
+        console.warn('❌ Skipping prompt - topic or persona not found:', {
+          promptData: {
+            topicName: promptData.topicName,
+            personaType: promptData.personaType,
+            queryType: promptData.queryType
+          },
+          availableTopics: selectedTopics.filter(t => t.name).map(t => t.name),
+          availablePersonas: selectedPersonas.filter(p => p.type).map(p => p.type)
         });
         continue;
       }
 
       const prompt = new Prompt({
         userId,
-        urlAnalysisId: latestAnalysis._id, // ✅ Link prompt to the URL analysis
+        urlAnalysisId: latestAnalysis._id, // ✅ Link prompt to URL analysis
         topicId: topic._id,
         personaId: persona._id,
         title: `${topic.name} × ${persona.type} - ${promptData.queryType}`,
@@ -1013,26 +867,45 @@ router.post('/generate-prompts', authenticateToken, asyncHandler(async (req, res
     }
 
     console.log(`💾 Saved ${savedPrompts.length} prompts to database`);
-    if (skippedDuplicates.length > 0) {
-      console.log(`⏩ Skipped ${skippedDuplicates.length} duplicate prompts`);
-    }
 
     // Trigger prompt testing and then metrics calculation after prompt generation
     try {
       console.log('🧪 Starting automatic prompt testing...');
+      
+      // ✅ FIX: Wait longer for database writes to fully commit before querying
+      // This prevents race condition where prompts are saved but not yet queryable
+      console.log('⏳ Waiting for database writes to complete...');
+      await new Promise(resolve => setTimeout(resolve, 3000)); // Increased to 3 seconds
+      
+      // ✅ FIX: Verify prompts are actually in database before testing
+      const Prompt = require('../models/Prompt');
+      const mongoose = require('mongoose');
+      const verifyQuery = {
+        userId,
+        urlAnalysisId: latestAnalysis._id,
+        status: 'active'
+      };
+      const verifiedPrompts = await Prompt.find(verifyQuery).countDocuments();
+      console.log(`🔍 [VERIFY] Found ${verifiedPrompts} prompts in database for analysis ${latestAnalysis._id}`);
+      
+      if (verifiedPrompts === 0) {
+        console.error('❌ [ERROR] No prompts found in database after save. This may indicate a database write issue.');
+        throw new Error('No prompts found in database after save');
+      }
+      
       const promptTestingService = require('../services/promptTestingService');
       const testingService = promptTestingService;
       
-      // ✅ FIX: Wait a bit longer to ensure all prompts are fully committed to database
-      // This prevents race condition where testing might start before all prompts are saved
-      console.log('⏳ Waiting for database writes to complete...');
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Increased from 1s to 2s
+      // ✅ FIX: Ensure urlAnalysisId is properly converted to ObjectId
+      const urlAnalysisIdForQuery = typeof latestAnalysis._id === 'string' 
+        ? new mongoose.Types.ObjectId(latestAnalysis._id)
+        : latestAnalysis._id;
       
-      // Test all prompts automatically (filtered by urlAnalysisId)
+      // Test all prompts automatically
       const testResults = await testingService.testAllPrompts(userId, {
         batchSize: 5,
         testLimit: 20,
-        urlAnalysisId: latestAnalysis._id // ✅ Pass urlAnalysisId to filter prompts
+        urlAnalysisId: urlAnalysisIdForQuery
       });
       
       console.log(`✅ Prompt testing completed: ${testResults.totalTests} tests`);
@@ -1091,7 +964,7 @@ router.post('/generate-prompts', authenticateToken, asyncHandler(async (req, res
       error: process.env.NODE_ENV === 'development' ? error.message : 'Prompt generation service temporarily unavailable'
     });
   }
-}));
+});
 
 // Export the extractBrandContext function for testing
 module.exports.extractBrandContext = extractBrandContext;
