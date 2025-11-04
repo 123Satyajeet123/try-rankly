@@ -188,7 +188,7 @@ export default function TopicsPage() {
   }
 
   return (
-    <main className="relative flex h-screen w-full items-center justify-center bg-background text-foreground">
+    <main className="relative flex h-screen w-full max-h-screen overflow-hidden items-center justify-center bg-background text-foreground">
       {/* Background Beams */}
       <BackgroundBeams className="absolute inset-0 z-0" />
       
@@ -223,11 +223,12 @@ export default function TopicsPage() {
               {topics.map((topic) => (
                 <div
                   key={topic.id}
-                  className={`bg-muted/50 rounded-md p-4 transition-all duration-200 ${
+                  className={`bg-muted/50 rounded-md p-4 border-2 border-muted/50 transition-colors duration-200 transform-gpu ${
                     topic.selected
-                      ? 'bg-primary/20 border-2 border-primary/50'
-                      : 'border-2 border-transparent hover:bg-muted/70'
+                      ? 'bg-primary/20 shadow-[0_0_0_2px_hsl(var(--primary))]'
+                      : 'hover:bg-muted/70'
                   }`}
+                  style={{ willChange: 'background-color', transform: 'translateZ(0)' }}
                 >
                   <div className="flex items-start space-x-3">
                     {/* Selection Checkbox - Clickable */}
@@ -288,21 +289,22 @@ export default function TopicsPage() {
             </div>
 
             {/* Add Custom Topic Section */}
-            {!isAddingCustom ? (
-              <Button
-                type="button"
-                onClick={() => setIsAddingCustom(true)}
-                variant="outline"
-                className="w-[400px] h-10 font-medium"
-                disabled={isSaving}
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Add Custom Topic
-              </Button>
-            ) : (
-              <div className="space-y-3 p-4 bg-muted/30 rounded-md border-2 border-dashed border-muted-foreground/30 w-[400px]">
+            <div className="flex justify-center mt-6">
+              {!isAddingCustom ? (
+                <Button
+                  type="button"
+                  onClick={() => setIsAddingCustom(true)}
+                  variant="outline"
+                  className="w-[400px] h-10 font-medium"
+                  disabled={isSaving}
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add Custom Topic
+                </Button>
+              ) : (
+                <div className="space-y-3 p-4 bg-muted/30 rounded-md border-2 border-dashed border-muted-foreground/30 w-[400px]">
                 <Input
                   type="text"
                   value={customTopicName}
@@ -338,7 +340,8 @@ export default function TopicsPage() {
                   </Button>
                 </div>
               </div>
-            )}
+              )}
+            </div>
 
             {/* Bottom section with continue button */}
             <div className="mt-6 space-y-4 flex flex-col items-center">

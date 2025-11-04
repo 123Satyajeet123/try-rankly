@@ -44,6 +44,7 @@ export default function LLMPlatformsPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [buttonText, setButtonText] = useState('Generate Prompts')
   const [showResults, setShowResults] = useState(false)
+  const [dotCount, setDotCount] = useState(1)
 
   // Use the same favicon function as TopNav to ensure consistency
   const getFaviconUrl = (platformName: string) => {
@@ -72,6 +73,20 @@ export default function LLMPlatformsPage() {
     }
   }, [isAuthenticated, isLoading, router, data.analysisCompleted])
 
+  // Animate dots from 1 to 3 when generating
+  useEffect(() => {
+    if (!isGenerating) {
+      setDotCount(1)
+      return
+    }
+
+    const interval = setInterval(() => {
+      setDotCount((prev) => (prev >= 3 ? 1 : prev + 1))
+    }, 500) // Change dot count every 500ms
+
+    return () => clearInterval(interval)
+  }, [isGenerating])
+
   const togglePlatform = (platformName: string) => {
     setSelectedPlatforms(prev => 
       prev.includes(platformName) 
@@ -88,7 +103,6 @@ export default function LLMPlatformsPage() {
     }
 
     setIsGenerating(true)
-    setButtonText('Generating Prompts')
     
     try {
       // Get selected data for prompt generation
@@ -115,7 +129,6 @@ export default function LLMPlatformsPage() {
 
       // Generate prompts - backend automatically handles testing and metrics calculation
       console.log('🎯 Starting prompt generation with automatic testing and metrics calculation...')
-      setButtonText('Generating Prompts & Testing...')
       
       const response = await apiService.generatePrompts()
 
@@ -148,7 +161,7 @@ export default function LLMPlatformsPage() {
         
         // Show "See Results" button only after complete processing
         setIsGenerating(false)
-        setButtonText('See Results Plan')
+        setButtonText('See Results')
         setShowResults(true)
         
       } else {
@@ -260,8 +273,10 @@ export default function LLMPlatformsPage() {
                 >
                   {isGenerating ? (
                     <>
-                      {buttonText}
-                      <span className="animate-pulse">...</span>
+                      Generating Prompts & Testing
+                      <span className="inline-block w-6 text-left">
+                        {'.'.repeat(dotCount)}
+                      </span>
                     </>
                   ) : (
                     buttonText

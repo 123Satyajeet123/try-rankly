@@ -114,11 +114,11 @@ class WebsiteAnalysisService {
       // Navigate to the website with more lenient wait condition
       await page.goto(url, {
         waitUntil: 'domcontentloaded',  // Changed from 'networkidle2' to 'domcontentloaded'
-        timeout: 60000  // Increased timeout to 60 seconds
+        timeout: 30000  // Reduced timeout to 30 seconds (was 60s)
       });
 
-      // Wait a bit for dynamic content to load
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // Minimal wait for dynamic content to load (reduced from 2s to 500ms)
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       // Extract website data
       const websiteData = await page.evaluate(() => {
@@ -194,7 +194,7 @@ class WebsiteAnalysisService {
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
           },
-          timeout: 10000
+          timeout: 15000 // Increased slightly for fallback, but still reasonable (was 10s)
         });
 
         const $ = cheerio.load(response.data);
@@ -232,6 +232,25 @@ class WebsiteAnalysisService {
         await browser.close();
       }
     }
+  }
+
+  // Fast-fail timeout wrapper for AI tasks
+  async withTimeout(promise, timeoutMs, analysisType, defaultResponse) {
+    const timeoutPromise = new Promise((resolve) => 
+      setTimeout(() => {
+        console.warn(`⚠️ ${analysisType} task timed out after ${timeoutMs}ms, using default response`);
+        resolve(defaultResponse);
+      }, timeoutMs)
+    );
+    
+    return Promise.race([
+      promise.catch(error => {
+        // If the task fails with an error, return default response
+        console.warn(`⚠️ ${analysisType} task failed:`, error.message, '- using default response');
+        return defaultResponse;
+      }),
+      timeoutPromise
+    ]);
   }
 
   // Perform AI analysis using OpenRouter - Now context-aware!
@@ -273,36 +292,72 @@ class WebsiteAnalysisService {
       resultKeys = ['brandContext', 'competitors', 'topics', 'personas'];
     }
 
-    let results = await Promise.all(analysisTasks);
+    // Wrap each task with 90-second timeout for fast-fail (tasks typically complete in 30-60s)
+    const FAST_FAIL_TIMEOUT = 90000; // 90 seconds
+    const wrappedTasks = analysisTasks.map((task, index) => {
+      const analysisType = resultKeys[index];
+      const defaultResponse = this.getDefaultResponse(analysisType === 'brandContext' ? 'brandContext' : 
+                                                       analysisType === 'competitors' ? 'competitors' :
+                                                       analysisType === 'topics' ? 'topics' : 'personas');
+      return this.withTimeout(task, FAST_FAIL_TIMEOUT, analysisType, defaultResponse);
+    });
 
-    // ✅ Retry competitor finding if no competitors found (max 2 retries)
+    let results = await Promise.all(wrappedTasks);
+
+    // ✅ Retry competitor finding only if we have < 3 competitors (max 2 retries)
     const MAX_COMPETITOR_RETRIES = 2;
+    const MIN_COMPETITORS_THRESHOLD = 3; // Only retry if we have fewer than 3
     let competitorRetries = 0;
     let competitorsResult = results[1];
+    const initialCompetitorCount = competitorsResult?.competitors?.length || 0;
     
-    while ((!competitorsResult.competitors || competitorsResult.competitors.length === 0) && competitorRetries < MAX_COMPETITOR_RETRIES) {
-      competitorRetries++;
-      console.log(`⚠️ No competitors found, retrying competitor detection (attempt ${competitorRetries}/${MAX_COMPETITOR_RETRIES})...`);
+    // Only retry if we have fewer than the threshold
+    if (initialCompetitorCount < MIN_COMPETITORS_THRESHOLD) {
+      console.log(`⚠️ Found only ${initialCompetitorCount} competitor(s), retrying to find more (target: ${MIN_COMPETITORS_THRESHOLD}+)...`);
       
-      // Retry the competitor finding task
-      if (analysisLevel === 'product') {
-        competitorsResult = await this.findProductCompetitors(websiteData, originalUrl, contextData);
-      } else if (analysisLevel === 'category') {
-        competitorsResult = await this.findCategoryCompetitors(websiteData, originalUrl, contextData);
-      } else {
-        competitorsResult = await this.findCompetitors(websiteData, originalUrl);
+      while (competitorRetries < MAX_COMPETITOR_RETRIES) {
+        competitorRetries++;
+        console.log(`🔄 Retrying competitor detection (attempt ${competitorRetries}/${MAX_COMPETITOR_RETRIES})...`);
+        
+        try {
+          // Retry the competitor finding task with timeout
+          let retryTask;
+          if (analysisLevel === 'product') {
+            retryTask = this.findProductCompetitors(websiteData, originalUrl, contextData);
+          } else if (analysisLevel === 'category') {
+            retryTask = this.findCategoryCompetitors(websiteData, originalUrl, contextData);
+          } else {
+            retryTask = this.findCompetitors(websiteData, originalUrl);
+          }
+          
+          const defaultCompetitors = this.getDefaultResponse('competitors');
+          competitorsResult = await this.withTimeout(retryTask, 90000, 'competitors-retry', defaultCompetitors);
+          
+          // Update results array with retried competitor result
+          results[1] = competitorsResult;
+          
+          const newCount = competitorsResult?.competitors?.length || 0;
+          if (newCount >= MIN_COMPETITORS_THRESHOLD) {
+            console.log(`✅ Found ${newCount} competitors on retry attempt ${competitorRetries} (target met)`);
+            break; // Stop retrying if we have enough
+          } else if (newCount > initialCompetitorCount) {
+            console.log(`✅ Found ${newCount} competitors on retry attempt ${competitorRetries} (improved from ${initialCompetitorCount})`);
+            // Continue retrying to try to get more
+          } else {
+            console.log(`⚠️ Retry ${competitorRetries} found ${newCount} competitors (no improvement)`);
+          }
+        } catch (retryError) {
+          console.error(`❌ Retry ${competitorRetries} failed:`, retryError.message);
+          // Continue to next retry
+        }
       }
-      
-      // Update results array with retried competitor result
-      results[1] = competitorsResult;
-      
-      if (competitorsResult.competitors && competitorsResult.competitors.length > 0) {
-        console.log(`✅ Found ${competitorsResult.competitors.length} competitors on retry attempt ${competitorRetries}`);
-      }
+    } else {
+      console.log(`✅ Found ${initialCompetitorCount} competitors (target met, skipping retries)`);
     }
     
-    if (!competitorsResult.competitors || competitorsResult.competitors.length === 0) {
-      console.log(`⚠️ Still no competitors found after ${MAX_COMPETITOR_RETRIES} retries. Continuing with empty competitors array.`);
+    const finalCompetitorCount = competitorsResult?.competitors?.length || 0;
+    if (finalCompetitorCount < MIN_COMPETITORS_THRESHOLD) {
+      console.log(`⚠️ Final competitor count: ${finalCompetitorCount} (target was ${MIN_COMPETITORS_THRESHOLD}+). Continuing with available competitors.`);
     }
 
     // Build results object dynamically based on analysis level
@@ -356,65 +411,81 @@ Provide a structured analysis in JSON format:
   // Task 2: Find competitors
   async findCompetitors(websiteData, url) {
     const prompt = `
-Based on this website analysis, identify the top 4-6 DIRECT competitors with SIMILAR BUSINESS METRICS.
-
-CRITICAL: Find competitors that match these key factors:
-1. **REVENUE RANGE**: Similar annual revenue (within 2-3x range)
-2. **CATEGORY**: Exact same product/service category
-3. **SEGMENT**: Same market segment (B2B/B2C, enterprise/SMB, etc.)
-4. **FUNDING STAGE**: Similar funding stage (startup/scale-up/enterprise)
+Based on this website analysis, identify 4-6 DIRECT competitors with similar business profiles.
 
 Website Analysis:
 - Company: ${websiteData.businessInfo.companyName}
 - URL: ${url}
-- Industry: [Analyze from content - be specific about the industry]
+- Industry: [Analyze from content - be specific]
 - Services: ${websiteData.businessInfo.services.join(', ')}
 - Target Market: [Analyze from content]
 - Business Model: [Analyze from content]
 
-COMPETITOR SELECTION CRITERIA:
-- **Revenue Match**: Find companies with similar revenue size
-- **Category Match**: Same product/service category
-- **Segment Match**: Same target market segment
-- **Funding Match**: Similar funding stage and investment level
-- **Geographic Match**: Same or similar geographic markets
-- **Business Model Match**: Similar monetization and business model
+COMPETITOR SELECTION - PRIORITY ORDER (most important first):
 
-SEARCH STRATEGY:
-1. Search for "[Industry] companies with similar revenue to [Company Name]"
-2. Search for "[Category] competitors in [Segment] market"
-3. Search for "[Industry] companies with similar funding stage"
-4. Look for companies in the same market segment with comparable metrics
+**PRIORITY 1 - MUST MATCH:**
+1. **Industry & Product Category**: Same industry and similar product/service offerings
+   - Example: If analyzing a credit card company, find other credit card/financial services companies
+   - Example: If analyzing SaaS CRM, find other SaaS CRM companies
 
-EXAMPLES OF GOOD COMPETITORS:
-- For SaaS startups: Other SaaS startups with similar ARR and funding
-- For e-commerce: Other e-commerce companies with similar GMV and funding
-- For fintech: Other fintech companies with similar transaction volume and funding
+**PRIORITY 2 - STRONGLY PREFERRED (match at least 2 of these):**
+2. **Revenue Scale**: Similar revenue size (within 5x range is acceptable)
+   - Startup (<$10M) → Find other startups or small companies
+   - Mid-market ($10M-$100M) → Find mid-market competitors
+   - Enterprise (>$100M) → Find large enterprise competitors
+   
+3. **Funding Stage**: Similar funding/valuation stage
+   - Seed/Series A → Find early-stage companies
+   - Series B/C → Find growth-stage companies
+   - Public/Late-stage → Find mature companies
+   
+4. **Market Segment**: Similar target customer base
+   - B2B vs B2C should match
+   - Enterprise vs SMB can be flexible if other criteria match
 
-EXAMPLES OF BAD COMPETITORS (DO NOT INCLUDE):
-- Companies in different revenue brackets
-- Companies in different market segments
-- Companies with vastly different funding stages
-- Companies in different geographic markets
+**PRIORITY 3 - NICE TO HAVE:**
+5. Geographic market overlap
+6. Similar business model/monetization
 
-Use web search to find actual competitors and return structured data:
+SEARCH STRATEGY (in order of priority):
+1. First, search: "[Industry] competitors to [Company Name]" or "[Product Category] companies"
+2. If few results, search: "[Industry] companies" and filter by revenue/funding similarity
+3. If still few results, broaden to: "[Industry] alternatives" or "[Industry] options"
 
+FLEXIBILITY RULES:
+- If you can't find exact matches on ALL criteria, prioritize competitors that match:
+  ✅ Same industry/category (REQUIRED)
+  ✅ Similar revenue OR funding stage (at least one)
+  ✅ Similar target market (preferred)
+- It's better to find 4-6 good competitors with 2-3 matching criteria than 1-2 with perfect matches
+
+EXAMPLES:
+- Credit card company ($500M revenue) → Find other credit card/financial companies with $100M-$2B revenue
+- SaaS startup (Series A, $5M ARR) → Find other SaaS startups with similar stage/funding
+- E-commerce enterprise → Find other large e-commerce companies
+
+AVOID (bad competitors):
+- Different industries (e.g., credit card vs insurance)
+- Completely different revenue brackets (e.g., $1M startup vs $1B enterprise)
+- Different business models (e.g., B2B vs B2C unless flexible needed)
+
+Return 4-6 competitors with this structure:
 {
   "competitors": [
     {
       "name": "Competitor Company Name",
       "url": "https://competitor-website.com",
-      "revenue": "Estimated annual revenue range",
+      "revenue": "Estimated revenue range (if known) or 'Unknown'",
       "category": "Product/service category",
       "segment": "Market segment (B2B/B2C, enterprise/SMB)",
-      "funding": "Funding stage and amount",
-      "reason": "Why they are a direct competitor (revenue, category, segment, funding match)",
-      "similarity": "High/Medium/Low"
+      "funding": "Funding stage if known (e.g., 'Series B', 'Public', 'Bootstrapped') or 'Unknown'",
+      "reason": "Why they compete: Match on [industry, revenue/funding, segment]",
+      "similarity": "High/Medium/Low based on how many criteria match"
     }
   ]
 }
 
-Search for actual competitors with similar business metrics and provide real URLs.
+Use web search to find real competitors. Prioritize finding 4-6 competitors over perfect matches on all criteria.
 `;
 
     return await this.callOpenRouter(prompt, 'perplexity/sonar', 'competitors');
@@ -544,13 +615,7 @@ Product Information:
   // Product Task 2: Find product competitors
   async findProductCompetitors(websiteData, url, productData) {
     const prompt = `
-Based on this SPECIFIC PRODUCT analysis, identify direct product-level competitors with SIMILAR BUSINESS METRICS.
-
-CRITICAL: Find products that match these key factors:
-1. **REVENUE RANGE**: Similar product revenue (within 2-3x range)
-2. **CATEGORY**: Exact same product category
-3. **SEGMENT**: Same market segment (B2B/B2C, enterprise/SMB, etc.)
-4. **FUNDING STAGE**: Similar funding stage of the company behind the product
+Based on this SPECIFIC PRODUCT analysis, identify 4-6 direct product-level competitors.
 
 Product Analysis:
 - Product: ${productData?.productName || 'Unknown Product'}
@@ -559,55 +624,73 @@ Product Analysis:
 - Use Cases: ${productData?.useCases.slice(0, 3).join(', ') || 'Not specified'}
 - Pricing: ${productData?.pricing.found ? 'Available' : 'Not specified'}
 
-COMPETITOR SELECTION CRITERIA:
-- **Revenue Match**: Find products from companies with similar revenue size
-- **Category Match**: Same product category and type
-- **Segment Match**: Same target market segment
-- **Funding Match**: Similar funding stage of the parent company
-- **Feature Match**: Similar core features and capabilities
-- **Pricing Match**: Similar pricing model and price range
+COMPETITOR SELECTION - PRIORITY ORDER:
+
+**PRIORITY 1 - MUST MATCH:**
+1. **Product Category & Type**: Same product category and similar type
+   - Example: Credit card product → Find other credit card products
+   - Example: SaaS CRM product → Find other SaaS CRM products
+
+**PRIORITY 2 - STRONGLY PREFERRED (match at least 2 of these):**
+2. **Company Revenue Scale**: Products from companies with similar revenue size (within 5x range)
+   - Startup products → Find products from other startups
+   - Mid-market products → Find products from mid-market companies
+   - Enterprise products → Find products from large enterprises
+   
+3. **Parent Company Funding**: Products from companies with similar funding stage
+   - Early-stage → Find products from early-stage companies
+   - Growth-stage → Find products from growth-stage companies
+   - Mature → Find products from mature/public companies
+   
+4. **Target Segment**: Similar target customer base
+   - B2B vs B2C should match
+   - Enterprise vs SMB can be flexible if other criteria match
+   
+5. **Core Features/Use Cases**: Similar functionality and use cases
+
+**PRIORITY 3 - NICE TO HAVE:**
+6. Similar pricing model
+7. Geographic market overlap
 
 SEARCH STRATEGY:
-1. Search for "[Product Category] products with similar revenue to [Product Name]"
-2. Search for "[Product Type] competitors in [Segment] market"
-3. Search for "[Product Category] products from companies with similar funding"
-4. Look for products in the same market segment with comparable metrics
+1. First, search: "[Product Category] competitors to [Product Name]" or "[Product Type] alternatives"
+2. If few results, search: "[Product Category] products" and filter by company size/funding
+3. If still few results, broaden to: "[Product Type] options" or "[Category] solutions"
 
-EXAMPLES OF GOOD COMPETITORS:
-- For SaaS products: Other SaaS products with similar ARR and funding
-- For e-commerce products: Other e-commerce products with similar GMV and funding
-- For fintech products: Other fintech products with similar transaction volume and funding
+FLEXIBILITY RULES:
+- If you can't find exact matches on ALL criteria, prioritize products that match:
+  ✅ Same product category/type (REQUIRED)
+  ✅ Similar company revenue OR funding (at least one)
+  ✅ Similar features/use cases OR target segment (at least one)
+- It's better to find 4-6 good product competitors with 2-3 matching criteria than 1-2 with perfect matches
+- Focus on products that solve similar problems for similar customers
 
-EXAMPLES OF BAD COMPETITORS (DO NOT INCLUDE):
-- Products from companies in different revenue brackets
-- Products in different market segments
-- Products from companies with vastly different funding stages
-- Products in different geographic markets
+EXAMPLES:
+- Credit card product ($500M company) → Find other credit card products from $100M-$2B companies
+- SaaS CRM product (Series A startup) → Find other SaaS CRM products from similar stage companies
 
-Use web search to find products that:
-1. Compete DIRECTLY with this product (not just the company)
-2. Have similar features and use cases
-3. Target the same customer needs
-4. Are from companies with similar business metrics
-5. Provide real product URLs (not just company homepages)
+AVOID:
+- Different product categories (e.g., credit card vs savings account)
+- Products from vastly different company sizes (e.g., startup product vs enterprise product from $1B company)
+- Products with completely different use cases
 
-Return structured data:
+Return 4-6 product competitors:
 {
   "competitors": [
     {
       "name": "Competitor Product Name",
       "url": "https://competitor.com/product-page",
-      "revenue": "Estimated product revenue range",
+      "revenue": "Parent company revenue range (if known) or 'Unknown'",
       "category": "Product category",
       "segment": "Market segment (B2B/B2C, enterprise/SMB)",
-      "funding": "Parent company funding stage and amount",
-      "reason": "Why this product competes directly (revenue, category, segment, funding match)",
+      "funding": "Parent company funding stage if known or 'Unknown'",
+      "reason": "Why they compete: Match on [category, company revenue/funding, features/segment]",
       "similarity": "High/Medium/Low"
     }
   ]
 }
 
-Focus on PRODUCT-LEVEL competition with similar business metrics and features.
+Use web search to find real product competitors. Prioritize finding 4-6 products over perfect matches on all criteria.
 `;
 
     return await this.callOpenRouter(prompt, 'perplexity/sonar', 'productCompetitors');
@@ -713,13 +796,7 @@ Provide a structured category analysis:
   // Category Task 2: Find category competitors
   async findCategoryCompetitors(websiteData, url, categoryData) {
     const prompt = `
-Find competitors in the SAME PRODUCT CATEGORY with SIMILAR BUSINESS METRICS.
-
-CRITICAL: Find competitors that match these key factors:
-1. **REVENUE RANGE**: Similar annual revenue (within 2-3x range)
-2. **CATEGORY**: Exact same product category
-3. **SEGMENT**: Same market segment (B2B/B2C, enterprise/SMB, etc.)
-4. **FUNDING STAGE**: Similar funding stage (startup/scale-up/enterprise)
+Find 4-6 competitors in the SAME PRODUCT CATEGORY with similar business profiles.
 
 Category Analysis:
 - Category: ${categoryData?.categoryName || 'Unknown Category'}
@@ -727,49 +804,71 @@ Category Analysis:
 - Subcategories: ${categoryData?.subcategories.slice(0, 5).join(', ') || 'Not specified'}
 - Target Market: ${categoryData?.targetMarket || 'Not specified'}
 
-COMPETITOR SELECTION CRITERIA:
-- **Revenue Match**: Find companies with similar revenue size in this category
-- **Category Match**: Same product category and subcategories
-- **Segment Match**: Same target market segment
-- **Funding Match**: Similar funding stage and investment level
-- **Geographic Match**: Same or similar geographic markets
-- **Business Model Match**: Similar monetization and business model
+COMPETITOR SELECTION - PRIORITY ORDER:
+
+**PRIORITY 1 - MUST MATCH:**
+1. **Product Category**: Same product category (and similar subcategories if applicable)
+   - Example: Credit cards category → Find other credit card companies
+   - Example: SaaS CRM category → Find other SaaS CRM companies
+
+**PRIORITY 2 - STRONGLY PREFERRED (match at least 2 of these):**
+2. **Revenue Scale**: Similar revenue size (within 5x range)
+   - Startup category players → Find other startups in category
+   - Mid-market category players → Find mid-market competitors
+   - Enterprise category players → Find large enterprise competitors
+   
+3. **Funding Stage**: Similar funding/valuation stage
+   - Early-stage → Find early-stage category players
+   - Growth-stage → Find growth-stage competitors
+   - Mature → Find mature/public competitors
+   
+4. **Market Segment**: Similar target customer base
+   - B2B vs B2C should match
+   - Enterprise vs SMB can be flexible if other criteria match
+
+**PRIORITY 3 - NICE TO HAVE:**
+5. Geographic market overlap
+6. Similar business model/monetization
 
 SEARCH STRATEGY:
-1. Search for "[Category] companies with similar revenue to [Category Name]"
-2. Search for "[Category] competitors in [Segment] market"
-3. Search for "[Category] companies with similar funding stage"
-4. Look for companies in the same category with comparable metrics
+1. First, search: "[Category] competitors" or "[Category] companies"
+2. If few results, search: "[Category] alternatives" and filter by revenue/funding
+3. If still few results, broaden to: "[Category] providers" or "[Category] solutions"
 
-EXAMPLES OF GOOD COMPETITORS:
-- For SaaS categories: Other SaaS companies with similar ARR and funding
-- For e-commerce categories: Other e-commerce companies with similar GMV and funding
-- For fintech categories: Other fintech companies with similar transaction volume and funding
+FLEXIBILITY RULES:
+- If you can't find exact matches on ALL criteria, prioritize companies that match:
+  ✅ Same category (REQUIRED)
+  ✅ Similar revenue OR funding (at least one)
+  ✅ Similar target market (preferred)
+- It's better to find 4-6 good category competitors with 2-3 matching criteria than 1-2 with perfect matches
+- Focus on companies actively competing in the same category
 
-EXAMPLES OF BAD COMPETITORS (DO NOT INCLUDE):
-- Companies in different revenue brackets
-- Companies in different market segments
-- Companies with vastly different funding stages
-- Companies in different geographic markets
+EXAMPLES:
+- Credit cards category → Find other credit card companies with similar scale
+- SaaS CRM category → Find other SaaS CRM companies with similar stage/funding
 
-Use web search to find competitors offering similar product categories with comparable business metrics:
+AVOID:
+- Different categories (e.g., credit cards vs savings accounts)
+- Completely different revenue brackets (e.g., $1M startup vs $1B enterprise in same category)
+- Different business models (e.g., B2B vs B2C unless flexible needed)
 
+Return 4-6 category competitors:
 {
   "competitors": [
     {
       "name": "Competitor Company Name",
       "url": "https://competitor-website.com",
-      "revenue": "Estimated annual revenue range",
+      "revenue": "Estimated revenue range (if known) or 'Unknown'",
       "category": "Product/service category",
       "segment": "Market segment (B2B/B2C, enterprise/SMB)",
-      "funding": "Funding stage and amount",
-      "reason": "Why they are a direct competitor (revenue, category, segment, funding match)",
+      "funding": "Funding stage if known or 'Unknown'",
+      "reason": "Why they compete: Match on [category, revenue/funding, segment]",
       "similarity": "High/Medium/Low"
     }
   ]
 }
 
-Search for actual competitors with similar business metrics in this category.
+Use web search to find real competitors in this category. Prioritize finding 4-6 competitors over perfect matches on all criteria.
 `;
 
     return await this.callOpenRouter(prompt, 'perplexity/sonar', 'categoryCompetitors');
@@ -839,7 +938,7 @@ Identify 3-4 category-level personas:
     try {
       const systemPrompt = SYSTEM_PROMPTS[analysisType] || SYSTEM_PROMPTS.brandContext;
       
-      const response = await axios.post(`${this.openRouterBaseUrl}/chat/completions`, {
+              const response = await axios.post(`${this.openRouterBaseUrl}/chat/completions`, {
         model: model,
         messages: [
           {
@@ -861,7 +960,7 @@ Identify 3-4 category-level personas:
           'HTTP-Referer': process.env.OPENROUTER_REFERER || 'https://rankly.ai',
           'X-Title': process.env.OPENROUTER_APP_NAME || 'Rankly'
         },
-        timeout: 300000 // 5 minutes timeout for LLM calls (some operations can take longer)
+        timeout: 120000 // Reduced to 2 minutes timeout (was 5 minutes) - most calls complete in 30-60s
       });
 
       // Check if response structure is valid

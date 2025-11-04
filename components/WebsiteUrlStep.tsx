@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
@@ -24,7 +24,6 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
   const router = useRouter()
   const [url, setUrl] = useState(initialUrl || '')
   const [currentStep, setCurrentStep] = useState(0)
-  const [allDone, setAllDone] = useState(false)
   const [start, setStart] = useState(false)
   const [startSpinning, setStartSpinning] = useState(false)
   const [showAnalyzing, setShowAnalyzing] = useState(false)
@@ -40,14 +39,26 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
 
   const runSequentialLoaders = async () => {
     setStart(true)
-    for (let i = 0; i < loaderSteps.length; i++) {
-      setCurrentStep(i) // Use 0-based indexing: 0, 1, 2, 3
+    // Run through first 3 steps (indices 0, 1, 2)
+    for (let i = 0; i < loaderSteps.length - 1; i++) {
+      setCurrentStep(i)
       await new Promise((resolve) => setTimeout(resolve, 2500))
     }
-    // After all loaders complete, set currentStep to 4 to show all as completed
-    setCurrentStep(4)
-    setAllDone(true)
+    // Stay on last step (index 3) - it will keep rotating until analysisSuccess is true
+    // The useEffect will handle marking it complete when analysisSuccess becomes true
+    setCurrentStep(loaderSteps.length - 1)
   }
+  
+  // Update currentStep when analysisSuccess changes
+  useEffect(() => {
+    if (start && analysisSuccess) {
+      // If we're on the last step (index 3), mark it as complete
+      // If we haven't reached the last step yet, wait for runSequentialLoaders to reach it first
+      if (currentStep === loaderSteps.length - 1) {
+        setCurrentStep(loaderSteps.length)
+      }
+    }
+  }, [analysisSuccess, start, currentStep])
 
   const handleSubmit = (e: any) => {
     e.preventDefault()
@@ -99,7 +110,7 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
             <CardContent className="grid p-0 md:grid-cols-2 h-[600px]">
               <form className="p-6 md:p-8 flex flex-col justify-center">
                 {/* Back Arrow positioned over the form */}
-                <NavigationArrows previousPath={previousPath} nextPath={allDone && analysisSuccess ? nextPath : undefined} showNext={allDone && analysisSuccess} />
+                <NavigationArrows previousPath={previousPath} nextPath={analysisSuccess ? nextPath : undefined} showNext={analysisSuccess} />
                 
                 <div className="flex flex-col gap-6 w-full">
                   <div className="flex flex-col items-start gap-2 text-left">
@@ -173,8 +184,11 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
                 {start && (
                   <div className="flex flex-col items-center justify-start gap-5 w-full">
                     {loaderSteps.map((step, index) => {
-                      // Only show completed and current loaders (currentStep: 0,1,2,3,4)
+                      // Only show completed and current loaders
                       if (index > currentStep) return null
+                      
+                      const isCompleted = index < currentStep || (currentStep === loaderSteps.length && index === loaderSteps.length - 1)
+                      const isCurrentAndRotating = index === currentStep && currentStep < loaderSteps.length
                       
                       return (
                       <motion.div
@@ -185,7 +199,7 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
                         className="flex items-center justify-start gap-3 w-full"
                       >
                         <div className="flex-shrink-0 w-5 h-5">
-                          {index < currentStep || currentStep === 4 ? (
+                          {isCompleted ? (
                             <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
                               <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
                                 <path
@@ -195,10 +209,10 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
                                 />
                               </svg>
                             </div>
-                          ) : index === currentStep ? (
+                          ) : isCurrentAndRotating ? (
                             <motion.div
                               animate={{ rotate: 360 }}
-                              transition={{ duration: 6, repeat: Infinity, ease: "linear" }}
+                              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                               className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full"
                             />
                           ) : (
@@ -210,8 +224,8 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
                       )
                     })}
 
-                    {/* Button - only when all loaders complete AND API call was successful */}
-                    {allDone && analysisSuccess && (
+                    {/* Button - only when analysis is successful and all steps are complete */}
+                    {analysisSuccess && currentStep === loaderSteps.length && (
                       <div className="w-full mt-4">
                         <Button
                           onClick={handleNext}

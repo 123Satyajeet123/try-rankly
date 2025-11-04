@@ -22,9 +22,6 @@ export default function ResultsPage() {
   const [dataLoading, setDataLoading] = useState(true)
   const [metricsData, setMetricsData] = useState<any>(null)
   const [metricsError, setMetricsError] = useState<string | null>(null)
-  const [insightsLoading, setInsightsLoading] = useState(false)
-  const [insightsData, setInsightsData] = useState<{ whatsWorking: any[]; needsAttention: any[] }>({ whatsWorking: [], needsAttention: [] })
-  const hasInsights = (insightsData.whatsWorking?.length || 0) > 0 || (insightsData.needsAttention?.length || 0) > 0
   
   // Debug logging
   useEffect(() => {
@@ -83,57 +80,6 @@ export default function ResultsPage() {
     // Always fetch real metrics data from API
     fetchMetrics()
   }, [data.generatedPrompts])
-
-  // After metrics are fetched, load Opportunities & Insights (ensure generation triggers here)
-  useEffect(() => {
-    const loadOpportunitiesInsights = async () => {
-      if (!metricsData) return
-      setInsightsLoading(true)
-      try {
-        const urlAnalysisId = data.urlAnalysisId
-        // Prefer proactively generating fresh insights for visibility
-        try {
-          const generated = await apiService.generateInsightsForTab('visibility', urlAnalysisId)
-          if (generated?.success && generated.data) {
-            setInsightsData({
-              whatsWorking: generated.data.whatsWorking || [],
-              needsAttention: generated.data.needsAttention || []
-            })
-          } else {
-            // If generation didn't return data, attempt to fetch existing cached insights
-            const existing = await apiService.getInsightsForTab('visibility', urlAnalysisId)
-            if (existing?.success && existing.data) {
-              setInsightsData({
-                whatsWorking: existing.data.whatsWorking || [],
-                needsAttention: existing.data.needsAttention || []
-              })
-            }
-          }
-        } catch (genErr) {
-          // If generation errors (e.g., expected 404s transformed into throws), try existing insights
-          try {
-            const existing = await apiService.getInsightsForTab('visibility', urlAnalysisId)
-            if (existing?.success && existing.data) {
-              setInsightsData({
-                whatsWorking: existing.data.whatsWorking || [],
-                needsAttention: existing.data.needsAttention || []
-              })
-            }
-          } catch (existingErr) {
-            // Fall through to derived fallback below
-            console.log('ℹ️ Using derived insights fallback due to generation/fetch errors')
-          }
-        }
-      } catch (e) {
-        console.error('❌ Failed to load opportunities & insights:', e)
-        // Keep fallback rendering from metrics below
-      } finally {
-        setInsightsLoading(false)
-      }
-    }
-
-    loadOpportunitiesInsights()
-  }, [metricsData, data.urlAnalysisId])
 
   const handleOpenDashboard = async () => {
     setIsOpening(true)
@@ -217,12 +163,12 @@ export default function ResultsPage() {
                 
                 <Button
                   onClick={handleOpenDashboard}
-                  disabled={isOpening || dataLoading || insightsLoading}
+                  disabled={isOpening || dataLoading}
                   className="w-full h-10 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold disabled:opacity-70 disabled:cursor-not-allowed"
                 >
                   {isOpening
                     ? 'Opening…'
-                    : dataLoading || insightsLoading
+                    : dataLoading
                       ? 'Preparing results…'
                       : 'Open Dashboard'}
                 </Button>
@@ -318,70 +264,63 @@ export default function ResultsPage() {
                       <p className="text-xs font-normal leading-[1.4] text-muted-foreground">Key takeaways derived from your current metrics</p>
                     </div>
                     {(() => {
-                      // Prefer fetched insights from service
-                      const serviceWorking = insightsData.whatsWorking || []
-                      const serviceAttention = insightsData.needsAttention || []
-
-                      // Fallback: derive simple insights from available metrics
+                      // Derive simple insights from available metrics
                       const overall = metricsData?.overall || {}
                       const brand = overall?.brandMetrics?.[0] || {}
                       const totalPrompts = overall?.totalPrompts || metricsData?.metrics?.totalPrompts || 0
 
-                      const fallbackWorking: any[] = []
-                      const fallbackAttention: any[] = []
+                      const whatsWorking: any[] = []
+                      const needsAttention: any[] = []
 
                       if (typeof brand.shareOfVoice === 'number' && brand.shareOfVoice >= 70) {
-                        fallbackWorking.push({ title: 'Dominant Share of Voice', recommendation: `Your brand commands ${Math.round(brand.shareOfVoice)}% of mentions indicating strong market presence.` })
+                        whatsWorking.push({ title: 'Dominant Share of Voice', recommendation: `Your brand commands ${Math.round(brand.shareOfVoice)}% of mentions indicating strong market presence.` })
                       }
                       if (typeof brand.avgPosition === 'number' && brand.avgPosition <= 2) {
-                        fallbackWorking.push({ title: 'Excellent Average Position', recommendation: `Consistently ranking around #${Math.round(brand.avgPosition)} across prompts.` })
+                        whatsWorking.push({ title: 'Excellent Average Position', recommendation: `Consistently ranking around #${Math.round(brand.avgPosition)} across prompts.` })
                       }
                       if (typeof brand.citationShare === 'number' && brand.citationShare === 0) {
-                        fallbackAttention.push({ title: 'No Citations Yet', recommendation: 'Improve authority with source-rich content to start earning citations.' })
+                        needsAttention.push({ title: 'No Citations Yet', recommendation: 'Improve authority with source-rich content to start earning citations.' })
                       }
                       if (totalPrompts > 0 && totalPrompts < 5) {
-                        fallbackAttention.push({ title: 'Limited Data Volume', recommendation: `Only ${totalPrompts} prompts analyzed. Run more tests for reliable insights.` })
+                        needsAttention.push({ title: 'Limited Data Volume', recommendation: `Only ${totalPrompts} prompts analyzed. Run more tests for reliable insights.` })
                       }
 
-                      const whatsWorking = (serviceWorking.length ? serviceWorking : fallbackWorking).slice(0, 3)
-                      const needsAttention = (serviceAttention.length ? serviceAttention : fallbackAttention).slice(0, 3)
+                      const displayWorking = whatsWorking.slice(0, 3)
+                      const displayAttention = needsAttention.slice(0, 3)
 
                       return (
                         <div className="grid grid-cols-1 gap-4">
-                          {insightsLoading && (
-                            <div className="text-xs text-muted-foreground">Generating opportunities & insights…</div>
-                          )}
-                          {whatsWorking.length > 0 && (
+                          {displayWorking.length > 0 && (
                             <div className="space-y-2">
                               <div className="text-[11px] font-semibold tracking-wide text-foreground">What's Working</div>
                               <ul className="space-y-2">
-                                {whatsWorking.map((item: any, idx: number) => (
+                                {displayWorking.map((item: any, idx: number) => (
                                   <li key={`ok-${idx}`} className="text-xs">
-                                    <span className="font-medium text-foreground">{item.insight || item.title}</span>
-                                    {(item.recommendation || item.detail) && (
-                                      <span className="text-muted-foreground"> — {item.recommendation || item.detail}</span>
+                                    <span className="font-medium text-foreground">{item.title}</span>
+                                    {item.recommendation && (
+                                      <span className="text-muted-foreground"> — {item.recommendation}</span>
                                     )}
                                   </li>
                                 ))}
                               </ul>
                             </div>
                           )}
-                          {needsAttention.length > 0 && (
+                          {displayAttention.length > 0 && (
                             <div className="space-y-2">
                               <div className="text-[11px] font-semibold tracking-wide text-foreground">Needs Attention</div>
                               <ul className="space-y-2">
-                                {needsAttention.map((item: any, idx: number) => (
+                                {displayAttention.map((item: any, idx: number) => (
                                   <li key={`na-${idx}`} className="text-xs">
-                                    <span className="font-medium text-foreground">{item.insight || item.title}</span>
-                                    {(item.recommendation || item.detail) && (
-                                      <span className="text-muted-foreground"> — {item.recommendation || item.detail}</span>
+                                    <span className="font-medium text-foreground">{item.title}</span>
+                                    {item.recommendation && (
+                                      <span className="text-muted-foreground"> — {item.recommendation}</span>
                                     )}
                                   </li>
                                 ))}
                               </ul>
                             </div>
                           )}
-                          {whatsWorking.length === 0 && needsAttention.length === 0 && !insightsLoading && (
+                          {displayWorking.length === 0 && displayAttention.length === 0 && (
                             <div className="text-xs text-muted-foreground">Insights will appear here once enough data is available.</div>
                           )}
                         </div>

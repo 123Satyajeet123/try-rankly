@@ -211,7 +211,7 @@ export default function CompetitorsPage() {
   }
 
   return (
-    <main className="relative flex h-screen w-full items-center justify-center bg-background text-foreground">
+    <main className="relative flex h-screen w-full max-h-screen overflow-hidden items-center justify-center bg-background text-foreground">
       {/* Background Beams */}
       <BackgroundBeams className="absolute inset-0 z-0" />
       
@@ -246,11 +246,12 @@ export default function CompetitorsPage() {
               {competitors.map((competitor) => (
                 <div
                   key={competitor.id}
-                  className={`flex items-center space-x-3 rounded-md p-3 transition-all duration-200 ${
+                  className={`flex items-center space-x-3 rounded-md p-3 border-2 border-muted/50 transition-colors duration-200 transform-gpu ${
                     competitor.selected
-                      ? 'bg-primary/20 border-2 border-primary/50'
-                      : 'bg-muted/50 border-2 border-transparent hover:bg-muted/70'
+                      ? 'bg-primary/20 shadow-[0_0_0_2px_hsl(var(--primary))]'
+                      : 'bg-muted/50 hover:bg-muted/70'
                   }`}
+                  style={{ willChange: 'background-color', transform: 'translateZ(0)' }}
                 >
                   {/* Selection Checkbox - Clickable */}
                   <div 
