@@ -33,7 +33,7 @@ export function Sidebar() {
       isActive: pathname === '/dashboard' || pathname.startsWith('/dashboard'),
     },
     {
-      title: 'Agent Analytics',
+      title: 'Traffic Analytics',
       icon: MessageSquare,
       link: '/agent-analytics',
       isActive: pathname === '/agent-analytics',

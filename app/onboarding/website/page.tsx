@@ -40,6 +40,34 @@ export default function WebsitePage() {
     localStorage.setItem('websiteData', JSON.stringify({ url }))
     
     try {
+      // First, check if this URL has already been analyzed by the user
+      try {
+        console.log('🔍 Checking if URL already analyzed...')
+        const existingAnalysis = await apiService.findUrlAnalysisByUrl(url)
+        
+        if (existingAnalysis?.success && existingAnalysis?.data?.id) {
+          console.log('✅ URL already analyzed, found analysis ID:', existingAnalysis.data.id)
+          console.log('🔄 Redirecting to dashboard with existing analysis...')
+          
+          setIsAnalyzing(false)
+          // Redirect to dashboard with the existing analysis ID
+          router.push(`/dashboard?analysisId=${existingAnalysis.data.id}`)
+          return
+        }
+      } catch (error: any) {
+        // If URL not found, that's fine - we'll proceed with new analysis
+        // The API service throws an Error for 404, so we check the message
+        const errorMessage = error?.message || ''
+        if (errorMessage.includes('not found') || 
+            errorMessage.includes('404') || 
+            errorMessage.includes('URL analysis not found')) {
+          console.log('ℹ️ URL not found in existing analyses, proceeding with new analysis')
+        } else {
+          // Other errors - log but continue with new analysis
+          console.warn('⚠️ Error checking existing analysis, proceeding with new analysis:', error)
+        }
+      }
+
       // Clear previous data before starting new analysis
       updateData({
         websiteUrl: url,

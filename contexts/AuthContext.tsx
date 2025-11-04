@@ -77,45 +77,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           await refreshUser()
           console.log('✅ Google OAuth login successful')
           
-          // Check if user has completed analysis (this is the correct check for new vs existing users)
-          try {
-            const hasAnalysisResponse = await apiService.hasAnalysis()
-            const hasAnalysis = hasAnalysisResponse?.data?.hasAnalysis || false
-            
-            if (hasAnalysis) {
-              // User has existing analysis data, redirect to dashboard
-              console.log('✅ [AuthContext] User has existing analysis, redirecting to dashboard')
-              window.location.href = '/dashboard'
-              return
-            } else {
-              // New user - no analysis data, go to onboarding
-              console.log('ℹ️ [AuthContext] New user detected, redirecting to onboarding')
-              
-              // Check if there's a step parameter or redirect to onboarding
-              const step = urlParams.get('step')
-              if (step === '4') {
-                // Redirect to website analysis page after successful OAuth
-                console.log('ℹ️ [AuthContext] Redirecting to onboarding step 4 (website)')
-                window.location.href = '/onboarding/website'
-              } else {
-                // Redirect to onboarding start
-                console.log('ℹ️ [AuthContext] Redirecting to onboarding')
-                window.location.href = '/onboarding/website'
-              }
-              return
-            }
-          } catch (error) {
-            // If check fails, assume new user and go to onboarding (safer default)
-            console.log('ℹ️ [AuthContext] Could not check analysis status, assuming new user:', error)
-            
-            const step = urlParams.get('step')
-            if (step === '4') {
-              window.location.href = '/onboarding/website'
-            } else {
-              window.location.href = '/onboarding/website'
-            }
-            return
-          }
+          // Always redirect to website page after Google OAuth
+          // The website page will check if the URL is already analyzed
+          // and redirect to dashboard if it exists
+          console.log('ℹ️ [AuthContext] Redirecting to website page for URL entry')
+          window.location.href = '/onboarding/website'
+          return
         } catch (err: any) {
           console.error('❌ Failed to refresh user after Google OAuth:', err)
           const errorMessage = err instanceof Error ? err.message : 'Failed to authenticate'

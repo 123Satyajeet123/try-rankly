@@ -46,6 +46,66 @@ router.get('/list', authenticateToken, async (req, res) => {
 });
 
 /**
+ * GET /api/url-analysis/by-url
+ * Find URL analysis by URL for the authenticated user
+ * Query param: ?url=<encoded-url>
+ */
+router.get('/by-url', authenticateToken, async (req, res) => {
+  try {
+    const { url } = req.query;
+    
+    if (!url) {
+      return res.status(400).json({
+        success: false,
+        message: 'URL query parameter is required'
+      });
+    }
+
+    console.log('\n' + '='.repeat(70));
+    console.log('📊 [API] GET /api/url-analysis/by-url');
+    console.log(`👤 User: ${req.userId}`);
+    console.log(`🔗 URL: ${url}`);
+    console.log('='.repeat(70));
+
+    // Find the most recent analysis for this URL and user
+    const urlAnalysis = await UrlAnalysis.findOne({
+      userId: req.userId,
+      url: url
+    })
+    .sort({ analysisDate: -1 })
+    .select('_id url analysisDate brandContext.companyName status')
+    .lean();
+
+    if (!urlAnalysis) {
+      return res.status(404).json({
+        success: false,
+        message: 'URL analysis not found for this URL'
+      });
+    }
+
+    console.log(`✅ Found URL analysis: ${urlAnalysis._id}`);
+
+    res.json({
+      success: true,
+      data: {
+        id: urlAnalysis._id,
+        url: urlAnalysis.url,
+        companyName: urlAnalysis.brandContext?.companyName || 'Unknown',
+        analysisDate: urlAnalysis.analysisDate,
+        status: urlAnalysis.status
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ [API ERROR] Find URL analysis by URL failed:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to find URL analysis'
+    });
+  }
+});
+
+/**
  * GET /api/url-analysis/:id
  * Get specific URL analysis details
  */

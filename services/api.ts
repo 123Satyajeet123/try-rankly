@@ -470,6 +470,11 @@ class ApiService {
     return this.request(`/url-analysis/${id}`)
   }
 
+  async findUrlAnalysisByUrl(url: string) {
+    const encodedUrl = encodeURIComponent(url)
+    return this.request(`/url-analysis/by-url?url=${encodedUrl}`)
+  }
+
   async getUrlMetrics(id: string) {
     return this.request(`/url-analysis/${id}/metrics`)
   }
