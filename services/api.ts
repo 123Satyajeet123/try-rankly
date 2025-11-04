@@ -324,8 +324,9 @@ class ApiService {
   }
 
   // Get latest analysis results
-  async getLatestAnalysis() {
-    return this.request('/onboarding/latest-analysis')
+  async getLatestAnalysis(urlAnalysisId?: string) {
+    const params = urlAnalysisId ? `?urlAnalysisId=${urlAnalysisId}` : '';
+    return this.request(`/onboarding/latest-analysis${params}`)
   }
 
   // Check if user has done URL analysis
@@ -334,9 +335,12 @@ class ApiService {
   }
 
   // Generate prompts based on selected topics and personas
-  async generatePrompts() {
+  async generatePrompts(urlAnalysisId?: string) {
     return this.request('/onboarding/generate-prompts', {
       method: 'POST',
+      body: JSON.stringify({
+        ...(urlAnalysisId && { urlAnalysisId }) // Include urlAnalysisId if provided
+      }),
       timeout: 600000, // 10 minutes for prompt generation + testing (can involve multiple AI calls)
     })
   }

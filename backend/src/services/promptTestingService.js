@@ -21,15 +21,21 @@ class PromptTestingService {
       perplexity: 'perplexity/sonar' // Low-cost Sonar Reasoning
     };
 
-    // Default prompt testing configuration
-    this.maxPromptsToTest = 5; // Reduced from 20 to 5 for faster testing/debugging
+    // PHASE 1 OPTIMIZATION: Default prompt testing configuration
+    // Changed default from 5 to Infinity (test all prompts) for better coverage
+    // Users can still override with options.maxPromptsToTest if needed
+    this.maxPromptsToTest = options.maxPromptsToTest ?? Infinity; // Test all prompts by default
     
     // Default parallelization setting
     this.aggressiveParallelization = true;
+    
+    // Testing strategy: 'all', 'sample', 'priority'
+    this.testingStrategy = options.testingStrategy || 'all';
 
     console.log('📋 [LLM MODELS] Configured:', this.llmModels);
-    console.log(`🎯 [TEST LIMIT] Max prompts to test: ${this.maxPromptsToTest}`);
-    console.log('🧪 PromptTestingService initialized (deterministic scoring)');
+    console.log(`🎯 [TEST LIMIT] Max prompts to test: ${this.maxPromptsToTest === Infinity ? 'ALL (unlimited)' : this.maxPromptsToTest}`);
+    console.log(`🎯 [TEST STRATEGY] Strategy: ${this.testingStrategy}`);
+    console.log('🧪 PromptTestingService initialized (optimized - Phase 1)');
   }
 
   /**
@@ -45,30 +51,49 @@ class PromptTestingService {
       console.log(`📅 Timestamp: ${new Date().toISOString()}`);
       console.log(`${'='.repeat(60)}\n`);
       
-      // Fetch ALL active prompts for the user first
+      // ✅ CRITICAL FIX: Filter prompts by urlAnalysisId if provided
+      // Fetch active prompts for the user (filtered by urlAnalysisId if provided)
       console.log(`🔍 [QUERY] Fetching active prompts for user ${userId}...`);
       
-      // IMPORTANT: Only fetch prompts that have topicId, personaId, and queryType
-      const allPrompts = await Prompt.find({ 
+      // Build query with optional urlAnalysisId filter
+      const promptQuery = { 
         userId, 
         status: 'active',
         topicId: { $exists: true, $ne: null },
         personaId: { $exists: true, $ne: null },
         queryType: { $exists: true, $ne: null }
-      })
-      .populate('topicId')
-      .populate('personaId')
-      .lean();
+      };
+      
+      // ✅ CRITICAL FIX: Filter by urlAnalysisId if provided in options
+      if (options.urlAnalysisId) {
+        promptQuery.urlAnalysisId = options.urlAnalysisId;
+        console.log(`🔍 [FILTER] Filtering prompts by urlAnalysisId: ${options.urlAnalysisId}`);
+      } else {
+        console.warn('⚠️ [WARNING] No urlAnalysisId provided - will test prompts from ALL analyses (may mix data)');
+      }
+      
+      const allPrompts = await Prompt.find(promptQuery)
+        .populate('topicId')
+        .populate('personaId')
+        .lean();
       
       console.log(`🔍 [FILTER] Only fetching prompts with topicId, personaId, and queryType`);
-      console.log(`✅ [QUERY] Found ${allPrompts.length} total prompts in database`);
+      console.log(`✅ [QUERY] Found ${allPrompts.length} prompts${options.urlAnalysisId ? ` for analysis ${options.urlAnalysisId}` : ' (all analyses)'}`);
       
-      // Apply smart sampling to get a balanced subset
-      const testLimit = options.testLimit || this.maxPromptsToTest;
-      const prompts = this.samplePrompts(allPrompts, testLimit);
+      // PHASE 1 OPTIMIZATION: Apply smart sampling if limit is set
+      const testLimit = options.testLimit ?? options.maxPromptsToTest ?? this.maxPromptsToTest;
       
-      console.log(`🎲 [SAMPLING] Selected ${prompts.length} prompts to test (limit: ${testLimit})`);
-      console.log(`⚠️  [TESTING MODE] Testing ${prompts.length}/${allPrompts.length} prompts to control API costs`);
+      let prompts;
+      if (testLimit === Infinity || testLimit >= allPrompts.length) {
+        // Test all prompts (no sampling needed)
+        prompts = allPrompts;
+        console.log(`✅ [TESTING MODE] Testing ALL ${prompts.length} prompts (unlimited mode)`);
+      } else {
+        // Apply smart sampling for subset
+        prompts = this.samplePrompts(allPrompts, testLimit);
+        console.log(`🎲 [SAMPLING] Selected ${prompts.length} prompts to test (limit: ${testLimit})`);
+        console.log(`⚠️  [TESTING MODE] Testing ${prompts.length}/${allPrompts.length} prompts (${((prompts.length / allPrompts.length) * 100).toFixed(1)}% coverage)`);
+      }
       
       if (prompts.length === 0) {
         console.error('❌ [ERROR] No prompts found for testing');
@@ -124,18 +149,43 @@ class PromptTestingService {
       let flatResults;
       
       if (this.aggressiveParallelization) {
-        // OPTIMIZED: Process all prompts in parallel for maximum speed
-        // This reduces total time from ~3 minutes to ~1 minute by eliminating sequential batches
-        console.log(`\n🚀 [OPTIMIZED PARALLEL] Processing all ${prompts.length} prompts simultaneously`);
-        console.log(`⚡ Expected time reduction: ~3 minutes → ~1 minute`);
+        // FIX #5: Rate-limited batching to prevent rate limit failures while maintaining performance
+        const BATCH_SIZE = 10; // Process 10 prompts at a time (each prompt = 4 LLM calls = 40 concurrent calls)
+        const RATE_LIMIT_DELAY = 100; // 100ms delay between batches to avoid rate limits
+        
+        console.log(`\n🚀 [RATE-LIMITED BATCHING] Processing ${prompts.length} prompts in batches of ${BATCH_SIZE}`);
+        console.log(`⚡ With retry logic, this balances speed and reliability`);
         console.log(`${'─'.repeat(60)}\n`);
         
         const allStartTime = Date.now();
+        const allResults = [];
+        const totalBatches = Math.ceil(prompts.length / BATCH_SIZE);
         
-        // Process all prompts in parallel - this is the key optimization
-        const allResults = await Promise.allSettled(
-          prompts.map(prompt => this.testSinglePrompt(prompt, brandContext, latestUrlAnalysis._id))
-        );
+        for (let i = 0; i < prompts.length; i += BATCH_SIZE) {
+          const batch = prompts.slice(i, i + BATCH_SIZE);
+          const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+          
+          console.log(`   📦 [BATCH ${batchNum}/${totalBatches}] Processing ${batch.length} prompts...`);
+          const batchStartTime = Date.now();
+          
+          // Process batch in parallel
+          const batchResults = await Promise.allSettled(
+            batch.map(prompt => this.testSinglePrompt(prompt, brandContext, latestUrlAnalysis._id))
+          );
+          
+          const batchDuration = ((Date.now() - batchStartTime) / 1000).toFixed(2);
+          allResults.push(...batchResults);
+          
+          const batchSuccess = batchResults.flatMap(r => r.status === 'fulfilled' ? r.value : []).filter(r => r && r.status === 'completed').length;
+          const batchFailed = batchResults.flatMap(r => r.status === 'fulfilled' ? r.value : []).filter(r => r && r.status === 'failed').length;
+          
+          console.log(`   ✅ [BATCH ${batchNum}] Complete in ${batchDuration}s - Success: ${batchSuccess}, Failed: ${batchFailed}`);
+          
+          // Add delay between batches to avoid rate limits (except for last batch)
+          if (i + BATCH_SIZE < prompts.length) {
+            await new Promise(resolve => setTimeout(resolve, RATE_LIMIT_DELAY));
+          }
+        }
         
         const totalDuration = ((Date.now() - allStartTime) / 1000).toFixed(2);
         
@@ -148,7 +198,7 @@ class PromptTestingService {
         const completedTests = flatResults.filter(r => r.status === 'completed').length;
         const failedTests = flatResults.filter(r => r.status === 'failed').length;
         
-        console.log(`✅ [PARALLEL COMPLETE] All ${prompts.length} prompts processed in ${totalDuration}s`);
+        console.log(`\n✅ [BATCHING COMPLETE] All ${prompts.length} prompts processed in ${totalDuration}s`);
         console.log(`📊 Success: ${completedTests}, Failed: ${failedTests}\n`);
       } else {
         // FALLBACK: Process prompts in batches (safer for rate limits)
@@ -326,18 +376,23 @@ Be thorough, accurate, and helpful in your responses.`;
   }
 
   /**
-   * Call a specific LLM via OpenRouter
+   * Call a specific LLM via OpenRouter with retry logic
    * @param {string} promptText - The prompt to send
    * @param {string} llmProvider - LLM provider name
    * @param {object} promptDoc - Original prompt document
+   * @param {number} retryCount - Current retry attempt (internal use)
    * @returns {Promise<object>} - LLM response with metadata
    */
-  async callLLM(promptText, llmProvider, promptDoc) {
+  async callLLM(promptText, llmProvider, promptDoc, retryCount = 0) {
+    const maxRetries = 3;
+    const baseDelay = 2000; // 2 seconds
     const startTime = Date.now();
 
     try {
       const model = this.llmModels[llmProvider];
-      console.log(`      🌐 [API] Calling ${llmProvider} (${model})...`);
+      if (retryCount === 0) {
+        console.log(`      🌐 [API] Calling ${llmProvider} (${model})...`);
+      }
 
       const response = await axios.post(
         `${this.openRouterBaseUrl}/chat/completions`,
@@ -366,7 +421,7 @@ Be thorough, accurate, and helpful in your responses.`;
             'X-Title': 'Rankly AEO Platform',
             'Content-Type': 'application/json'
           },
-          timeout: 300000 // 5 minutes timeout for LLM calls (can take time with multiple providers)
+          timeout: 60000 // 1 minute timeout (with retry logic, this is safe and faster failure detection)
         }
       );
 
@@ -400,7 +455,11 @@ Be thorough, accurate, and helpful in your responses.`;
       // Extract citations from response
       const citations = this.extractCitations(response.data, llmProvider, content);
 
-      console.log(`      ✅ [API] ${llmProvider} responded in ${responseTime}ms (${tokensUsed} tokens, ${content.length} chars, ${citations.length} citations)`);
+      if (retryCount > 0) {
+        console.log(`      ✅ [API] ${llmProvider} responded after ${retryCount} retry(ies) in ${responseTime}ms (${tokensUsed} tokens, ${content.length} chars, ${citations.length} citations)`);
+      } else {
+        console.log(`      ✅ [API] ${llmProvider} responded in ${responseTime}ms (${tokensUsed} tokens, ${content.length} chars, ${citations.length} citations)`);
+      }
 
       return {
         response: content,
@@ -412,7 +471,33 @@ Be thorough, accurate, and helpful in your responses.`;
 
     } catch (error) {
       const errorMsg = error.response?.data?.error?.message || error.message;
-      console.error(`      ❌ [API ERROR] ${llmProvider} failed:`, errorMsg);
+      
+      // FIX #4: Check if error is retryable and retry with exponential backoff
+      const isRetryableError = (err) => {
+        // Rate limiting
+        if (err.response?.status === 429) return true;
+        // Server errors (5xx)
+        if (err.response?.status >= 500 && err.response?.status < 600) return true;
+        // Network errors
+        if (err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT' || err.code === 'ENOTFOUND') return true;
+        // Timeout errors
+        if (err.message?.includes('timeout') || err.code === 'ECONNABORTED') return true;
+        return false;
+      };
+      
+      // Retry on retryable errors
+      if (isRetryableError(error) && retryCount < maxRetries) {
+        const delay = baseDelay * Math.pow(2, retryCount); // Exponential backoff: 2s, 4s, 8s
+        const errorType = error.response?.status === 429 ? 'Rate limit' : 
+                         error.response?.status >= 500 ? 'Server error' :
+                         'Network error';
+        console.warn(`      ⚠️  [${llmProvider}] ${errorType} encountered - retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries + 1})`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return this.callLLM(promptText, llmProvider, promptDoc, retryCount + 1);
+      }
+      
+      // For non-retryable errors or max retries exceeded, throw error
+      console.error(`      ❌ [API ERROR] ${llmProvider} failed${retryCount > 0 ? ` after ${retryCount} retries` : ''}:`, errorMsg);
       if (error.response?.status) {
         console.error(`      Status: ${error.response.status}`);
       }

@@ -17,11 +17,12 @@ const { authenticateToken } = require('../middleware/auth');
 // Get all prompts for user
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const { topicId, status = 'active' } = req.query;
+    const { topicId, status = 'active', urlAnalysisId } = req.query;
     
     let query = { userId: req.userId };
     if (topicId) query.topicId = topicId;
     if (status) query.status = status;
+    if (urlAnalysisId) query.urlAnalysisId = urlAnalysisId; // ✅ Filter by URL analysis if provided
 
     const prompts = await Prompt.find(query).populate('topicId', 'name');
     
@@ -79,8 +80,12 @@ router.post('/', authenticateToken, [
 
     console.log(`✅ [CREATE PROMPT] topicId: ${topicId}, personaId: ${personaId}, queryType: ${queryType}`);
 
+    // Get urlAnalysisId from topic (both topic and persona should have the same urlAnalysisId)
+    const urlAnalysisId = topic.urlAnalysisId || persona.urlAnalysisId || null;
+
     const prompt = new Prompt({
       userId: req.userId,
+      urlAnalysisId: urlAnalysisId, // ✅ Link prompt to URL analysis if available
       topicId,
       personaId,
       queryType,
@@ -199,37 +204,47 @@ router.delete('/:id', authenticateToken, async (req, res) => {
 router.post('/generate', authenticateToken, async (req, res) => {
   try {
     const userId = req.userId;
+    const { urlAnalysisId } = req.body; // ✅ Accept urlAnalysisId from request
     
     console.log('🎯 Starting prompt generation for user:', userId);
+    console.log('🔗 URL Analysis ID:', urlAnalysisId || 'using latest');
 
-    // Get the latest URL analysis for this user
-    const latestAnalysis = await UrlAnalysis.findOne({ userId })
-      .sort({ analysisDate: -1 })
-      .limit(1);
+    // ✅ FIX: Use provided urlAnalysisId or fall back to latest
+    const latestAnalysis = urlAnalysisId
+      ? await UrlAnalysis.findOne({ _id: urlAnalysisId, userId })
+      : await UrlAnalysis.findOne({ userId })
+          .sort({ analysisDate: -1 })
+          .limit(1);
 
     if (!latestAnalysis) {
       return res.status(404).json({
         success: false,
-        message: 'No website analysis found. Please analyze your website first.'
+        message: urlAnalysisId
+          ? 'URL analysis not found for the provided ID'
+          : 'No website analysis found. Please analyze your website first.'
       });
     }
 
-    // Get selected topics (with selected: true)
+    // ✅ FIX: Filter by urlAnalysisId to ensure data isolation
+    // Get selected topics (with selected: true) for this specific analysis
     const selectedTopics = await Topic.find({ 
       userId, 
-      selected: true 
+      selected: true,
+      urlAnalysisId: latestAnalysis._id // ✅ Filter by analysis
     });
 
-    // Get selected personas (with selected: true)
+    // Get selected personas (with selected: true) for this specific analysis
     const selectedPersonas = await Persona.find({ 
       userId, 
-      selected: true 
+      selected: true,
+      urlAnalysisId: latestAnalysis._id // ✅ Filter by analysis
     });
 
-    // Get competitors for context
+    // Get competitors for context (filtered by analysis)
     const competitors = await Competitor.find({ 
       userId, 
-      selected: true 
+      selected: true,
+      urlAnalysisId: latestAnalysis._id // ✅ Filter by analysis
     });
 
     if (selectedTopics.length === 0 || selectedPersonas.length === 0) {
@@ -330,9 +345,11 @@ router.post('/generate', authenticateToken, async (req, res) => {
         continue;
       }
       
+      // ✅ FIX: Check for duplicate prompts within the same analysis
       const normalized = normalizePromptText(promptData.promptText);
       const exists = await Prompt.findOne({
         userId,
+        urlAnalysisId: latestAnalysis._id, // ✅ Check duplicates within same analysis
         topicId: topic._id,
         personaId: persona._id,
         queryType: promptData.queryType,
@@ -346,11 +363,13 @@ router.post('/generate', authenticateToken, async (req, res) => {
       // Save commercial prompt
       const prompt = new Prompt({
         userId,
+        urlAnalysisId: latestAnalysis._id, // ✅ Link prompt to the URL analysis
         topicId: topic._id,
         personaId: persona._id,
         title: `${topic.name} × ${persona.type} - ${promptData.queryType}`,
         text: promptData.promptText,
         queryType: promptData.queryType,
+        status: 'active', // ✅ Ensure status is active for testing
         metadata: {
           generatedBy: 'ai',
           targetPersonas: [persona.type],
@@ -551,7 +570,7 @@ router.get('/:promptId/tests', authenticateToken, async (req, res) => {
 // Search prompt tests by prompt text and LLM provider
 router.post('/tests/search', authenticateToken, async (req, res) => {
   try {
-    const { promptText, llmProvider } = req.body;
+    const { promptText, llmProvider, urlAnalysisId } = req.body;
     const userId = req.userId;
     
     if (!promptText || !llmProvider) {
@@ -563,13 +582,23 @@ router.post('/tests/search', authenticateToken, async (req, res) => {
     
     console.log(`🔍 [PROMPT TEST SEARCH] Searching for prompt: "${promptText.substring(0, 50)}..." with provider: ${llmProvider}`);
     
-    // Search for prompt tests that match the prompt text and LLM provider
-    const promptTests = await PromptTest.find({
+    // ✅ FIX: Filter by urlAnalysisId if provided
+    const searchQuery = {
       userId,
       promptText: { $regex: promptText, $options: 'i' }, // Case-insensitive search
       llmProvider: llmProvider.toLowerCase(),
       status: 'completed'
-    })
+    };
+    
+    if (urlAnalysisId) {
+      searchQuery.urlAnalysisId = urlAnalysisId;
+      console.log(`🔍 [PROMPT TEST SEARCH] Filtering by urlAnalysisId: ${urlAnalysisId}`);
+    } else {
+      console.warn('⚠️ [PROMPT TEST SEARCH] No urlAnalysisId provided, searching across all analyses');
+    }
+    
+    // Search for prompt tests that match the prompt text and LLM provider
+    const promptTests = await PromptTest.find(searchQuery)
     .populate('promptId', 'text queryType')
     .sort({ testedAt: -1 })
     .limit(5) // Limit to 5 results
@@ -595,11 +624,18 @@ router.post('/tests/search', authenticateToken, async (req, res) => {
 router.get('/tests/all', authenticateToken, async (req, res) => {
   try {
     const userId = req.userId;
-    const { limit = 100, llmProvider, status = 'completed' } = req.query;
+    const { limit = 100, llmProvider, status = 'completed', urlAnalysisId } = req.query;
     
+    // ✅ FIX: Filter by urlAnalysisId if provided
     let query = { userId, status };
     if (llmProvider) {
       query.llmProvider = llmProvider;
+    }
+    if (urlAnalysisId) {
+      query.urlAnalysisId = urlAnalysisId;
+      console.log(`🔍 [PROMPTS/TESTS/ALL] Filtering by urlAnalysisId: ${urlAnalysisId}`);
+    } else {
+      console.warn('⚠️ [PROMPTS/TESTS/ALL] No urlAnalysisId provided, returning all tests (may mix data from multiple analyses)');
     }
     
     const tests = await PromptTest.find(query)
@@ -1147,9 +1183,19 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
       .filter(item => item.totalPrompts > 0) // Only show items with prompts
       .sort((a, b) => b.metrics.visibilityScore - a.metrics.visibilityScore);
     
-    const totalPrompts = allItems.reduce((sum, item) => sum + item.totalPrompts, 0);
+    // FIXED: Count unique prompts to avoid double-counting (prompts appear in both topics and personas)
+    // Since prompts belong to topic×persona combinations, they appear in both topic and persona views
+    // We need to count unique prompts across all items, not sum the counts
+    const uniquePromptIds = new Set();
+    allItems.forEach(item => {
+      item.prompts.forEach(prompt => {
+        uniquePromptIds.add(prompt.id.toString());
+      });
+    });
+    const totalPrompts = uniquePromptIds.size; // Count unique prompts
     
-    console.log(`✅ [PROMPTS DASHBOARD] Found ${allItems.length} items with ${totalPrompts} total prompts`);
+    console.log(`✅ [PROMPTS DASHBOARD] Found ${allItems.length} items with ${totalPrompts} unique prompts`);
+    console.log(`📊 [PROMPTS DASHBOARD] Breakdown: ${processedTopics.filter(t => t.totalPrompts > 0).length} topics, ${processedPersonas.filter(p => p.totalPrompts > 0).length} personas`);
     
     res.json({
       success: true,

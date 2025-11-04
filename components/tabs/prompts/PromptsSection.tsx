@@ -451,6 +451,31 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
     fetchPromptsData()
   }, [filterContext?.selectedAnalysisId]) // Re-fetch when analysis changes
 
+  // Populate availableTopics and availablePersonas from real data
+  useEffect(() => {
+    if (realPromptsData && realPromptsData.items) {
+      // Extract unique topics and personas from real data
+      const topics = realPromptsData.items
+        .filter(item => item.type === 'topic')
+        .map(item => item.name)
+      
+      const personas = realPromptsData.items
+        .filter(item => item.type === 'persona')
+        .map(item => item.name)
+      
+      // Set available topics with "All Topics" option
+      setAvailableTopics(['All Topics', ...topics])
+      
+      // Set available personas with "All Personas" option
+      setAvailablePersonas(['All Personas', ...personas])
+      
+      console.log('📊 [PromptsSection] Populated sidebar:', {
+        topics: topics.length,
+        personas: personas.length
+      })
+    }
+  }, [realPromptsData])
+
   // Toggle full screen mode when Prompt Builder is shown
   useEffect(() => {
     if (onToggleFullScreen) {
@@ -1058,9 +1083,26 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
               <nav className="flex-1 overflow-y-auto p-4">
               <div className="space-y-1">
                 {(sidebarMode === 'topics' ? availableTopics : availablePersonas).map((item, index) => {
-                  const promptCount = sidebarMode === 'topics' 
-                    ? prompts.filter(p => p.topic === item || item === "All Topics").length
-                    : prompts.filter(p => p.persona === item || item === "All Personas").length
+                  // FIXED: Calculate prompt count from real data instead of mock prompts state
+                  let promptCount = 0;
+                  if (realPromptsData && realPromptsData.items) {
+                    if (item === "All Topics" || item === "All Personas") {
+                      // For "All", show total unique prompts
+                      promptCount = realPromptsData.summary.totalPrompts;
+                    } else {
+                      // Find the item in real data and get its prompt count
+                      const foundItem = realPromptsData.items.find(i => 
+                        (sidebarMode === 'topics' && i.type === 'topic' && i.name === item) ||
+                        (sidebarMode === 'personas' && i.type === 'persona' && i.name === item)
+                      );
+                      promptCount = foundItem?.totalPrompts || 0;
+                    }
+                  } else {
+                    // Fallback to old logic if no real data
+                    promptCount = sidebarMode === 'topics' 
+                      ? prompts.filter(p => p.topic === item || item === "All Topics").length
+                      : prompts.filter(p => p.persona === item || item === "All Personas").length
+                  }
                   const isSelected = selectedTopicFilter === item
                   
                   return (
@@ -1470,9 +1512,14 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
       <div className="flex items-center justify-between">
         <div>
           {realPromptsData && (
-            <p className="text-sm text-muted-foreground mt-1">
-              {realPromptsData.summary.totalTopics} topics • {realPromptsData.summary.totalPersonas} personas
-            </p>
+            <div className="space-y-1">
+              <p className="text-sm text-muted-foreground mt-1">
+                {realPromptsData.summary.totalTopics} topics • {realPromptsData.summary.totalPersonas} personas
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Total: <span className="font-medium text-foreground">{realPromptsData.summary.totalPrompts}</span> prompts
+              </p>
+            </div>
           )}
         </div>
         

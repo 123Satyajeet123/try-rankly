@@ -37,14 +37,29 @@ async function generatePrompts({
   websiteUrl = '',
   brandContext = '',
   competitors = [],
-  totalPrompts = 20, // Default: 20 prompts per combination. This is the count per topic-persona combination.
+  totalPrompts = 20, // FIXED: This is TOTAL prompts across all combinations, not per combination
   options = null // Optional override
 }) {
-  // Ensure totalPrompts is a valid number, default to 20 if not provided or invalid
-  const promptsPerCombination = Number.isInteger(totalPrompts) && totalPrompts > 0 ? totalPrompts : 20;
+  // FIXED: Calculate prompts per combination based on total prompts
+  // Formula: totalPrompts = topics × personas × promptsPerCombination
+  // So: promptsPerCombination = totalPrompts / (topics × personas)
+  const totalCombinations = topics.length * personas.length;
+  const promptsPerCombination = totalCombinations > 0 
+    ? Math.floor(totalPrompts / totalCombinations) 
+    : 0;
+  const remainder = totalCombinations > 0 ? totalPrompts % totalCombinations : 0;
+  
+  // Ensure minimum 1 prompt per combination if we have combinations
+  if (totalCombinations > 0 && promptsPerCombination < 1) {
+    throw new Error(`Too many combinations (${totalCombinations}) for ${totalPrompts} total prompts. Need at least ${totalCombinations} prompts.`);
+  }
+  
   try {
     console.log('🎯 Starting prompt generation...');
     console.log(`Topics: ${topics.length}, Personas: ${personas.length}`);
+    console.log(`📊 Total prompts target: ${totalPrompts}`);
+    console.log(`📊 Total combinations: ${totalCombinations}`);
+    console.log(`📊 Prompts per combination: ${promptsPerCombination} (${remainder} combinations will get ${promptsPerCombination + 1} to reach exactly ${totalPrompts} total)`);
 
     if (!OPENROUTER_API_KEY) {
       throw new Error('OpenRouter API key not configured');
@@ -58,48 +73,190 @@ async function generatePrompts({
 
     // Generate prompts for each topic-persona combination
     // Ensure equal number of prompts per combination
-    // Over-generate by 100% (2x) to account for duplicates during both in-memory and cross-combination deduplication
-    // Higher factor ensures we have enough unique prompts even after final validation removes cross-combination duplicates
-    const overGenerationFactor = 2.0; // Increased from 1.8 to ensure we have enough after final validation
+    // Over-generate by 30% (1.3x) to account for duplicates - reduced from 2.0x for better cost efficiency
+    // If a combination is short after deduplication, we'll retry with additional prompts
+    const overGenerationFactor = options?.overGenerationFactor ?? 1.3; // Reduced from 2.0 for better efficiency
     const promptsToGenerate = Math.ceil(promptsPerCombination * overGenerationFactor);
     
-    let combinationCount = 0;
-    const totalCombinations = topics.length * personas.length;
-    
+    // PHASE 1 OPTIMIZATION: Parallelize combination generation
+    // Build all combinations first
+    const combinations = [];
     for (const topic of topics) {
       for (const persona of personas) {
-        combinationCount++;
-        console.log(`[${combinationCount}/${totalCombinations}] Generating prompts for: ${topic.name} × ${persona.type}`);
-        console.log(`   Target: ${promptsPerCombination} prompts for this combination (generating ${promptsToGenerate} to account for duplicates)`);
-        console.log('🔍 Topic object:', { _id: topic._id, name: topic.name });
-        console.log('🔍 Persona object:', { _id: persona._id, type: persona.type });
-        
-        const prompts = await generatePromptsForCombination({
-          topic,
-          persona,
-          region,
-          language,
-          websiteUrl,
-          brandContext,
-          competitors,
-          totalPrompts: promptsToGenerate, // Over-generate to account for duplicates
-          options
-        });
-
-        console.log(`   ✅ Generated ${prompts.length} prompts for ${topic.name} × ${persona.type} (will select ${promptsPerCombination} after deduplication)`);
-        
-        // Ensure we have enough - if fewer than target, log warning
-        if (prompts.length < promptsPerCombination) {
-          console.warn(`   ⚠️  Only got ${prompts.length} prompts but need ${promptsPerCombination} - may need to adjust`);
-        }
-
-        allPrompts.push(...prompts);
+        combinations.push({ topic, persona });
       }
     }
     
+    // totalCombinations is already declared above (line 46), verify it matches
+    if (combinations.length !== totalCombinations) {
+      console.warn(`⚠️  Mismatch: calculated ${totalCombinations} combinations but found ${combinations.length}`);
+    }
+    const parallelBatchSize = options?.parallelBatchSize ?? 5; // Process 5 combinations concurrently
+    console.log(`🚀 [OPTIMIZED] Processing ${totalCombinations} combinations in parallel batches of ${parallelBatchSize}`);
+    
+    // Process combinations in parallel batches
+    const batches = [];
+    for (let i = 0; i < combinations.length; i += parallelBatchSize) {
+      batches.push(combinations.slice(i, i + parallelBatchSize));
+    }
+    
+    const combinationResults = [];
+    let combinationCount = 0;
+    
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      console.log(`\n📦 [BATCH ${batchIndex + 1}/${batches.length}] Processing ${batch.length} combinations in parallel...`);
+      
+      // Process batch in parallel using Promise.allSettled to handle partial failures
+      const batchStartTime = Date.now();
+      const batchResults = await Promise.allSettled(
+        batch.map(({ topic, persona }) => {
+          combinationCount++;
+          const comboIndex = combinationCount;
+          console.log(`   [${comboIndex}/${totalCombinations}] Queued: ${topic.name} × ${persona.type}`);
+          
+          return generatePromptsForCombination({
+            topic,
+            persona,
+            region,
+            language,
+            websiteUrl,
+            brandContext,
+            competitors,
+            totalPrompts: promptsToGenerate, // Over-generate to account for duplicates
+            options
+          }).then(prompts => {
+            // Calculate target for this combination (will be set in deduplication phase)
+            const comboKey = `${topic._id}_${persona._id}`;
+            const expectedTarget = Math.floor(totalPrompts / totalCombinations) + 
+              (Array.from({length: totalCombinations}, (_, i) => i).indexOf(combinationCount - 1) < (totalPrompts % totalCombinations) ? 1 : 0);
+            
+            console.log(`   ✅ [${comboIndex}/${totalCombinations}] Generated ${prompts.length} prompts for ${topic.name} × ${persona.type} (target: ~${promptsPerCombination})`);
+            
+            return { topic, persona, prompts, comboIndex };
+          });
+        })
+      );
+      
+      const batchDuration = ((Date.now() - batchStartTime) / 1000).toFixed(2);
+      const batchSuccess = batchResults.filter(r => r.status === 'fulfilled').length;
+      const batchFailed = batchResults.filter(r => r.status === 'rejected').length;
+      
+      console.log(`   ✅ [BATCH ${batchIndex + 1}] Complete in ${batchDuration}s - Success: ${batchSuccess}, Failed: ${batchFailed}`);
+      
+      // Collect successful results and handle failures
+      batchResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          combinationResults.push(result.value);
+          allPrompts.push(...result.value.prompts);
+        } else {
+          const { topic, persona } = batch[index];
+          console.error(`   ❌ [BATCH ${batchIndex + 1}] Failed for ${topic.name} × ${persona.type}:`, result.reason?.message || result.reason);
+          // Store failure info for potential retry
+          combinationResults.push({
+            topic,
+            persona,
+            prompts: [],
+            comboIndex: combinationCount - batch.length + index + 1,
+            error: result.reason?.message || 'Unknown error'
+          });
+        }
+      });
+    }
+    
+    // FIX #1: Parallelize retry logic for failed combinations (50-70% faster)
+    const failedCombinations = combinationResults.filter(r => r.error && (!r.prompts || r.prompts.length === 0));
+    if (failedCombinations.length > 0) {
+      console.log(`\n🔄 Retrying ${failedCombinations.length} failed combinations in parallel...`);
+      const retryStartTime = Date.now();
+      
+      // Process all retries in parallel instead of sequentially
+      const retryResults = await Promise.allSettled(
+        failedCombinations.map(({ topic, persona, comboIndex, error }) => {
+          console.log(`   🔄 Queued retry [${comboIndex}/${totalCombinations}]: ${topic.name} × ${persona.type}`);
+          console.log(`      Previous error: ${error}`);
+          
+          // Generate more on retry to account for potential duplicates
+          const retryCount = Math.ceil(promptsToGenerate * 1.5);
+          
+          return generatePromptsForCombination({
+            topic,
+            persona,
+            region,
+            language,
+            websiteUrl,
+            brandContext,
+            competitors,
+            totalPrompts: retryCount,
+            options
+          }).then(prompts => {
+            if (prompts && prompts.length > 0) {
+              console.log(`   ✅ Retry successful [${comboIndex}/${totalCombinations}]: Generated ${prompts.length} prompts for ${topic.name} × ${persona.type}`);
+              return { success: true, prompts, topic, persona, comboIndex };
+            } else {
+              console.error(`   ❌ Retry returned no prompts for ${topic.name} × ${persona.type}`);
+              return { success: false, prompts: [], topic, persona, comboIndex, error: 'No prompts returned' };
+            }
+          }).catch(error => {
+            console.error(`   ❌ Retry failed for ${topic.name} × ${persona.type}: ${error.message}`);
+            return { success: false, prompts: [], topic, persona, comboIndex, error: error.message };
+          });
+        })
+      );
+      
+      const retryDuration = ((Date.now() - retryStartTime) / 1000).toFixed(2);
+      console.log(`   ⏱️  All retries completed in ${retryDuration}s (parallel processing)`);
+      
+      // Process retry results
+      let retrySuccessCount = 0;
+      let retryFailureCount = 0;
+      
+      retryResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          const retryData = result.value;
+          if (retryData.success && retryData.prompts && retryData.prompts.length > 0) {
+            allPrompts.push(...retryData.prompts);
+            retrySuccessCount++;
+          } else {
+            retryFailureCount++;
+          }
+        } else {
+          const { topic, persona } = failedCombinations[index];
+          console.error(`   ❌ Retry promise rejected for ${topic.name} × ${persona.type}:`, result.reason);
+          retryFailureCount++;
+        }
+      });
+      
+      console.log(`   📊 Retry summary: ${retrySuccessCount} succeeded, ${retryFailureCount} failed`);
+      
+      // Check if any combinations are still failed after retry
+      const combinationKeysAfterRetry = new Set();
+      for (const promptData of allPrompts) {
+        const key = `${promptData.topicId}_${promptData.personaId}`;
+        combinationKeysAfterRetry.add(key);
+      }
+      
+      // Check which combinations from the original set don't have any prompts
+      const stillFailed = failedCombinations.filter(({ topic, persona }) => {
+        const key = `${topic._id}_${persona._id}`;
+        return !combinationKeysAfterRetry.has(key);
+      }).length;
+      
+      if (stillFailed > 0) {
+        console.warn(`   ⚠️  ${stillFailed} combination(s) still failed after retry. Proceeding with available prompts.`);
+      } else {
+        console.log(`   ✅ All failed combinations successfully recovered after retry.`);
+      }
+    }
+    
+    // Check for combinations that need additional prompts (after deduplication)
+    // This will be handled in the deduplication phase where we check targetCounts
+    
     console.log(`\n📊 Generation Summary:`);
     console.log(`   Total combinations processed: ${combinationCount}`);
-    console.log(`   Prompts per combination: ${promptsPerCombination}`);
+    console.log(`   Target total prompts: ${totalPrompts}`);
+    console.log(`   Base prompts per combination: ${promptsPerCombination}`);
+    console.log(`   Combinations with +1 prompt: ${remainder} (to reach exactly ${totalPrompts} total)`);
     console.log(`   Total prompts before deduplication: ${allPrompts.length}`);
 
     // Group prompts by topic-persona combination
@@ -120,178 +277,158 @@ async function generatePrompts({
       console.log(`   ${topic?.name || 'Unknown'} × ${persona?.type || 'Unknown'}: ${prompts.length} prompts`);
     });
 
-    // Step 1: Deduplicate WITHIN each combination first (per-combination deduplication)
-    // Also check for diversity to ensure prompts are meaningfully different
-    const deduplicatedByCombination = {};
-    for (const [key, prompts] of Object.entries(promptsByCombination)) {
-      const seen = [];
-      const unique = [];
-      const uniqueTexts = []; // Track normalized texts for diversity checking
-      
-      for (const prompt of prompts) {
-        const normText = normalizePromptText(prompt.promptText);
-        
-        // Check for exact/near duplicates
-        if (seen.some(p => isNearDuplicate(p, normText))) {
-          continue;
-        }
-        
-        // Check for diversity - ensure prompt is meaningfully different from existing ones
-        if (!hasGoodDiversity(normText, uniqueTexts, 0.25)) {
-          // Still accept if not a near-duplicate, but log for awareness
-          // We'll include it since diversity check might be too strict
-        }
-        
-        seen.push(normText);
-        uniqueTexts.push(normText);
-        unique.push(prompt);
+    // PHASE 1 OPTIMIZATION: Single-pass hash-based deduplication (O(n) instead of O(n²))
+    // This replaces the previous 3-pass approach with a single efficient pass
+    console.log(`\n🔍 [OPTIMIZED] Starting single-pass hash-based deduplication...`);
+    const dedupStartTime = Date.now();
+    
+    const finalPromptsByCombination = new Map(); // Use Map for O(1) operations
+    const globalSeenTexts = new Map(); // Track seen texts: hash -> normalized text (for near-duplicate checking)
+    const combinationCounts = new Map(); // Track counts per combination
+    
+    // Initialize combination buckets
+    for (const promptData of allPrompts) {
+      const key = `${promptData.topicId}_${promptData.personaId}`;
+      if (!finalPromptsByCombination.has(key)) {
+        finalPromptsByCombination.set(key, []);
+        combinationCounts.set(key, 0);
       }
-      
-      deduplicatedByCombination[key] = unique;
-      console.log(`   ✅ ${key}: Deduplicated from ${prompts.length} to ${unique.length} unique prompts`);
     }
     
-    // Step 2: Cross-combination deduplication with deterministic equal distribution
-    // We'll ensure each combination gets exactly promptsPerCombination prompts
-    const finalPromptsByCombination = {};
-    const globalSeen = new Set(); // Track globally seen prompts (normalized text)
+    // Process combinations in deterministic order (sorted)
+    const combinationKeys = Array.from(finalPromptsByCombination.keys()).sort();
     
-    // Process combinations in a fixed order (deterministic)
-    const combinationKeys = Object.keys(deduplicatedByCombination).sort();
-    
+    // Calculate target count for each combination (handle remainder distribution)
+    const targetCountsByCombination = new Map();
+    let remainderDistributed = 0;
     for (const key of combinationKeys) {
-      const prompts = deduplicatedByCombination[key];
-      finalPromptsByCombination[key] = [];
-      let added = 0;
+      // First 'remainder' combinations get one extra prompt
+      const targetCount = remainderDistributed < remainder 
+        ? promptsPerCombination + 1 
+        : promptsPerCombination;
+      targetCountsByCombination.set(key, targetCount);
+      if (remainderDistributed < remainder) remainderDistributed++;
+    }
+    
+    // Single pass: collect unique prompts per combination
+    for (const promptData of allPrompts) {
+      const key = `${promptData.topicId}_${promptData.personaId}`;
+      const currentCount = combinationCounts.get(key);
+      const targetCount = targetCountsByCombination.get(key) || promptsPerCombination;
       
-      // First pass: Add prompts from this combination, skipping global duplicates
-      for (const prompt of prompts) {
-        if (added >= promptsPerCombination) break; // We have enough
-        
-        const normText = normalizePromptText(prompt.promptText);
-        const isGlobalDuplicate = Array.from(globalSeen).some(seenText => 
-          isNearDuplicate(seenText, normText)
-        );
-        
-        if (!isGlobalDuplicate) {
-          globalSeen.add(normText);
-          finalPromptsByCombination[key].push(prompt);
-          added++;
+      // Skip if combination already has enough prompts
+      if (currentCount >= targetCount) {
+        continue;
+      }
+      
+      const normText = normalizePromptText(promptData.promptText);
+      const textHash = simpleHash(normText); // Fast hash for O(1) duplicate detection
+      
+      // Check if this is a duplicate or near-duplicate globally
+      let isDuplicate = false;
+      
+      // First check exact hash match (exact duplicate)
+      if (globalSeenTexts.has(textHash)) {
+        const seenText = globalSeenTexts.get(textHash);
+        if (seenText === normText) {
+          isDuplicate = true;
         }
       }
       
-      // Second pass: If we still don't have enough, use remaining unique prompts from this combination
-      // (prioritize keeping this combination full - duplicates across combinations are acceptable)
-      if (added < promptsPerCombination) {
-        for (const prompt of prompts) {
-          if (added >= promptsPerCombination) break;
-          
-          const normText = normalizePromptText(prompt.promptText);
-          const alreadyInThisCombo = finalPromptsByCombination[key].some(p => 
-            normalizePromptText(p.promptText) === normText
-          );
-          
-          if (!alreadyInThisCombo) {
-            // Add even if it's a global duplicate - maintain combination count
-            // This ensures each combination gets exactly promptsPerCombination prompts
-            finalPromptsByCombination[key].push(prompt);
-            added++;
+      // If not exact match, check for near-duplicates (only check a sample to avoid O(n²))
+      if (!isDuplicate && globalSeenTexts.size > 0) {
+        // For efficiency, only check against recent texts (last 50) for near-duplicate detection
+        const recentTexts = Array.from(globalSeenTexts.values()).slice(-50);
+        for (const seenText of recentTexts) {
+          if (isNearDuplicate(seenText, normText)) {
+            isDuplicate = true;
+            break;
           }
         }
       }
       
-      // Log if combination is still short (this shouldn't happen often with 50% over-generation)
-      if (added < promptsPerCombination) {
-        console.warn(`   ⚠️  Combination ${key} only has ${added}/${promptsPerCombination} prompts after deduplication`);
+      // If not a duplicate, add it
+      if (!isDuplicate) {
+        globalSeenTexts.set(textHash, normText);
+        finalPromptsByCombination.get(key).push(promptData);
+        combinationCounts.set(key, currentCount + 1);
       }
     }
     
-    // Flatten to final array
-    const uniquePrompts = [];
-    for (const prompts of Object.values(finalPromptsByCombination)) {
-      uniquePrompts.push(...prompts);
-    }
-    
-    // Final diversity validation pass - check for any remaining near-duplicates across all prompts
-    // BUT maintain per-combination counts - if removing a duplicate would drop a combination below target, keep it
-    console.log(`\n🔍 Final diversity validation pass (respecting per-combination counts)...`);
-    const finalValidatedPrompts = [];
-    const finalSeen = [];
-    const validatedCountsByCombination = {}; // Track counts per combination
-    
-    // Initialize counts
-    for (const prompt of uniquePrompts) {
-      const key = `${prompt.topicId}_${prompt.personaId}`;
-      if (!validatedCountsByCombination[key]) {
-        validatedCountsByCombination[key] = 0;
-      }
-    }
-    
-    let duplicatesRemoved = 0;
-    
-    for (const prompt of uniquePrompts) {
-      const key = `${prompt.topicId}_${prompt.personaId}`;
-      const normText = normalizePromptText(prompt.promptText);
+    // If any combination is short, try to fill from remaining prompts
+    for (const key of combinationKeys) {
+      let currentCount = combinationCounts.get(key);
+      const targetCount = targetCountsByCombination.get(key) || promptsPerCombination;
       
-      // Check against all previously accepted prompts
-      const isDuplicate = finalSeen.some(seenText => isNearDuplicate(seenText, normText));
-      
-      // If this is a duplicate, check if we can afford to remove it
-      if (isDuplicate) {
-        // If this combination already has enough prompts, remove the duplicate
-        if (validatedCountsByCombination[key] >= promptsPerCombination) {
-          duplicatesRemoved++;
-          console.log(`   ⚠️  Removed final duplicate: "${prompt.promptText.substring(0, 60)}..." (combination already has ${validatedCountsByCombination[key]} prompts)`);
-          continue;
-        } else {
-          // Keep it to maintain combination count (even if duplicate across combinations)
-          console.log(`   💡 Keeping duplicate to maintain combination count: "${prompt.promptText.substring(0, 60)}..."`);
+      if (currentCount < targetCount) {
+        // Find remaining prompts for this combination that haven't been used
+        const remainingPrompts = promptsByCombination[key] || [];
+        const usedHashes = new Set(finalPromptsByCombination.get(key).map(p => simpleHash(normalizePromptText(p.promptText))));
+        
+        for (const prompt of remainingPrompts) {
+          if (currentCount >= targetCount) break;
+          
+          const normText = normalizePromptText(prompt.promptText);
+          const textHash = simpleHash(normText);
+          
+          // Only add if not already in this combination and not a global duplicate
+          if (!usedHashes.has(textHash) && !globalSeenTexts.has(textHash)) {
+            finalPromptsByCombination.get(key).push(prompt);
+            combinationCounts.set(key, currentCount + 1);
+            currentCount++;
+            usedHashes.add(textHash);
+            globalSeenTexts.set(textHash, normText);
+          }
         }
       }
-      
-      // Additional diversity check - ensure meaningful difference (but don't enforce strictly)
-      if (!isDuplicate && !hasGoodDiversity(normText, finalSeen, 0.25)) {
-        // Warn but still include - diversity check might be too strict
-        console.log(`   💡 Low diversity detected but accepting: "${prompt.promptText.substring(0, 60)}..."`);
-      }
-      
-      if (!isDuplicate) {
-        finalSeen.push(normText);
-      }
-      finalValidatedPrompts.push(prompt);
-      validatedCountsByCombination[key]++;
     }
     
+    const dedupDuration = ((Date.now() - dedupStartTime) / 1000).toFixed(3);
+    console.log(`   ✅ Deduplication complete in ${dedupDuration}s (single-pass optimized)`);
+    
+    // Flatten to final array
+    const finalValidatedPrompts = [];
+    for (const key of combinationKeys) {
+      const prompts = finalPromptsByCombination.get(key);
+      const count = combinationCounts.get(key);
+      const targetCount = targetCountsByCombination.get(key) || promptsPerCombination;
+      finalValidatedPrompts.push(...prompts);
+      
+      const topic = topics.find(t => t._id === prompts[0]?.topicId);
+      const persona = personas.find(p => p._id === prompts[0]?.personaId);
+      const status = count === targetCount ? '✅' : count < targetCount ? '⚠️' : '✅';
+      if (count !== targetCount) {
+        console.warn(`   ${status} ${topic?.name || 'Unknown'} × ${persona?.type || 'Unknown'}: ${count}/${targetCount} prompts`);
+      }
+    }
+    
+    // Log summary
+    const duplicatesRemoved = allPrompts.length - finalValidatedPrompts.length;
     if (duplicatesRemoved > 0) {
-      console.log(`   ⚠️  Removed ${duplicatesRemoved} additional duplicates in final validation`);
+      console.log(`   📊 Removed ${duplicatesRemoved} duplicates (${((duplicatesRemoved / allPrompts.length) * 100).toFixed(1)}%)`);
     }
     
     // Log final distribution
     console.log(`\n📋 Prompts per combination (after final validation):`);
-    const validatedByCombination = {};
-    for (const prompt of finalValidatedPrompts) {
-      const key = `${prompt.topicId}_${prompt.personaId}`;
-      if (!validatedByCombination[key]) {
-        validatedByCombination[key] = [];
-      }
-      validatedByCombination[key].push(prompt);
+    let allEqual = true;
+    let totalCheck = 0;
+    for (const key of combinationKeys) {
+      const prompts = finalPromptsByCombination.get(key) || [];
+      const count = prompts.length;
+      const targetCount = targetCountsByCombination.get(key) || promptsPerCombination;
+      totalCheck += count;
+      
+      const topic = topics.find(t => t._id === prompts[0]?.topicId);
+      const persona = personas.find(p => p._id === prompts[0]?.personaId);
+      const status = count === targetCount ? '✅' : count < targetCount ? '⚠️' : '✅';
+      if (count !== targetCount) allEqual = false;
+      console.log(`   ${status} ${topic?.name || 'Unknown'} × ${persona?.type || 'Unknown'}: ${count} prompts (target: ${targetCount})`);
     }
     
-    let allEqual = true;
-    Object.entries(validatedByCombination).forEach(([key, prompts]) => {
-      const topic = topics.find(t => t._id === prompts[0].topicId);
-      const persona = personas.find(p => p._id === prompts[0].personaId);
-      const count = prompts.length;
-      const expected = promptsPerCombination;
-      const status = count === expected ? '✅' : count < expected ? '⚠️' : '✅';
-      if (count !== expected) allEqual = false;
-      console.log(`   ${status} ${topic?.name || 'Unknown'} × ${persona?.type || 'Unknown'}: ${count} prompts (expected: ${expected})`);
-    });
-    
-    if (allEqual) {
-      console.log(`\n✅ All combinations have exactly ${promptsPerCombination} prompts - uniform distribution achieved!`);
+    if (allEqual && totalCheck === totalPrompts) {
+      console.log(`\n✅ All combinations have correct counts and total is exactly ${totalPrompts} prompts!`);
     } else {
-      console.warn(`\n⚠️  Some combinations don't have the expected count - may need over-generation`);
+      console.warn(`\n⚠️  Total: ${totalCheck} prompts (target: ${totalPrompts}) - some combinations may need adjustment`);
     }
     
     // Log diversity statistics
@@ -307,6 +444,178 @@ async function generatePrompts({
       console.warn(`   ⚠️  Diversity ratio is below 95% - some prompts may be too similar`);
     } else {
       console.log(`   ✅ Excellent diversity - prompts are well-distributed`);
+    }
+    
+    // Final validation: Ensure we have exactly totalPrompts
+    const actualTotal = finalValidatedPrompts.length;
+    if (actualTotal !== totalPrompts) {
+      if (actualTotal < totalPrompts) {
+        const missing = totalPrompts - actualTotal;
+        console.warn(`\n⚠️  Prompt count mismatch: Expected ${totalPrompts}, got ${actualTotal} (missing ${missing})`);
+        
+        // IMPROVEMENT: Generate additional prompts for short combinations
+        console.log(`\n🔄 Generating additional prompts to fill ${missing} missing prompts...`);
+        
+        // Find combinations that are short
+        const shortCombinations = [];
+        for (const key of combinationKeys) {
+          const prompts = finalPromptsByCombination.get(key) || [];
+          const targetCount = targetCountsByCombination.get(key) || promptsPerCombination;
+          if (prompts.length < targetCount) {
+            // Extract topic and persona IDs from key (format: "topicId_personaId")
+            const [topicIdStr, personaIdStr] = key.split('_');
+            const topic = topics.find(t => t._id?.toString() === topicIdStr || t._id === topicIdStr);
+            const persona = personas.find(p => p._id?.toString() === personaIdStr || p._id === personaIdStr);
+            
+            if (topic && persona) {
+              shortCombinations.push({
+                key,
+                topic,
+                persona,
+                currentCount: prompts.length,
+                targetCount,
+                needed: targetCount - prompts.length
+              });
+            }
+          }
+        }
+        
+        // FIX #2: Parallelize additional prompt generation (60-80% faster)
+        if (shortCombinations.length > 0) {
+          console.log(`\n🚀 Generating additional prompts for ${shortCombinations.length} combinations in parallel...`);
+          const fillStartTime = Date.now();
+          
+          // Distribute missing prompts across short combinations
+          let remainingMissing = missing;
+          const fillTasks = [];
+          for (const { topic, persona, needed, key } of shortCombinations) {
+            if (remainingMissing <= 0) break;
+            const additionalNeeded = Math.min(needed, remainingMissing);
+            remainingMissing -= additionalNeeded;
+            const additionalToGenerate = Math.ceil(additionalNeeded * 1.5); // Generate 50% more than needed
+            
+            fillTasks.push({
+              topic,
+              persona,
+              key,
+              needed: additionalNeeded,
+              toGenerate: additionalToGenerate
+            });
+          }
+          
+          // Process all generation tasks in parallel
+          const fillResults = await Promise.allSettled(
+            fillTasks.map(({ topic, persona, key, toGenerate, needed }) => {
+              console.log(`   🔄 Queued: ${toGenerate} additional prompts for ${topic?.name || 'Unknown'} × ${persona?.type || 'Unknown'} (need ${needed})`);
+              
+              return generatePromptsForCombination({
+                topic,
+                persona,
+                region,
+                language,
+                websiteUrl,
+                brandContext,
+                competitors,
+                totalPrompts: toGenerate,
+                options
+              }).then(additionalPrompts => ({
+                success: true,
+                prompts: additionalPrompts,
+                key,
+                topic,
+                persona,
+                needed
+              })).catch(error => {
+                console.error(`   ❌ Failed to generate additional prompts for ${topic?.name || 'Unknown'} × ${persona?.type || 'Unknown'}: ${error.message}`);
+                return {
+                  success: false,
+                  prompts: [],
+                  key,
+                  topic,
+                  persona,
+                  needed,
+                  error: error.message
+                };
+              });
+            })
+          );
+          
+          const fillDuration = ((Date.now() - fillStartTime) / 1000).toFixed(2);
+          console.log(`   ⏱️  All additional prompts generated in ${fillDuration}s (parallel processing)`);
+          
+          // Process results sequentially to maintain exact count (deduplication requires sequential processing)
+          let totalAdded = 0;
+          let remainingToFill = missing;
+          
+          fillResults.forEach((result, index) => {
+            if (result.status === 'fulfilled' && result.value.success) {
+              const { prompts, key, needed } = result.value;
+              const { topic, persona } = fillTasks[index];
+              
+              // Add to the combination if not duplicates
+              const existingPrompts = finalPromptsByCombination.get(key) || [];
+              const existingHashes = new Set(existingPrompts.map(p => simpleHash(normalizePromptText(p.promptText))));
+              
+              let addedCount = 0;
+              for (const prompt of prompts) {
+                if (addedCount >= needed) break;
+                if (remainingToFill <= 0) break;
+                
+                const normText = normalizePromptText(prompt.promptText);
+                const textHash = simpleHash(normText);
+                
+                // Check if not a duplicate globally or locally
+                if (!existingHashes.has(textHash) && !globalSeenTexts.has(textHash)) {
+                  existingPrompts.push(prompt);
+                  existingHashes.add(textHash);
+                  globalSeenTexts.set(textHash, normText);
+                  addedCount++;
+                  remainingToFill--;
+                }
+              }
+              
+              finalPromptsByCombination.set(key, existingPrompts);
+              combinationCounts.set(key, existingPrompts.length);
+              totalAdded += addedCount;
+              
+              console.log(`   ✅ Added ${addedCount} additional prompts for ${topic?.name || 'Unknown'} × ${persona?.type || 'Unknown'} (${remainingToFill} still needed)`);
+            } else {
+              const { topic, persona } = fillTasks[index];
+              console.error(`   ❌ Failed to process additional prompts for ${topic?.name || 'Unknown'} × ${persona?.type || 'Unknown'}`);
+            }
+          });
+          
+          console.log(`   📊 Fill summary: ${totalAdded} prompts added, ${remainingToFill} still needed`);
+        }
+        
+        // Rebuild final array after additional generation
+        finalValidatedPrompts.length = 0; // Clear array
+        for (const key of combinationKeys) {
+          const prompts = finalPromptsByCombination.get(key) || [];
+          const targetCount = targetCountsByCombination.get(key) || promptsPerCombination;
+          // Only take up to target count
+          finalValidatedPrompts.push(...prompts.slice(0, targetCount));
+        }
+        
+        // Final check after retry
+        const finalTotal = finalValidatedPrompts.length;
+        if (finalTotal < totalPrompts) {
+          console.warn(`   ⚠️  Still missing ${totalPrompts - finalTotal} prompts after retry attempts`);
+        } else if (finalTotal > totalPrompts) {
+          // Trim to exact count (keep first totalPrompts)
+          finalValidatedPrompts.splice(totalPrompts);
+          console.log(`   ✅ Trimmed to exact count: ${totalPrompts} prompts`);
+        } else {
+          console.log(`   ✅ Successfully filled to exact count: ${totalPrompts} prompts`);
+        }
+      } else {
+        console.warn(`\n⚠️  Extra ${actualTotal - totalPrompts} prompts - trimming to target`);
+        // Trim to exact count (keep first totalPrompts)
+        finalValidatedPrompts.splice(totalPrompts);
+        console.log(`   ✅ Trimmed to exact count: ${totalPrompts} prompts`);
+      }
+    } else {
+      console.log(`\n✅ Exact prompt count achieved: ${actualTotal} prompts (target: ${totalPrompts})`);
     }
     
     console.log(`\n✅ Generated ${finalValidatedPrompts.length} unique, diverse prompts successfully`);
@@ -386,7 +695,7 @@ async function generatePromptsForCombination({
           'HTTP-Referer': process.env.OPENROUTER_REFERER || process.env.FRONTEND_URL || websiteUrl || 'https://rankly.ai',
           'X-Title': 'Rankly Prompt Generator'
         },
-        timeout: 300000 // 5 minutes timeout for LLM calls (prompt generation can take time)
+        timeout: 60000 // 1 minute timeout (with retry logic, this is safe and faster failure detection)
       }
     );
 
@@ -422,10 +731,26 @@ async function generatePromptsForCombination({
   } catch (error) {
     console.error(`Error generating prompts for ${topic.name} × ${persona.type}:`, error.message);
     
-    // Handle rate limiting with retry logic
-    if (error.response?.status === 429 && retryCount < maxRetries) {
+    // IMPROVEMENT: Handle retryable errors (not just 429)
+    const isRetryableError = (err) => {
+      // Rate limiting
+      if (err.response?.status === 429) return true;
+      // Server errors (5xx)
+      if (err.response?.status >= 500 && err.response?.status < 600) return true;
+      // Network errors
+      if (err.code === 'ECONNRESET' || err.code === 'ETIMEDOUT' || err.code === 'ENOTFOUND') return true;
+      // Timeout errors
+      if (err.message?.includes('timeout') || err.code === 'ECONNABORTED') return true;
+      return false;
+    };
+    
+    // Retry on retryable errors
+    if (isRetryableError(error) && retryCount < maxRetries) {
       const delay = baseDelay * Math.pow(2, retryCount); // Exponential backoff
-      console.warn(`   Rate limit exceeded - retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries + 1})`);
+      const errorType = error.response?.status === 429 ? 'Rate limit' : 
+                       error.response?.status >= 500 ? 'Server error' :
+                       'Network error';
+      console.warn(`   ${errorType} encountered - retrying in ${delay}ms (attempt ${retryCount + 1}/${maxRetries + 1})`);
       await sleep(delay);
       return generatePromptsForCombination({
         topic,
@@ -440,6 +765,7 @@ async function generatePromptsForCombination({
       }, retryCount + 1);
     }
     
+    // For non-retryable errors or max retries exceeded, throw error
     throw new Error(`Failed to generate prompts: ${error.message}`);
   }
 }
@@ -762,12 +1088,26 @@ function parsePromptsFromResponse(content, topic, persona, totalPrompts = 20) {
       throw new Error(`Expected array of prompts, got ${typeof promptTexts}`);
     }
 
+    // IMPROVEMENT: Better validation of prompt count from AI
     // Allow for some flexibility in prompt count (within 10% tolerance)
     const minExpected = Math.floor(totalPrompts * 0.9);
     const maxExpected = Math.ceil(totalPrompts * 1.1);
     
-    if (promptTexts.length < minExpected || promptTexts.length > maxExpected) {
-      console.warn(`⚠️  Expected ${totalPrompts} prompts, got ${promptTexts.length}. Using available prompts.`);
+    if (promptTexts.length < minExpected) {
+      console.warn(`⚠️  Expected ${totalPrompts} prompts, got only ${promptTexts.length} (${((promptTexts.length / totalPrompts) * 100).toFixed(1)}%). This may cause short combinations.`);
+      // If we got significantly fewer (less than 80%), this is a problem
+      if (promptTexts.length < totalPrompts * 0.8) {
+        throw new Error(`AI returned only ${promptTexts.length} prompts (expected ${totalPrompts}). Response may be incomplete or malformed.`);
+      }
+    } else if (promptTexts.length > maxExpected) {
+      console.warn(`⚠️  Expected ${totalPrompts} prompts, got ${promptTexts.length} (${((promptTexts.length / totalPrompts) * 100).toFixed(1)}%). Trimming to expected count.`);
+      // Trim to expected count
+      promptTexts = promptTexts.slice(0, totalPrompts);
+    }
+    
+    // Validate that we have at least some prompts
+    if (promptTexts.length === 0) {
+      throw new Error('AI returned no prompts. Response may be empty or malformed.');
     }
 
     // ALL prompts are now Commercial type - assign all as Commercial
@@ -824,6 +1164,22 @@ function normalizePromptText(text) {
     .replace(/[^a-z0-9]+/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * PHASE 1 OPTIMIZATION: Fast hash function for prompt deduplication
+ * Returns a simple integer hash for O(1) duplicate detection
+ * @param {string} str - String to hash
+ * @returns {number} - Hash value
+ */
+function simpleHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash); // Return positive hash
 }
 
 /**

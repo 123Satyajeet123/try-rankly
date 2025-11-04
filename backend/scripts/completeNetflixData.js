@@ -51,6 +51,7 @@ async function completeNetflixData() {
         for (const queryType of queryTypes) {
           const prompt = new Prompt({
             userId: netflixAnalysis.userId,
+            urlAnalysisId: netflixAnalysis._id, // ✅ Link prompt to URL analysis
             topicId: topic._id,
             personaId: persona._id,
             title: `${topic.name} × ${persona.name} - ${queryType}`,

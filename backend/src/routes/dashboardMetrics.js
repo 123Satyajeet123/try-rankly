@@ -57,7 +57,8 @@ router.get('/all', authenticateToken, async (req, res) => {
         });
       }
     } else {
-      // Get the latest analysis for this user
+      // ⚠️ FALLBACK: Get the latest analysis (should be avoided if possible)
+      console.warn('⚠️ [DASHBOARD] No urlAnalysisId provided, using latest analysis (may not be correct for user)');
       urlAnalysis = await UrlAnalysis.findOne({
         userId: userId
       })
@@ -71,6 +72,9 @@ router.get('/all', authenticateToken, async (req, res) => {
           message: 'No analysis found. Please complete the onboarding flow first.'
         });
       }
+      
+      console.log(`⚠️ [DASHBOARD] Using latest analysis: ${urlAnalysis._id} (URL: ${urlAnalysis.url})`);
+      console.log('⚠️ [DASHBOARD] Recommendation: Frontend should always pass urlAnalysisId to ensure correct data');
     }
 
     let userBrandName = urlAnalysis?.brandContext?.companyName || null;

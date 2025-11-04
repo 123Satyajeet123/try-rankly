@@ -130,7 +130,7 @@ export default function LLMPlatformsPage() {
       // Generate prompts - backend automatically handles testing and metrics calculation
       console.log('🎯 Starting prompt generation with automatic testing and metrics calculation...')
       
-      const response = await apiService.generatePrompts()
+      const response = await apiService.generatePrompts(data.urlAnalysisId) // ✅ Pass urlAnalysisId
 
       if (response.success) {
         console.log('✅ Complete processing finished successfully:', response.data)

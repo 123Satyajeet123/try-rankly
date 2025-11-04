@@ -118,10 +118,20 @@ router.get('/visibility', authenticateToken, async (req, res) => {
  */
 router.get('/prompts', authenticateToken, async (req, res) => {
   try {
+    const { urlAnalysisId } = req.query; // ✅ Accept urlAnalysisId parameter
     const Prompt = require('../models/Prompt');
 
-    // Get all prompts with their tests
-    const prompts = await Prompt.find({ userId: req.userId })
+    // ✅ FIX: Filter prompts by urlAnalysisId if provided
+    const queryFilter = { userId: req.userId };
+    if (urlAnalysisId) {
+      queryFilter.urlAnalysisId = urlAnalysisId;
+      console.log(`🔍 [ANALYTICS/PROMPTS] Filtering by urlAnalysisId: ${urlAnalysisId}`);
+    } else {
+      console.warn('⚠️ [ANALYTICS/PROMPTS] No urlAnalysisId provided, returning all prompts (may mix data from multiple analyses)');
+    }
+
+    // Get prompts with their tests (filtered by urlAnalysisId if provided)
+    const prompts = await Prompt.find(queryFilter)
       .populate('topicId', 'name')
       .populate('personaId', 'type')
       .lean();
@@ -371,13 +381,28 @@ router.get('/competitors', authenticateToken, async (req, res) => {
  */
 router.get('/summary', authenticateToken, async (req, res) => {
   try {
-    const overall = await AggregatedMetrics.findOne({
-      userId: req.userId,
-      scope: 'overall'
-    }).sort({ lastCalculated: -1 }).lean();
+    const { urlAnalysisId } = req.query; // ✅ Accept urlAnalysisId parameter
+    
+    // ✅ FIX: Build query with optional urlAnalysisId
+    const metricsQuery = { userId: req.userId, scope: 'overall' };
+    const testQuery = { userId: req.userId, status: 'completed' };
+    const promptQuery = { userId: req.userId };
+    
+    if (urlAnalysisId) {
+      metricsQuery.urlAnalysisId = urlAnalysisId;
+      testQuery.urlAnalysisId = urlAnalysisId;
+      promptQuery.urlAnalysisId = urlAnalysisId;
+      console.log(`🔍 [ANALYTICS/SUMMARY] Filtering by urlAnalysisId: ${urlAnalysisId}`);
+    } else {
+      console.warn('⚠️ [ANALYTICS/SUMMARY] No urlAnalysisId provided, returning all data (may mix data from multiple analyses)');
+    }
+    
+    const overall = await AggregatedMetrics.findOne(metricsQuery)
+      .sort({ lastCalculated: -1 })
+      .lean();
 
-    const tests = await PromptTest.countDocuments({ userId: req.userId, status: 'completed' });
-    const prompts = await require('../models/Prompt').countDocuments({ userId: req.userId });
+    const tests = await PromptTest.countDocuments(testQuery);
+    const prompts = await require('../models/Prompt').countDocuments(promptQuery);
 
     if (!overall) {
       return res.json({
@@ -441,15 +466,32 @@ router.get('/summary', authenticateToken, async (req, res) => {
  */
 router.get('/filters', authenticateToken, async (req, res) => {
   try {
-    // Get user's data for filters
+    const { urlAnalysisId } = req.query; // ✅ Accept urlAnalysisId parameter
+    
+    // ✅ FIX: Filter by urlAnalysisId if provided, otherwise get all (backward compatibility)
+    const queryFilter = { userId: req.userId };
+    if (urlAnalysisId) {
+      queryFilter.urlAnalysisId = urlAnalysisId;
+      console.log(`🔍 [ANALYTICS/FILTERS] Filtering by urlAnalysisId: ${urlAnalysisId}`);
+    } else {
+      console.warn('⚠️ [ANALYTICS/FILTERS] No urlAnalysisId provided, returning all filters (may mix data from multiple analyses)');
+    }
+    
+    // Get user's data for filters (filtered by urlAnalysisId if provided)
     const [topics, personas, competitors] = await Promise.all([
-      require('../models/Topic').find({ userId: req.userId }).lean(),
-      require('../models/Persona').find({ userId: req.userId }).lean(),
-      require('../models/Competitor').find({ userId: req.userId }).lean()
+      require('../models/Topic').find(queryFilter).lean(),
+      require('../models/Persona').find(queryFilter).lean(),
+      require('../models/Competitor').find(queryFilter).lean()
     ]);
 
-    // Get available platforms from test results
-    const platforms = await PromptTest.distinct('llmProvider', { userId: req.userId });
+    // ✅ FIX: Get available platforms from test results (filtered by urlAnalysisId if provided)
+    const PromptTest = require('../models/PromptTest');
+    const platformQuery = { userId: req.userId };
+    if (urlAnalysisId) {
+      // Filter PromptTests directly by urlAnalysisId (PromptTest model has this field)
+      platformQuery.urlAnalysisId = urlAnalysisId;
+    }
+    const platforms = await PromptTest.distinct('llmProvider', platformQuery);
 
     res.json({
       success: true,

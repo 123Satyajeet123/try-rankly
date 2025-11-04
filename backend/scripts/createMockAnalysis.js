@@ -326,6 +326,7 @@ async function createMockAnalysis() {
       
       const prompt = new Prompt({
         userId: user._id,
+        urlAnalysisId: savedUrlAnalysis._id, // ✅ Link prompt to URL analysis
         topicId: topic._id,
         personaId: persona._id,
         title: promptData.title,
