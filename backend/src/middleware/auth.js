@@ -10,7 +10,7 @@
  * 5. This middleware extracts userId from JWT token
  * 6. All API routes use req.userId which comes from authenticated user
  * 
- * ⚠️ PRODUCTION: DEV_AUTH_BYPASS must be false or unset in production!
+ * ✅ Authentication is ALWAYS required - no bypass functionality exists
  */
 
 const jwt = require('jsonwebtoken');
@@ -24,37 +24,11 @@ const { AuthenticationError } = require('./errorHandler');
  * userId comes from JWT token created during Google OAuth login
  */
 const authenticateToken = async (req, res, next) => {
-  // ⚠️ DEVELOPMENT ONLY: Allow bypass with NODE_ENV=development and DEV_AUTH_BYPASS=true
-  // ⚠️ WARNING: This bypass is ONLY for development! NEVER enable DEV_AUTH_BYPASS=true in production!
-  // In production, NODE_ENV must be 'production' which prevents this bypass from working
-  if (process.env.NODE_ENV === 'development' && process.env.DEV_AUTH_BYPASS === 'true') {
-    console.warn('⚠️ [AUTH] Development mode: Authentication bypassed (DEV_AUTH_BYPASS=true)');
-    console.warn('⚠️ [AUTH] ⚠️ THIS MUST BE DISABLED IN PRODUCTION! ⚠️');
-    
-    // Use default userId if provided, otherwise require token
-    req.userId = process.env.DEV_USER_ID || null;
-    if (!req.userId) {
-      // Still try to get token in dev mode
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      if (token) {
-        try {
-          const decoded = jwt.verify(token, process.env.JWT_SECRET);
-          req.userId = decoded.userId;
-          console.log('✅ [AUTH] Using userId from JWT token:', req.userId);
-        } catch (error) {
-          // In dev mode with bypass, use fallback
-          return next(new AuthenticationError('Invalid token in development mode'));
-        }
-      } else {
-        return next(new AuthenticationError('No token provided and DEV_USER_ID not set'));
-      }
-    } else {
-      console.warn('⚠️ [AUTH] Using DEV_USER_ID from environment (bypass mode)');
-    }
-    return next();
-  }
+  // ✅ REMOVED: DEV_AUTH_BYPASS functionality - authentication is now always required
+  // All requests must include a valid JWT token in the Authorization header
+  // No authentication bypass is available, even in development mode
 
-  // Production: Require valid token
+  // Require valid token for all requests
   const authHeader = req.headers.authorization;
   const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
 

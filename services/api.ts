@@ -334,10 +334,11 @@ class ApiService {
   }
 
   // Generate prompts based on selected topics and personas
-  async generatePrompts() {
+  async generatePrompts(urlAnalysisId?: string) {
     return this.request('/onboarding/generate-prompts', {
       method: 'POST',
       timeout: 180000, // 3 minutes for prompt generation + testing (can involve multiple AI calls)
+      body: urlAnalysisId ? JSON.stringify({ urlAnalysisId }) : undefined,
     })
   }
 
