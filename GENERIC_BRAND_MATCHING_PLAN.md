@@ -216,3 +216,4 @@ generateDomainVariations(brandName) {
 3. **Phase 3**: Mark hardcoded as deprecated, use only as fallback
 4. **Phase 4**: Remove hardcoded after sufficient confidence
 
+

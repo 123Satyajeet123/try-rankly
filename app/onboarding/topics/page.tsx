@@ -364,7 +364,7 @@ export default function TopicsPage() {
               {/* Continue Button */}
               <Button
                 onClick={handleContinue}
-                className="w-full h-10 font-semibold"
+                className="w-[400px] h-10 font-semibold"
                 disabled={isSaving || selectedCount === 0}
               >
                 {isSaving ? 'Saving...' : `Continue with ${selectedCount} Topic${selectedCount !== 1 ? 's' : ''}`}

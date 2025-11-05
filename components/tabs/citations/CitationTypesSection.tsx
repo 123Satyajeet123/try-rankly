@@ -197,12 +197,12 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
     return sortedData.map((item, index) => {
       const scoreValue = (item as any)[citationType] || 0
       return {
-        rank: index + 1,
-        name: item.name,
+      rank: index + 1,
+      name: item.name,
         score: scoreValue, // ✅ Add score field for display
         total: scoreValue.toFixed(1),
-        rankChange: Math.floor(Math.random() * 3) - 1,
-        isOwner: item.isOwner
+      rankChange: Math.floor(Math.random() * 3) - 1,
+      isOwner: item.isOwner
       }
     })
   }

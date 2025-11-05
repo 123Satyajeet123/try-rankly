@@ -48,63 +48,7 @@ export default function WebsitePage() {
         if (existingAnalysis?.success && existingAnalysis?.data?.id) {
           console.log('✅ URL already analyzed, found analysis ID:', existingAnalysis.data.id)
           
-          // Check if user is demo account (sj@tryrankly.com)
-          // For demo account, load cached data and continue through onboarding
-          // For other users, redirect to dashboard
-          const isDemoAccount = user?.email === 'sj@tryrankly.com'
-          
-          if (isDemoAccount) {
-            console.log('🎭 Demo account detected - loading cached data for onboarding flow')
-            
-            try {
-              // Fetch cached onboarding data
-              const cachedData = await apiService.getCachedOnboardingData(url)
-              
-              if (cachedData?.success && cachedData?.data) {
-                console.log('✅ Cached data loaded:', {
-                  competitors: cachedData.data.competitors?.length || 0,
-                  personas: cachedData.data.personas?.length || 0,
-                  topics: cachedData.data.topics?.length || 0
-                })
-                
-                // Load cached data into onboarding context
-                updateData({
-                  websiteUrl: url,
-                  urlAnalysisId: cachedData.data.urlAnalysisId,
-                  competitors: cachedData.data.competitors || [],
-                  personas: cachedData.data.personas || [],
-                  topics: cachedData.data.topics || [],
-                  selectedCompetitors: new Set(
-                    (cachedData.data.competitors || [])
-                      .filter((c: any) => c.selected)
-                      .map((c: any) => c.id)
-                  ),
-                  selectedPersonas: new Set(
-                    (cachedData.data.personas || [])
-                      .filter((p: any) => p.selected)
-                      .map((p: any) => p.id)
-                  ),
-                  selectedTopics: new Set(
-                    (cachedData.data.topics || [])
-                      .filter((t: any) => t.selected)
-                      .map((t: any) => t.id)
-                  ),
-                  analysisResults: cachedData.data.brandContext,
-                  analysisCompleted: true
-                })
-                
-                setIsAnalyzing(false)
-                // Continue to competitors page with cached data
-                router.push('/onboarding/competitors')
-                return
-              }
-            } catch (cacheError: any) {
-              console.warn('⚠️ Failed to load cached data, falling back to dashboard:', cacheError)
-              // If cache load fails, fall through to dashboard redirect
-            }
-          }
-          
-          // For non-demo accounts or if cache load failed, redirect to dashboard
+          // Redirect to dashboard with existing analysis
           console.log('🔄 Redirecting to dashboard with existing analysis...')
           setIsAnalyzing(false)
           router.push(`/dashboard?analysisId=${existingAnalysis.data.id}`)

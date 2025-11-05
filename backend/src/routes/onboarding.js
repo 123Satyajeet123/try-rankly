@@ -579,119 +579,15 @@ router.get('/has-analysis', authenticateToken, async (req, res) => {
 /**
  * GET /api/onboarding/cached-data
  * Get cached onboarding data (competitors, personas, topics) for a URL
- * This is used for demo accounts to show pre-filled onboarding data
+ * DISABLED: This endpoint has been disabled - caching is no longer available
  * Query param: ?url=<encoded-url>
  */
 router.get('/cached-data', authenticateToken, async (req, res) => {
-  try {
-    const { url } = req.query;
-    
-    if (!url) {
-      return res.status(400).json({
-        success: false,
-        message: 'URL query parameter is required'
-      });
-    }
-
-    // Get user to check if demo account
-    const user = await User.findById(req.userId);
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
-    }
-
-    const isDemoAccount = user.email === 'sj@tryrankly.com';
-
-    if (!isDemoAccount) {
-      return res.status(403).json({
-        success: false,
-        message: 'This endpoint is only available for demo accounts'
-      });
-    }
-
-    console.log('\n' + '='.repeat(70));
-    console.log('📊 [API] GET /api/onboarding/cached-data');
-    console.log(`👤 User: ${req.userId} (${user.email})`);
-    console.log(`🔗 URL: ${url}`);
-    console.log('='.repeat(70));
-
-    // Find the most recent URL analysis for this URL and user
-    const urlAnalysis = await UrlAnalysis.findOne({
-      userId: req.userId,
-      url: url
-    })
-    .sort({ analysisDate: -1 })
-    .lean();
-
-    if (!urlAnalysis) {
-      return res.status(404).json({
-        success: false,
-        message: 'No cached analysis found for this URL'
-      });
-    }
-
-    console.log(`✅ Found URL analysis: ${urlAnalysis._id}`);
-
-    // Get all competitors, personas, and topics for this URL analysis
-    const [competitors, personas, topics] = await Promise.all([
-      Competitor.find({ userId: req.userId, urlAnalysisId: urlAnalysis._id }).lean(),
-      Persona.find({ userId: req.userId, urlAnalysisId: urlAnalysis._id }).lean(),
-      Topic.find({ userId: req.userId, urlAnalysisId: urlAnalysis._id }).lean()
-    ]);
-
-    console.log(`✅ Found cached data: ${competitors.length} competitors, ${personas.length} personas, ${topics.length} topics`);
-
-    // Format data for frontend
-    const formattedCompetitors = competitors.map(c => ({
-      id: c._id.toString(),
-      name: c.name,
-      url: c.url,
-      reason: c.reason,
-      similarity: c.similarity,
-      selected: c.selected || false
-    }));
-
-    const formattedPersonas = personas.map(p => ({
-      id: p._id.toString(),
-      type: p.type,
-      description: p.description,
-      painPoints: p.painPoints || [],
-      goals: p.goals || [],
-      relevance: p.relevance,
-      selected: p.selected || false
-    }));
-
-    const formattedTopics = topics.map(t => ({
-      id: t._id.toString(),
-      name: t.name,
-      description: t.description,
-      keywords: t.keywords || [],
-      priority: t.priority,
-      selected: t.selected || false
-    }));
-
-    res.json({
-      success: true,
-      data: {
-        urlAnalysisId: urlAnalysis._id.toString(),
-        url: urlAnalysis.url,
-        competitors: formattedCompetitors,
-        personas: formattedPersonas,
-        topics: formattedTopics,
-        brandContext: urlAnalysis.brandContext || null,
-        analysisDate: urlAnalysis.analysisDate
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ [API ERROR] Get cached onboarding data failed:', error);
-    res.status(500).json({
-      success: false,
-      message: error.message || 'Failed to get cached onboarding data'
-    });
-  }
+  // Caching mechanism disabled - return 403 for all users
+  return res.status(403).json({
+    success: false,
+    message: 'Cached data endpoint is no longer available'
+  });
 });
 
 // Cleanup URL data endpoint (for manual cleanup if needed)

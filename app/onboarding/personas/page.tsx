@@ -382,7 +382,7 @@ export default function PersonasPage() {
               {/* Continue Button */}
               <Button
                 onClick={handleContinue}
-                className="w-full h-10 font-semibold"
+                className="w-[400px] h-10 font-semibold"
                 disabled={isSaving || selectedCount === 0}
               >
                 {isSaving ? 'Saving...' : `Continue with ${selectedCount} Persona${selectedCount !== 1 ? 's' : ''}`}

@@ -301,13 +301,13 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
       }
       
       return {
-        rank: index + 1,
-        name: item.name,
+      rank: index + 1,
+      name: item.name,
         score: scoreValue, // ✅ Add score field for display
         citationShare: scoreValue, // For backward compatibility
         total: scoreValue.toString(),
-        rankChange: Math.floor(Math.random() * 3) - 1,
-        isOwner: item.isOwner
+      rankChange: Math.floor(Math.random() * 3) - 1,
+      isOwner: item.isOwner
       }
     })
   }
