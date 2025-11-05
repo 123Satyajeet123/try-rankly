@@ -102,13 +102,28 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
       return []
     }
 
-    // ✅ Now using visibilityRank from backend (competitors already transformed with visibilityRank)
-    return dashboardData.metrics.competitors.map((competitor: any, index: number) => ({
-      rank: competitor.rank || (index + 1), // Uses visibilityRank from backend
+    // Map competitors with their scores
+    const competitorsWithScores = dashboardData.metrics.competitors.map((competitor: any) => ({
+      rank: competitor.rank || 0, // Uses visibilityRank from backend
       name: competitor.name,
       isOwner: competitor.isOwner || false, // Use isOwner from backend
       rankChange: competitor.change || 0,
-      score: competitor.score // Uses visibilityScore from backend
+      score: competitor.score || competitor.value || 0 // Uses visibilityScore from backend
+    }))
+
+    // ✅ CRITICAL FIX: Re-sort by visibility score value (higher is better) and re-assign ranks
+    // This ensures rankings are correct even if backend ranking logic has issues
+    const sortedByScore = [...competitorsWithScores].sort((a, b) => {
+      const scoreA = a.score || 0
+      const scoreB = b.score || 0
+      // Higher score = better rank (visibility 98.75% is better than 85.20%)
+      return scoreB - scoreA // Descending: higher scores first
+    })
+
+    // Re-assign ranks based on sorted order (rank 1 = highest/best visibility score)
+    return sortedByScore.map((competitor, index) => ({
+      ...competitor,
+      rank: index + 1 // Rank 1 = best (highest visibility score)
     }))
   }
 
@@ -773,7 +788,7 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
                           <TableCell className="text-right py-3 px-3 w-16">
                             <div className="flex items-center justify-end gap-2">
                               <span className="body-text text-foreground">
-                                #{item.rank}
+                                {formatToTwoDecimals(item.score || 0)}%
                               </span>
                               {showComparison && (
                                 <Badge 
@@ -863,7 +878,7 @@ function UnifiedVisibilitySection({ filterContext, dashboardData }: UnifiedVisib
                                       className="body-text font-medium" 
                                       style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
                                     >
-                                      #{item.rank}
+                                      {formatToTwoDecimals(item.score || 0)}%
                                     </span>
                                     {showComparison && (
                                       <Badge 

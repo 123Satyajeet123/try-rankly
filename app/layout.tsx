@@ -8,6 +8,7 @@ import { FilterProvider } from "@/contexts/FilterContext";
 import { QueryProvider } from "@/components/providers/QueryProvider";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { Toaster } from "sonner";
+import { HideNLogo } from "@/components/HideNLogo";
 
 export const metadata: Metadata = {
   title: "Rankly - Get more traffic from LLMs",
@@ -36,6 +37,7 @@ export default function RootLayout({
                     <FilterProvider>
                       {children}
                       <Toaster richColors position="top-right" />
+                      <HideNLogo />
                     </FilterProvider>
                   </AnalyticsProvider>
                 </OnboardingProvider>

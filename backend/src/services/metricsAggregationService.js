@@ -320,25 +320,39 @@ class MetricsAggregationService {
       console.log(`        → ${comp.name}`);
     });
     
-    // ✅ Step 3: Initialize with ALL brands (user brand + selected competitors)
+    // ✅ Step 3: Initialize with ONLY user's brand + selected competitors for this analysis
+    // CRITICAL FIX: Only include brands that are:
+    // 1. The user's brand
+    // 2. Selected competitors for this urlAnalysisId
+    // DO NOT add brands from tests - they may be from other analyses or unselected competitors
     const allBrandNames = new Set([userBrandName]);
-    selectedCompetitors.filter(comp => comp.name).forEach(comp => allBrandNames.add(comp.name));
+    selectedCompetitors.filter(comp => comp.name && comp.selected).forEach(comp => allBrandNames.add(comp.name));
     
-    // ✅ Step 4: Add brands mentioned in tests (for manually added competitors)
-    tests.forEach(test => {
-      test.brandMetrics?.forEach(bm => {
-        allBrandNames.add(bm.brandName);
-      });
-    });
-    
-    console.log(`     📊 Total brands to calculate metrics for: ${allBrandNames.size}`);
+    console.log(`     📊 Total brands to calculate metrics for: ${allBrandNames.size} (user brand + selected competitors only)`);
     allBrandNames.forEach(brand => {
       console.log(`        → ${brand}`);
     });
+    
+    // ✅ VALIDATION: Log if any tests mention brands not in our selected set (for debugging)
+    const mentionedBrands = new Set();
+    tests.forEach(test => {
+      test.brandMetrics?.forEach(bm => {
+        if (bm.brandName) mentionedBrands.add(bm.brandName);
+      });
+    });
+    
+    const unselectedBrands = Array.from(mentionedBrands).filter(brand => !allBrandNames.has(brand));
+    if (unselectedBrands.length > 0) {
+      console.warn(`     ⚠️ [WARNING] Tests mention brands not in selected set (will be filtered out):`, unselectedBrands);
+      console.warn(`     ⚠️ [WARNING] This may indicate data inconsistency or brands from other analyses`);
+    }
 
     const brandMetrics = [];
 
-    // ✅ Step 5: Calculate metrics for ALL brands (including those with 0 mentions)
+    // ✅ Step 4: Calculate metrics ONLY for selected brands (user brand + selected competitors)
+    // This ensures we only show competitors that:
+    // 1. Were selected by the user
+    // 2. Belong to this urlAnalysisId
     for (const brandName of allBrandNames) {
       const metrics = this.calculateSingleBrandMetrics(brandName, tests, userBrandName);
       brandMetrics.push(metrics);
@@ -430,6 +444,7 @@ class MetricsAggregationService {
         
         // Citation data - derive deterministically from labeled citations only
         // Ignore unlabeled/unknown or malformed URLs
+        // Use confidence-weighted counting for better accuracy
         if (Array.isArray(brandMetric.citations)) {
           const validTypes = new Set(['brand', 'earned', 'social']);
 
@@ -442,11 +457,23 @@ class MetricsAggregationService {
             const type = c.type;
             if (!validTypes.has(type)) return;
 
-            if (type === 'brand') brandCount++;
-            else if (type === 'earned') earnedCount++;
-            else if (type === 'social') socialCount++;
+            // Use confidence-weighted counting (confidence from classification)
+            // Default confidence: 0.8 if not specified (backward compatible)
+            const confidence = c.confidence !== undefined ? c.confidence : 0.8;
+            
+            // Type-specific weights (brand = highest confidence, social = lowest)
+            const typeWeight = type === 'brand' ? 1.0 : 
+                             type === 'earned' ? 0.9 : 0.8;
+            
+            // Weighted count = confidence * type weight
+            const weightedCount = confidence * typeWeight;
+
+            if (type === 'brand') brandCount += weightedCount;
+            else if (type === 'earned') earnedCount += weightedCount;
+            else if (type === 'social') socialCount += weightedCount;
           });
 
+          // Round to integer for display, but keep precision for calculations
           const total = brandCount + earnedCount + socialCount;
 
           brandData.brandCitations += brandCount;
@@ -623,14 +650,26 @@ class MetricsAggregationService {
 
     // Calculate Citation Share (needs total citations across all brands)
     // Formula: CitationShare(b) = (Total citations of Brand b / Total citations of all brands) × 100
-    // Calculate citation shares using the correct formula:
-    // CitationShare(b, scope) = (Total citations of Brand b within scope) / (Total citations of all brands within scope) × 100
+    // Apply statistical smoothing for small sample sizes to reduce variance
     const totalCitationsAllBrands = brandMetrics.reduce((sum, b) => sum + (b.totalCitations || 0), 0);
     
+    const MIN_CITATION_SAMPLE = 10; // Minimum total citations across all brands
+    const brandCount = brandMetrics.length;
+    
     brandMetrics.forEach(b => {
-      b.citationShare = totalCitationsAllBrands > 0
-        ? parseFloat(((b.totalCitations / totalCitationsAllBrands) * 100).toFixed(2))
+      const rawCitationShare = totalCitationsAllBrands > 0
+        ? (b.totalCitations / totalCitationsAllBrands) * 100
         : 0;
+
+      // Apply Bayesian smoothing for small samples (same as metricsCalculator)
+      let citationShare = rawCitationShare;
+      if (totalCitationsAllBrands < MIN_CITATION_SAMPLE) {
+        const priorWeight = (MIN_CITATION_SAMPLE - totalCitationsAllBrands) / MIN_CITATION_SAMPLE;
+        const equalShare = 100 / brandCount; // Equal prior distribution
+        citationShare = rawCitationShare * (1 - priorWeight) + equalShare * priorWeight;
+      }
+
+      b.citationShare = parseFloat(citationShare.toFixed(2));
     });
 
     // Assign ranks for each metric
@@ -641,6 +680,8 @@ class MetricsAggregationService {
     this.assignRanksByMetric(brandMetrics, 'totalMentions', 'mentionRank', true);
     this.assignRanksByMetric(brandMetrics, 'depthOfMention', 'depthRank', true);
     this.assignRanksByMetric(brandMetrics, 'shareOfVoice', 'shareOfVoiceRank', true);
+    // Average Position: lower is better (position 2.83 is better than 3.35)
+    // higherIsBetter = false means we sort ascending (lower values first), so rank 1 = best (lowest position)
     this.assignRanksByMetric(brandMetrics, 'avgPosition', 'avgPositionRank', false);
     this.assignRanksByMetric(brandMetrics, 'citationShare', 'citationShareRank', true);
 

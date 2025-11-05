@@ -328,6 +328,11 @@ class ApiService {
     return this.request('/onboarding/latest-analysis')
   }
 
+  // Get cached onboarding data for demo account
+  async getCachedOnboardingData(url: string) {
+    return this.request(`/onboarding/cached-data?url=${encodeURIComponent(url)}`)
+  }
+
   // Check if user has done URL analysis
   async hasAnalysis() {
     return this.request('/onboarding/has-analysis')

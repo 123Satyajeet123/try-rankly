@@ -117,12 +117,28 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
       return []
     }
 
-    return positionCompetitors.map((competitor: any, index: number) => ({
+    // Map competitors with their scores
+    const competitorsWithScores = positionCompetitors.map((competitor: any) => ({
       rank: competitor.rank, // ✅ Now uses avgPositionRank from backend
       name: competitor.name,
       isOwner: competitor.isOwner || false, // Use isOwner from backend
       rankChange: 0, // TODO: Calculate from historical data
-      score: competitor.score // ✅ Now uses avgPosition value
+      score: competitor.score || competitor.value || 0 // ✅ Now uses avgPosition value
+    }))
+
+    // ✅ CRITICAL FIX: Re-sort by average position value (lower is better) and re-assign ranks
+    // This ensures rankings are correct even if backend ranking logic has issues
+    const sortedByScore = [...competitorsWithScores].sort((a, b) => {
+      const scoreA = a.score || 0
+      const scoreB = b.score || 0
+      // Lower score = better rank (position 2.83 is better than 3.35)
+      return scoreA - scoreB
+    })
+
+    // Re-assign ranks based on sorted order (rank 1 = lowest/best average position)
+    return sortedByScore.map((competitor, index) => ({
+      ...competitor,
+      rank: index + 1 // Rank 1 = best (lowest average position)
     }))
   }
 
@@ -679,7 +695,7 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
                       <TableCell className="text-right py-3 px-0">
                         <div className="flex items-center justify-end gap-2">
                           <span className="text-sm font-medium text-foreground">
-                            #{item.rank}
+                            {formatToTwoDecimals(item.score || 0)}
                           </span>
                           {showComparison && item.rankChange !== 0 && (
                             <div className={`flex items-center gap-1 ${getTrendColor(item.trend || 'neutral')}`}>
@@ -754,7 +770,7 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
                                 className="text-sm font-medium font-semibold" 
                                 style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
                               >
-                                {item.score}
+                                {formatToTwoDecimals(item.score || 0)}
                               </span>
                             </TableCell>
                           </TableRow>

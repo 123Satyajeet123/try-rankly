@@ -71,13 +71,15 @@ router.get('/all', authenticateToken, async (req, res) => {
           // For now, fall through to latest analysis fallback
         }
         
-        // Try to get the latest analysis as fallback
+        // ✅ FIX: Correct syntax - findOne doesn't support sort, use find().sort().limit(1)
         console.warn(`⚠️ [DASHBOARD] Falling back to latest analysis...`);
-        urlAnalysis = await UrlAnalysis.findOne({
+        const analysisList = await UrlAnalysis.find({
           userId: userId
         })
         .sort({ analysisDate: -1 })
+        .limit(1)
         .lean();
+        urlAnalysis = analysisList[0] || null;
         
         if (!urlAnalysis) {
           return res.status(404).json({
@@ -91,12 +93,15 @@ router.get('/all', authenticateToken, async (req, res) => {
       }
     } else {
       // ⚠️ FALLBACK: Get the latest analysis (should be avoided if possible)
+      // ✅ FIX: Correct syntax - findOne doesn't support sort, use find().sort().limit(1)
       console.warn('⚠️ [DASHBOARD] No urlAnalysisId provided, using latest analysis (may not be correct for user)');
-      urlAnalysis = await UrlAnalysis.findOne({
+      const analysisList = await UrlAnalysis.find({
         userId: userId
       })
       .sort({ analysisDate: -1 })
+      .limit(1)
       .lean();
+      urlAnalysis = analysisList[0] || null;
       
       // If no analysis exists at all, return a helpful error message
       if (!urlAnalysis) {
@@ -463,7 +468,8 @@ router.get('/all', authenticateToken, async (req, res) => {
       
       if (metricsToAggregate.length > 0) {
         // Aggregate the filtered metrics using the same logic as frontend
-        filteredOverall = await aggregateFilteredMetrics(metricsToAggregate, overall, userBrandName);
+        // ✅ FIX: Pass userId and urlAnalysisId to filter to only selected competitors
+        filteredOverall = await aggregateFilteredMetrics(metricsToAggregate, overall, userBrandName, userId, currentUrlAnalysisId);
         console.log('✅ [DASHBOARD] Overall metrics recalculated based on filters');
       }
     }
@@ -817,22 +823,10 @@ async function formatTopicRankings(topicMetrics, userBrandName, userId, urlAnaly
 
   console.log(`🔍 [formatTopicRankings] Processing ${topicMetrics.length} topic metrics`);
   
-  // ✅ FIX: Get selected competitors for filtering
-  let selectedCompetitorNames = new Set();
-  try {
-    const selectedCompetitorsQuery = {
-      userId: userId,
-      selected: true
-    };
-    if (urlAnalysisId) {
-      selectedCompetitorsQuery.urlAnalysisId = urlAnalysisId;
-    }
-    const selectedCompetitors = await Competitor.find(selectedCompetitorsQuery).select('name').lean();
-    selectedCompetitorNames = new Set(selectedCompetitors.map(c => c.name));
-    console.log(`🔍 [formatTopicRankings] Found ${selectedCompetitorNames.size} selected competitors:`, Array.from(selectedCompetitorNames));
-  } catch (error) {
-    console.error('❌ [formatTopicRankings] Error fetching selected competitors:', error);
-  }
+  // ✅ REMOVED: Name-based filtering - metrics are already filtered by urlAnalysisId during calculation
+  // All brandMetrics in the database should already only contain:
+  // 1. User's brand (isOwner: true)
+  // 2. Selected competitors for this urlAnalysisId
 
   const results = topicMetrics.map(topic => {
     if (!topic.brandMetrics || topic.brandMetrics.length === 0) {
@@ -840,17 +834,10 @@ async function formatTopicRankings(topicMetrics, userBrandName, userId, urlAnaly
       return null;
     }
 
-    // ✅ FIX: Filter brandMetrics to only include selected competitors OR user's brand
-    const filteredBrandMetrics = topic.brandMetrics.filter(brand => {
-      const brandName = brand.brandName || 'Unknown';
-      const isSelected = brand.isOwner === true || selectedCompetitorNames.has(brandName);
-      if (!isSelected) {
-        console.log(`🔍 [formatTopicRankings] Filtering out brand "${brandName}" for topic "${topic.scopeValue}"`);
-      }
-      return isSelected;
-    });
+    // ✅ Use brandMetrics directly - already filtered correctly by urlAnalysisId
+    const filteredBrandMetrics = topic.brandMetrics;
 
-    console.log(`🔍 [formatTopicRankings] Topic "${topic.scopeValue}": ${topic.brandMetrics.length} total brands, ${filteredBrandMetrics.length} after filtering`);
+    console.log(`🔍 [formatTopicRankings] Topic "${topic.scopeValue}": ${filteredBrandMetrics.length} brands`);
 
     const userBrand = filteredBrandMetrics.find(b => b.isOwner === true) || 
                       filteredBrandMetrics.find(b => b.brandName === userBrandName);
@@ -904,22 +891,10 @@ async function formatPersonaRankings(personaMetrics, userBrandName, userId, urlA
 
   console.log(`🔍 [formatPersonaRankings] Processing ${personaMetrics.length} persona metrics`);
   
-  // ✅ FIX: Get selected competitors for filtering
-  let selectedCompetitorNames = new Set();
-  try {
-    const selectedCompetitorsQuery = {
-      userId: userId,
-      selected: true
-    };
-    if (urlAnalysisId) {
-      selectedCompetitorsQuery.urlAnalysisId = urlAnalysisId;
-    }
-    const selectedCompetitors = await Competitor.find(selectedCompetitorsQuery).select('name').lean();
-    selectedCompetitorNames = new Set(selectedCompetitors.map(c => c.name));
-    console.log(`🔍 [formatPersonaRankings] Found ${selectedCompetitorNames.size} selected competitors:`, Array.from(selectedCompetitorNames));
-  } catch (error) {
-    console.error('❌ [formatPersonaRankings] Error fetching selected competitors:', error);
-  }
+  // ✅ REMOVED: Name-based filtering - metrics are already filtered by urlAnalysisId during calculation
+  // All brandMetrics in the database should already only contain:
+  // 1. User's brand (isOwner: true)
+  // 2. Selected competitors for this urlAnalysisId
 
   const results = personaMetrics.map(persona => {
     if (!persona.brandMetrics || persona.brandMetrics.length === 0) {
@@ -927,17 +902,10 @@ async function formatPersonaRankings(personaMetrics, userBrandName, userId, urlA
       return null;
     }
 
-    // ✅ FIX: Filter brandMetrics to only include selected competitors OR user's brand
-    const filteredBrandMetrics = persona.brandMetrics.filter(brand => {
-      const brandName = brand.brandName || 'Unknown';
-      const isSelected = brand.isOwner === true || selectedCompetitorNames.has(brandName);
-      if (!isSelected) {
-        console.log(`🔍 [formatPersonaRankings] Filtering out brand "${brandName}" for persona "${persona.scopeValue}"`);
-      }
-      return isSelected;
-    });
+    // ✅ Use brandMetrics directly - already filtered correctly by urlAnalysisId
+    const filteredBrandMetrics = persona.brandMetrics;
 
-    console.log(`🔍 [formatPersonaRankings] Persona "${persona.scopeValue}": ${persona.brandMetrics.length} total brands, ${filteredBrandMetrics.length} after filtering`);
+    console.log(`🔍 [formatPersonaRankings] Persona "${persona.scopeValue}": ${filteredBrandMetrics.length} brands`);
 
     const userBrand = filteredBrandMetrics.find(b => b.isOwner === true) || 
                       filteredBrandMetrics.find(b => b.brandName === userBrandName);
@@ -1128,48 +1096,13 @@ async function formatCompetitorsData(metrics, userBrandName, userId, urlAnalysis
     return [];
   }
 
-  // ✅ FIX: First, get the list of SELECTED competitors for this urlAnalysisId
-  // This ensures we only show competitors that were selected during onboarding
-  let selectedCompetitorNames = new Set();
-  try {
-    const selectedCompetitorsQuery = {
-      userId: userId,
-      selected: true // ✅ Only selected competitors
-    };
-    
-    // ✅ FIX: Filter by urlAnalysisId if provided
-    if (urlAnalysisId) {
-      selectedCompetitorsQuery.urlAnalysisId = urlAnalysisId;
-    }
-    
-    const selectedCompetitors = await Competitor.find(selectedCompetitorsQuery).select('name').lean();
-    selectedCompetitorNames = new Set(selectedCompetitors.map(c => c.name));
-    
-    console.log('🔍 [formatCompetitorsData] Selected competitors:', {
-      count: selectedCompetitorNames.size,
-      names: Array.from(selectedCompetitorNames),
-      urlAnalysisId
-    });
-  } catch (error) {
-    console.error('❌ [formatCompetitorsData] Error fetching selected competitors:', error);
-    // Continue with empty set - will filter out all competitors
-  }
+  // ✅ REMOVED: Name-based filtering - metrics are already filtered by urlAnalysisId during calculation
+  // All brandMetrics in the database should already only contain:
+  // 1. User's brand (isOwner: true)
+  // 2. Selected competitors for this urlAnalysisId
 
-  // ✅ FIX: Filter brandMetrics to only include selected competitors OR user's brand
-  const filteredBrandMetrics = metrics.brandMetrics.filter(brand => {
-    const brandName = brand.brandName || 'Unknown';
-    // Include user's brand (isOwner) OR selected competitors
-    return brand.isOwner === true || selectedCompetitorNames.has(brandName);
-  });
-
-  if (filteredBrandMetrics.length === 0) {
-    console.log('⚠️ [formatCompetitorsData] No selected competitors found after filtering');
-    // Still include user's brand if it exists
-    const userBrand = metrics.brandMetrics.find(b => b.isOwner === true);
-    if (userBrand) {
-      filteredBrandMetrics.push(userBrand);
-    }
-  }
+  // ✅ Use brandMetrics directly - already filtered correctly by urlAnalysisId
+  const filteredBrandMetrics = metrics.brandMetrics;
 
   // Sort brands by visibility rank for consistent ordering
   const sortedBrands = filteredBrandMetrics
@@ -1220,44 +1153,13 @@ async function formatCompetitorsByCitationData(metrics, userBrandName, userId, u
     return [];
   }
 
-  // ✅ FIX: First, get the list of SELECTED competitors for this urlAnalysisId
-  let selectedCompetitorNames = new Set();
-  try {
-    const selectedCompetitorsQuery = {
-      userId: userId,
-      selected: true // ✅ Only selected competitors
-    };
-    
-    // ✅ FIX: Filter by urlAnalysisId if provided
-    if (urlAnalysisId) {
-      selectedCompetitorsQuery.urlAnalysisId = urlAnalysisId;
-    }
-    
-    const selectedCompetitors = await Competitor.find(selectedCompetitorsQuery).select('name').lean();
-    selectedCompetitorNames = new Set(selectedCompetitors.map(c => c.name));
-    
-    console.log('🔍 [formatCompetitorsByCitationData] Selected competitors:', {
-      count: selectedCompetitorNames.size,
-      names: Array.from(selectedCompetitorNames),
-      urlAnalysisId
-    });
-  } catch (error) {
-    console.error('❌ [formatCompetitorsByCitationData] Error fetching selected competitors:', error);
-  }
+  // ✅ REMOVED: Name-based filtering - metrics are already filtered by urlAnalysisId during calculation
+  // All brandMetrics in the database should already only contain:
+  // 1. User's brand (isOwner: true)
+  // 2. Selected competitors for this urlAnalysisId
 
-  // ✅ FIX: Filter brandMetrics to only include selected competitors OR user's brand
-  const filteredBrandMetrics = metrics.brandMetrics.filter(brand => {
-    const brandName = brand.brandName || 'Unknown';
-    return brand.isOwner === true || selectedCompetitorNames.has(brandName);
-  });
-
-  if (filteredBrandMetrics.length === 0) {
-    // Still include user's brand if it exists
-    const userBrand = metrics.brandMetrics.find(b => b.isOwner === true);
-    if (userBrand) {
-      filteredBrandMetrics.push(userBrand);
-    }
-  }
+  // ✅ Use brandMetrics directly - already filtered correctly by urlAnalysisId
+  const filteredBrandMetrics = metrics.brandMetrics;
 
   // Sort brands by citation share rank for citation-specific ordering
   const sortedBrands = filteredBrandMetrics
@@ -1313,12 +1215,17 @@ function getColorForBrand(brandName) {
  * Aggregate multiple metric documents into one (backend version of frontend logic)
  * Combines metrics from multiple scopes (topics/personas) by averaging
  */
-async function aggregateFilteredMetrics(metrics, fallback, userBrandName) {
+async function aggregateFilteredMetrics(metrics, fallback, userBrandName, userId = null, urlAnalysisId = null) {
   if (!metrics || metrics.length === 0) {
     return fallback;
   }
 
   console.log(`📊 [AGGREGATE] Combining ${metrics.length} metric documents`);
+
+  // ✅ REMOVED: Name-based filtering - metrics are already filtered by urlAnalysisId during calculation
+  // All brandMetrics in the database should already only contain:
+  // 1. User's brand (isOwner: true)
+  // 2. Selected competitors for this urlAnalysisId
 
   // Create a map to aggregate brand metrics
   const brandMap = new Map();
@@ -1335,6 +1242,7 @@ async function aggregateFilteredMetrics(metrics, fallback, userBrandName) {
     metric.brandMetrics.forEach((brand) => {
       const key = brand.brandName;
       
+      // ✅ Use brandMetrics directly - already filtered correctly by urlAnalysisId
       if (!brandMap.has(key)) {
         // Initialize with first occurrence
         brandMap.set(key, {

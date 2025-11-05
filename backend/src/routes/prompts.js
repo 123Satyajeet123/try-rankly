@@ -209,12 +209,17 @@ router.post('/generate', authenticateToken, async (req, res) => {
     console.log('🎯 Starting prompt generation for user:', userId);
     console.log('🔗 URL Analysis ID:', urlAnalysisId || 'using latest');
 
-    // ✅ FIX: Use provided urlAnalysisId or fall back to latest
-    const latestAnalysis = urlAnalysisId
-      ? await UrlAnalysis.findOne({ _id: urlAnalysisId, userId })
-      : await UrlAnalysis.findOne({ userId })
-          .sort({ analysisDate: -1 })
-          .limit(1);
+    // ✅ FIX: Use provided urlAnalysisId or fall back to latest (correct syntax)
+    let latestAnalysis;
+    if (urlAnalysisId) {
+      latestAnalysis = await UrlAnalysis.findOne({ _id: urlAnalysisId, userId }).lean();
+    } else {
+      const analysisList = await UrlAnalysis.find({ userId })
+        .sort({ analysisDate: -1 })
+        .limit(1)
+        .lean();
+      latestAnalysis = analysisList[0] || null;
+    }
 
     if (!latestAnalysis) {
       return res.status(404).json({
@@ -720,10 +725,12 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
         });
       }
     } else {
-      // Fallback to latest analysis if no ID provided
-      analysis = await UrlAnalysis.findOne({ userId })
+      // ✅ FIX: Fallback to latest analysis if no ID provided (correct syntax)
+      const analysisList = await UrlAnalysis.find({ userId })
         .sort({ analysisDate: -1 })
-        .limit(1);
+        .limit(1)
+        .lean();
+      analysis = analysisList[0] || null;
     }
     
     if (!analysis) {
@@ -1235,10 +1242,12 @@ router.get('/details/:promptId', authenticateToken, async (req, res) => {
       });
     }
 
-    // Get the brand name from the latest URL analysis for this user
-    const latestAnalysis = await UrlAnalysis.findOne({ userId })
+    // ✅ FIX: Get the brand name from the latest URL analysis for this user (correct syntax)
+    const analysisList = await UrlAnalysis.find({ userId })
       .sort({ analysisDate: -1 })
-      .limit(1);
+      .limit(1)
+      .lean();
+    const latestAnalysis = analysisList[0] || null;
     
     const brandName = latestAnalysis?.brandContext?.companyName || 'Unknown Brand';
     const brandId = brandName.toLowerCase().replace(/[^a-z0-9®]/g, '-').replace(/-+/g, '-').replace(/-$/, '');

@@ -356,3 +356,11 @@
 .dark .prose a {
   color: oklch(var(--primary));
 }
+
+/* Hide N logo in bottom-left corner (browser extension/injected elements) */
+/* This CSS rule targets common patterns, but the main removal is handled by HideNLogo component */
+aside [class*="rounded-full"]:has(span:only-child) {
+  /* Additional fallback: Hide small circular badges that might contain single letters */
+  min-width: 0;
+  min-height: 0;
+}

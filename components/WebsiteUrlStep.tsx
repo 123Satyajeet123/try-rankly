@@ -106,11 +106,10 @@ export function WebsiteUrlStep({ onContinue, isLoading, initialUrl, previousPath
         className="w-full max-w-sm md:max-w-4xl relative z-10 px-4 py-4"
       >
         <div className={cn("flex flex-col gap-6")}>
-          <Card className="overflow-hidden p-0 shadow-lg">
+          <Card className="overflow-hidden p-0 shadow-lg relative">
+            <NavigationArrows previousPath={previousPath} nextPath={analysisSuccess ? nextPath : undefined} showNext={analysisSuccess} />
             <CardContent className="grid p-0 md:grid-cols-2 h-[600px]">
               <form className="p-6 md:p-8 flex flex-col justify-center">
-                {/* Back Arrow positioned over the form */}
-                <NavigationArrows previousPath={previousPath} nextPath={analysisSuccess ? nextPath : undefined} showNext={analysisSuccess} />
                 
                 <div className="flex flex-col gap-6 w-full">
                   <div className="flex flex-col items-start gap-2 text-left">

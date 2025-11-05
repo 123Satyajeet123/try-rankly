@@ -23,6 +23,16 @@ class MetricsCalculator {
    * @returns {Object} Complete metrics for all brands
    */
   calculateAllMetrics(promptTests, brandNames) {
+    // Safety checks for demo reliability
+    if (!Array.isArray(promptTests)) {
+      console.warn('⚠️ [SAFETY] Invalid promptTests array, using empty array');
+      promptTests = [];
+    }
+    if (!Array.isArray(brandNames) || brandNames.length === 0) {
+      console.warn('⚠️ [SAFETY] Invalid or empty brandNames array, using defaults');
+      brandNames = ['Unknown Brand'];
+    }
+
     console.log(`\n${'='.repeat(70)}`);
     console.log(`📊 [CALCULATOR] Calculating metrics for ${promptTests.length} tests, ${brandNames.length} brands`);
     console.log('='.repeat(70));
@@ -52,7 +62,10 @@ class MetricsCalculator {
         
         // For averages
         sumPositions: 0,
-        appearances: 0
+        appearances: 0,
+        
+        // Confidence tracking for variance reduction
+        confidenceScores: []
       };
     });
 
@@ -129,7 +142,22 @@ class MetricsCalculator {
         // ✅ CORRECT: promptsWithBrand is already set based on explicit prompt mentions
         // Don't increment it here based on LLM responses
 
+        // Use confidence-weighted visibility if available (backward compatible)
+        // Only use confidence if detectionConfidences array exists
+        let detectionConfidence = null;
+        if (brandMetric.detectionConfidences && Array.isArray(brandMetric.detectionConfidences) && brandMetric.detectionConfidences.length > 0) {
+          detectionConfidence = brandMetric.detectionConfidences.reduce((sum, conf) => sum + conf, 0) / brandMetric.detectionConfidences.length;
+        }
+
         if (brandMetric.mentioned) {
+          // Track confidence-weighted visibility (optional - only if available)
+          if (detectionConfidence !== null) {
+            if (!data.confidenceScores) {
+              data.confidenceScores = [];
+            }
+            data.confidenceScores.push(detectionConfidence);
+          }
+
           // Don't increment promptsWithBrand here - it's already set correctly above
           data.totalMentions += brandMetric.mentionCount || 1;
           data.totalWords += brandMetric.totalWordCount || 0;
@@ -166,9 +194,51 @@ class MetricsCalculator {
       const data = brandData[brandName];
       
       // 1. Visibility Score: (responses with brand / total responses) × 100
-      const visibilityScore = data.totalPrompts > 0
+      // Use confidence-weighted average if available, otherwise use simple average
+      let rawVisibilityScore = 0;
+      if (data.confidenceScores && data.confidenceScores.length > 0) {
+        // Use confidence-weighted average for better accuracy
+        const avgConfidence = data.confidenceScores.reduce((sum, conf) => sum + conf, 0) / data.confidenceScores.length;
+        rawVisibilityScore = (data.promptsWithBrand / data.totalPrompts) * 100 * avgConfidence;
+      } else {
+        // Fallback to simple percentage
+        rawVisibilityScore = data.totalPrompts > 0
         ? (data.promptsWithBrand / data.totalPrompts) * 100
         : 0;
+      }
+
+      // Apply Bayesian smoothing (prior = 50%) for small sample sizes
+      // This reduces variance when sample size is small
+      const MIN_SAMPLE_SIZE = 20;
+      let visibilityScore = rawVisibilityScore;
+      let confidenceInterval = null;
+      let minScore = null;
+      let maxScore = null;
+
+      if (data.totalPrompts < MIN_SAMPLE_SIZE) {
+        // Use Bayesian smoothing: blend raw score with prior (50%)
+        // Weight: more weight to prior when sample is smaller
+        const priorWeight = (MIN_SAMPLE_SIZE - data.totalPrompts) / MIN_SAMPLE_SIZE;
+        const smoothedScore = rawVisibilityScore * (1 - priorWeight) + 50 * priorWeight;
+        visibilityScore = smoothedScore;
+
+        // Calculate confidence interval for small samples
+        // Standard error of proportion: sqrt(p(1-p)/n)
+        const p = rawVisibilityScore / 100;
+        const stdError = Math.sqrt((p * (1 - p)) / data.totalPrompts) * 100;
+        const marginOfError = 1.96 * stdError; // 95% confidence interval
+        confidenceInterval = marginOfError;
+        minScore = Math.max(0, rawVisibilityScore - marginOfError);
+        maxScore = Math.min(100, rawVisibilityScore + marginOfError);
+      } else {
+        // For larger samples, calculate confidence interval normally
+        const p = rawVisibilityScore / 100;
+        const stdError = Math.sqrt((p * (1 - p)) / data.totalPrompts) * 100;
+        const marginOfError = 1.96 * stdError; // 95% confidence interval
+        confidenceInterval = marginOfError;
+        minScore = Math.max(0, rawVisibilityScore - marginOfError);
+        maxScore = Math.min(100, rawVisibilityScore + marginOfError);
+      }
 
       // 2. Depth of Mention: (weighted words / total words all responses) × 100
       const depthOfMention = totalWordsAllResponses > 0
@@ -181,10 +251,44 @@ class MetricsCalculator {
         : 0;
         
       // 4. Citation Share: (total citations / total citations all brands) × 100
+      // Apply statistical smoothing for small sample sizes to reduce variance
       const totalCitationsAllBrands = brandNames.reduce((sum, name) => sum + brandData[name].totalCitations, 0);
-      const citationShare = totalCitationsAllBrands > 0
+      const rawCitationShare = totalCitationsAllBrands > 0
         ? (data.totalCitations / totalCitationsAllBrands) * 100
         : 0;
+
+      // Apply Bayesian smoothing (prior = equal distribution) for small sample sizes
+      // This reduces variance when citation count is small
+      const MIN_CITATION_SAMPLE = 10; // Minimum total citations across all brands
+      let citationShare = rawCitationShare;
+      let citationShareConfidence = null;
+      let citationShareMin = null;
+      let citationShareMax = null;
+
+      if (totalCitationsAllBrands < MIN_CITATION_SAMPLE) {
+        // Use Bayesian smoothing: blend raw score with equal prior (1/n brands)
+        // Weight: more weight to prior when sample is smaller
+        const priorWeight = (MIN_CITATION_SAMPLE - totalCitationsAllBrands) / MIN_CITATION_SAMPLE;
+        const equalShare = 100 / brandNames.length; // Equal prior distribution
+        citationShare = rawCitationShare * (1 - priorWeight) + equalShare * priorWeight;
+
+        // Calculate confidence interval for small samples
+        // Standard error of proportion: sqrt(p(1-p)/n)
+        const p = rawCitationShare / 100;
+        const stdError = Math.sqrt((p * (1 - p)) / totalCitationsAllBrands) * 100;
+        const marginOfError = 1.96 * stdError; // 95% confidence interval
+        citationShareConfidence = marginOfError;
+        citationShareMin = Math.max(0, rawCitationShare - marginOfError);
+        citationShareMax = Math.min(100, rawCitationShare + marginOfError);
+      } else {
+        // For larger samples, calculate confidence interval normally
+        const p = rawCitationShare / 100;
+        const stdError = Math.sqrt((p * (1 - p)) / totalCitationsAllBrands) * 100;
+        const marginOfError = 1.96 * stdError; // 95% confidence interval
+        citationShareConfidence = marginOfError;
+        citationShareMin = Math.max(0, rawCitationShare - marginOfError);
+        citationShareMax = Math.min(100, rawCitationShare + marginOfError);
+      }
         
       // 5. Sentiment Score: (positive - negative) / total sentiment mentions × 100
       const totalSentimentMentions = data.positiveMentions + data.negativeMentions + data.neutralMentions;
@@ -192,16 +296,52 @@ class MetricsCalculator {
         ? ((data.positiveMentions - data.negativeMentions) / totalSentimentMentions) * 100
         : 0;
 
+      // Lightweight variance detection (only calculate if sample size is reasonable)
+      let varianceMetrics = null;
+      if (data.totalPrompts >= 5) {
+        // Calculate coefficient of variation (CV) for visibility scores
+        // CV = stdDev / mean (normalized measure of variance)
+        const p = rawVisibilityScore / 100;
+        const variance = (p * (1 - p)) / data.totalPrompts;
+        const stdDev = Math.sqrt(variance) * 100;
+        const coefficientOfVariation = rawVisibilityScore > 0 ? stdDev / rawVisibilityScore : 0;
+        
+        varianceMetrics = {
+          coefficientOfVariation: parseFloat(coefficientOfVariation.toFixed(3)),
+          isHighVariance: coefficientOfVariation > 0.3, // Flag if CV > 30%
+          standardDeviation: parseFloat(stdDev.toFixed(2))
+        };
+      }
+
       return {
         brandId: data.brandId,
         brandName: data.brandName,
         
-        // Core Metrics (with 2 decimal places)
+        // Core Metrics (with 2 decimal places) - ALWAYS present for backward compatibility
         visibilityScore: parseFloat(visibilityScore.toFixed(2)),
         depthOfMention: parseFloat(depthOfMention.toFixed(2)),
         avgPosition: parseFloat(avgPosition.toFixed(2)),
         citationShare: parseFloat(citationShare.toFixed(2)),
         sentimentScore: parseFloat(sentimentScore.toFixed(2)),
+        
+        // Optional enhanced citation metrics (backward compatible - only added if available)
+        ...(citationShareConfidence !== null && {
+          citationShareConfidence: parseFloat(citationShareConfidence.toFixed(2)),
+          citationShareMin: parseFloat(citationShareMin.toFixed(2)),
+          citationShareMax: parseFloat(citationShareMax.toFixed(2)),
+          citationSampleSize: totalCitationsAllBrands
+        }),
+        
+        // Optional enhanced metrics (backward compatible - only added if available)
+        ...(confidenceInterval !== null && {
+          visibilityScoreConfidence: parseFloat(confidenceInterval.toFixed(2)),
+          visibilityScoreMin: parseFloat(minScore.toFixed(2)),
+          visibilityScoreMax: parseFloat(maxScore.toFixed(2)),
+          visibilitySampleSize: data.totalPrompts
+        }),
+        ...(varianceMetrics && {
+          visibilityVariance: varianceMetrics
+        }),
         
         // Sentiment breakdown
         positiveMentions: data.positiveMentions,

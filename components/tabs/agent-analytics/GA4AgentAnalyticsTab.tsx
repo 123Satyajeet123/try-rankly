@@ -1,12 +1,13 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { SetupOptionsSection } from './SetupOptionsSection'
 import { PlatformsTab } from '@/components/agent-analytics/platforms/PlatformsTab'
 import { PagesTab } from '@/components/agent-analytics/pages/PagesTab'
 import { GeoTab } from '@/components/agent-analytics/geo-device/GeoTab'
 import { DeviceTab } from '@/components/agent-analytics/geo-device/DeviceTab'
 import { JourneyTab } from '@/components/agent-analytics/journey/JourneyTab'
-import { getLLMPlatforms, getPlatformSplit, getPages, getGeo, getDevices, getDateRange, getConversionEvents } from '@/services/ga4Api'
+import { checkGA4Connection, disconnectGA4, getLLMPlatforms, getPlatformSplit, getPages, getGeo, getDevices, getDateRange, getConversionEvents } from '@/services/ga4Api'
 import { toast } from 'sonner'
 
 interface GA4AgentAnalyticsTabProps {
@@ -24,6 +25,7 @@ export function GA4AgentAnalyticsTab({
   onDateRangeChange,
   refreshTrigger = 0
 }: GA4AgentAnalyticsTabProps) {
+  const [isConnected, setIsConnected] = useState(false)
   const [activeTab, setActiveTab] = useState(externalActiveTab)
   const [realLLMData, setRealLLMData] = useState<any>(null)
   const [realPlatformData, setRealPlatformData] = useState<any>(null)
@@ -32,7 +34,6 @@ export function GA4AgentAnalyticsTab({
   const [realDeviceData, setRealDeviceData] = useState<any>(null)
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [selectedDateRange, setSelectedDateRange] = useState(externalDateRange)
-  const [selectedConversionEvent, setSelectedConversionEvent] = useState('conversions')
 
   // Sync external activeTab with internal state
   useEffect(() => {
@@ -44,43 +45,42 @@ export function GA4AgentAnalyticsTab({
     setSelectedDateRange(externalDateRange)
   }, [externalDateRange])
 
-  // Fetch data when tab/date range/conversion event changes
-  // Use a cache key to avoid refetching when switching tabs
-  const getCacheKey = (tab: string, dateRange: string, conversionEvent: string) => {
-    return `${tab}_${dateRange}_${conversionEvent}`
-  }
-
-  // Track which data has been fetched
-  const [fetchedCacheKeys, setFetchedCacheKeys] = useState<Set<string>>(new Set())
-
-  // Fetch data when tab/date range/conversion event changes
+  // Check connection status on mount
   useEffect(() => {
-    const cacheKey = getCacheKey(activeTab, selectedDateRange, selectedConversionEvent)
-    
-    // Only fetch if we don't have this data cached yet
-    if (!fetchedCacheKeys.has(cacheKey)) {
-      console.log('🔄 [GA4AgentAnalyticsTab] Fetching data for cache key:', cacheKey)
-      fetchGA4Data() // This sets isLoadingData inside
-      setFetchedCacheKeys(prev => new Set([...prev, cacheKey]))
-    } else {
-      console.log('✅ [GA4AgentAnalyticsTab] Using cached data for:', cacheKey)
-      // Don't show loading state for cached data
-      setIsLoadingData(false)
+    checkConnectionStatus()
+  }, [])
+
+  // Fetch data when connected and tab/date range changes
+  useEffect(() => {
+    if (isConnected) {
+      fetchGA4Data()
     }
-  }, [activeTab, selectedDateRange, selectedConversionEvent])
+  }, [isConnected, activeTab, selectedDateRange])
 
   // Fetch fresh data when refresh trigger changes (sync now button)
-  // This clears cache and forces fresh fetch
   useEffect(() => {
-    if (refreshTrigger > 0) {
-      console.log('🔄 Refresh triggered, clearing cache and fetching fresh data...')
-      setFetchedCacheKeys(new Set()) // Clear all cached keys
+    if (isConnected && refreshTrigger > 0) {
+      console.log('🔄 Refresh triggered, fetching fresh data...')
       fetchGA4Data()
-      // Mark current cache key as fetched after refresh
-      const cacheKey = getCacheKey(activeTab, selectedDateRange, selectedConversionEvent)
-      setFetchedCacheKeys(prev => new Set([...prev, cacheKey]))
     }
   }, [refreshTrigger])
+
+  const checkConnectionStatus = async () => {
+    try {
+      const response = await checkGA4Connection()
+      console.log('Connection status response:', response)
+      
+      // Backend returns { connected, isActive } directly, not wrapped in success/data
+      if (response.connected && response.isActive) {
+        setIsConnected(true)
+      } else {
+        setIsConnected(false)
+      }
+    } catch (error) {
+      console.error('Error checking connection:', error)
+      setIsConnected(false)
+    }
+  }
 
   const fetchGA4Data = async () => {
     setIsLoadingData(true)
@@ -94,8 +94,8 @@ export function GA4AgentAnalyticsTab({
       // Fetch based on active tab
       if (activeTab === 'platform') {
         const [platformSplitResponse, llmPlatformsResponse] = await Promise.all([
-          getPlatformSplit(startDate, endDate, selectedDateRange, selectedConversionEvent),
-          getLLMPlatforms(startDate, endDate, selectedDateRange, selectedConversionEvent)
+          getPlatformSplit(startDate, endDate),
+          getLLMPlatforms(startDate, endDate)
         ])
 
         console.log('📊 Platform data received:', {
@@ -153,33 +153,17 @@ export function GA4AgentAnalyticsTab({
       }
 
       if (activeTab === 'pages') {
-        console.log('📄 Fetching real Pages data from GA4 API...')
-        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange, selectedConversionEvent)
-        
-        console.log('📄 Pages API response:', {
-          success: pagesResponse.success,
-          hasData: !!pagesResponse.data,
-          pagesCount: pagesResponse.data?.pages?.length || 0,
-          conversionEvent: selectedConversionEvent
-        })
-        
-        if (pagesResponse.success && pagesResponse.data) {
-          console.log('✅ Pages data received successfully:', {
-            pagesCount: pagesResponse.data.pages?.length || 0,
-            summary: pagesResponse.data.summary
-          })
+        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange)
+        console.log('📄 Pages data received:', pagesResponse)
+        if (pagesResponse.success) {
           setRealPagesData(pagesResponse)
-        } else {
-          console.error('❌ Pages API failed:', pagesResponse.error)
-          toast.error('Failed to fetch pages data')
-          setRealPagesData(null)
         }
       }
 
       if (activeTab === 'geo-device') {
         const [geoResponse, deviceResponse] = await Promise.all([
-          getGeo(startDate, endDate, selectedDateRange),
-          getDevices(startDate, endDate, selectedDateRange, selectedConversionEvent)
+          getGeo(startDate, endDate),
+          getDevices(startDate, endDate)
         ])
         console.log('🌍 Geo data received:', geoResponse)
         console.log('📱 Device data received:', deviceResponse)
@@ -192,133 +176,10 @@ export function GA4AgentAnalyticsTab({
       }
 
       if (activeTab === 'journey') {
-        // Use hardcoded mock data for demo instead of real GA4 data
-        const mockPagesData = {
-          success: true,
-          data: {
-            pages: [
-              {
-                url: 'https://www.acme.com/products/ai-assistant',
-                title: 'AI Assistant Pro - Smart Automation Tool',
-                sessions: 245,
-                sqs: 78,
-                contentGroup: 'Product',
-                conversionRate: 12.5,
-                bounce: 28,
-                pageType: 'Product',
-                timeOnPage: 342,
-                llmJourney: 'Entry',
-                provider: 'ChatGPT',
-                platformSessions: { 'ChatGPT': 180, 'Claude': 45, 'Gemini': 20 }
-              },
-              {
-                url: 'https://www.acme.com/pricing',
-                title: 'Choose Your Plan - Flexible Pricing',
-                sessions: 189,
-                sqs: 85,
-                contentGroup: 'Pricing',
-                conversionRate: 24.3,
-                bounce: 15,
-                pageType: 'Landing',
-                timeOnPage: 456,
-                llmJourney: 'Entry',
-                provider: 'ChatGPT',
-                platformSessions: { 'ChatGPT': 142, 'Perplexity': 47 }
-              },
-              {
-                url: 'https://www.acme.com/blog/getting-started-guide',
-                title: 'Getting Started with AI Automation',
-                sessions: 156,
-                sqs: 72,
-                contentGroup: 'Blog',
-                conversionRate: 8.9,
-                bounce: 35,
-                pageType: 'Content',
-                timeOnPage: 278,
-                llmJourney: 'Middle',
-                provider: 'Claude',
-                platformSessions: { 'Claude': 98, 'ChatGPT': 58 }
-              },
-              {
-                url: 'https://www.acme.com/features/integrations',
-                title: '100+ Integrations Available',
-                sessions: 134,
-                sqs: 69,
-                contentGroup: 'Product',
-                conversionRate: 11.2,
-                bounce: 42,
-                pageType: 'Product',
-                timeOnPage: 234,
-                llmJourney: 'Middle',
-                provider: 'Gemini',
-                platformSessions: { 'Gemini': 89, 'ChatGPT': 35, 'Copilot': 10 }
-              },
-              {
-                url: 'https://www.acme.com/resources/case-studies',
-                title: 'Success Stories from Our Customers',
-                sessions: 98,
-                sqs: 65,
-                contentGroup: 'Resources',
-                conversionRate: 6.7,
-                bounce: 48,
-                pageType: 'Content',
-                timeOnPage: 198,
-                llmJourney: 'Middle',
-                provider: 'Perplexity',
-                platformSessions: { 'Perplexity': 67, 'Claude': 31 }
-              },
-              {
-                url: 'https://www.acme.com/docs/api-reference',
-                title: 'API Documentation - Developer Hub',
-                sessions: 87,
-                sqs: 81,
-                contentGroup: 'Docs',
-                conversionRate: 5.4,
-                bounce: 22,
-                pageType: 'Content',
-                timeOnPage: 567,
-                llmJourney: 'Middle',
-                provider: 'ChatGPT',
-                platformSessions: { 'ChatGPT': 72, 'Claude': 15 }
-              },
-              {
-                url: 'https://www.acme.com/solutions/enterprise',
-                title: 'Enterprise Solutions - Scale Your Business',
-                sessions: 76,
-                sqs: 88,
-                contentGroup: 'Product',
-                conversionRate: 18.9,
-                bounce: 12,
-                pageType: 'Product',
-                timeOnPage: 489,
-                llmJourney: 'Exit',
-                provider: 'ChatGPT',
-                platformSessions: { 'ChatGPT': 56, 'Gemini': 20 }
-              },
-              {
-                url: 'https://www.acme.com/security/compliance',
-                title: 'Security & Compliance Standards',
-                sessions: 65,
-                sqs: 74,
-                contentGroup: 'Resources',
-                conversionRate: 9.2,
-                bounce: 38,
-                pageType: 'Content',
-                timeOnPage: 312,
-                llmJourney: 'Exit',
-                provider: 'Claude',
-                platformSessions: { 'Claude': 45, 'ChatGPT': 20 }
-              }
-            ],
-            summary: {
-              totalSessions: 1050,
-              totalPages: 8,
-              avgSQS: 75.25
-            }
-          }
+        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange)
+        if (pagesResponse.success) {
+          setRealPagesData(pagesResponse)
         }
-        console.log('📄 Using mock Journey data for demo')
-        setRealPagesData(mockPagesData)
       }
     } catch (error) {
       console.error('Error fetching GA4 data:', error)
@@ -327,6 +188,20 @@ export function GA4AgentAnalyticsTab({
       setIsLoadingData(false)
     }
   }
+
+  const handleSetupComplete = async () => {
+    // Wait a moment for backend to process
+    await new Promise(resolve => setTimeout(resolve, 500))
+    
+    // Refresh connection status
+    await checkConnectionStatus()
+    
+    // Force a re-render by setting connected state
+    if (isConnected) {
+      fetchGA4Data()
+    }
+  }
+
 
   const handleDateRangeChange = (range: string) => {
     setSelectedDateRange(range)
@@ -353,8 +228,6 @@ export function GA4AgentAnalyticsTab({
             realPlatformData={realPlatformData}
             dateRange={selectedDateRange}
             isLoading={isLoadingData}
-            selectedConversionEvent={selectedConversionEvent}
-            onConversionEventChange={setSelectedConversionEvent}
           />
         )
       case 'pages':
@@ -364,8 +237,6 @@ export function GA4AgentAnalyticsTab({
             realPagesData={realPagesData}
             dateRange={selectedDateRange}
             isLoading={isLoadingData}
-            selectedConversionEvent={selectedConversionEvent}
-            onConversionEventChange={setSelectedConversionEvent}
           />
         )
       case 'journey':
@@ -391,8 +262,6 @@ export function GA4AgentAnalyticsTab({
               realDeviceData={realDeviceData}
               dateRange={selectedDateRange}
               isLoading={isLoadingData}
-              selectedConversionEvent={selectedConversionEvent}
-              onConversionEventChange={setSelectedConversionEvent}
             />
           </div>
         )
@@ -401,6 +270,12 @@ export function GA4AgentAnalyticsTab({
     }
   }
 
+  // Show setup screen if not connected
+  if (!isConnected) {
+    return <SetupOptionsSection onSetupComplete={handleSetupComplete} />
+  }
+
+  // Show dashboard when connected
   return renderTabContent()
 }
 

@@ -18,6 +18,7 @@ import { useSkeletonLoadingWithData } from '@/components/ui/with-skeleton-loadin
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
 import { truncateForDisplay, truncateForChart, truncateForRanking, truncateForTooltip } from '@/lib/textUtils'
+import { formatToTwoDecimals } from '@/lib/numberUtils'
 
 // Default fallback data removed - component now uses only real data from API
 
@@ -187,14 +188,23 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
   }
 
   const getRankingsForCitationType = (citationType: string) => {
-    const sortedData = [...filteredCitationData].sort((a, b) => (b as any)[citationType] - (a as any)[citationType])
-    return sortedData.map((item, index) => ({
-      rank: index + 1,
-      name: item.name,
-      total: ((item as any)[citationType]).toFixed(1),
-      rankChange: Math.floor(Math.random() * 3) - 1,
-      isOwner: item.isOwner
-    }))
+    // Sort by citation type percentage (higher is better)
+    const sortedData = [...filteredCitationData].sort((a, b) => {
+      const aValue = (a as any)[citationType] || 0
+      const bValue = (b as any)[citationType] || 0
+      return bValue - aValue // Descending: higher percentages first
+    })
+    return sortedData.map((item, index) => {
+      const scoreValue = (item as any)[citationType] || 0
+      return {
+        rank: index + 1,
+        name: item.name,
+        score: scoreValue, // ✅ Add score field for display
+        total: scoreValue.toFixed(1),
+        rankChange: Math.floor(Math.random() * 3) - 1,
+        isOwner: item.isOwner
+      }
+    })
   }
 
   const CitationBar = ({ citationSplit }: { citationSplit: { brand: number; social: number; earned: number } }) => {
@@ -841,7 +851,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                           <TableCell className="text-right py-3 px-3 w-16">
                             <div className="flex items-center justify-end gap-2">
                               <span className="body-text text-foreground">
-                                #{item.rank}
+                                {formatToTwoDecimals(item.score || parseFloat(item.total) || 0)}%
                               </span>
                               {showComparison && (
                                 <Badge 
@@ -897,7 +907,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                                 Company
                               </TableHead>
                               <TableHead className="text-right caption text-muted-foreground py-2 px-3">
-                                Rank
+                                {getCitationTypeLabel(selectedCitationType)} %
                               </TableHead>
                             </TableRow>
                           </TableHeader>
@@ -931,7 +941,7 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                                       className="body-text font-medium" 
                                       style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
                                     >
-                                      #{item.rank}
+                                      {formatToTwoDecimals(item.score || parseFloat(item.total) || 0)}%
                                     </span>
                                     {showComparison && (
                                       <Badge 

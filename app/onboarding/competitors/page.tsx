@@ -219,7 +219,7 @@ export default function CompetitorsPage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="w-full max-w-[400px] relative z-10"
+        className="w-full max-w-[400px] relative z-10 px-4 py-4"
       >
         <Card className="w-full rounded-lg p-6 sm:p-8 relative shadow-lg">
           {/* Navigation Arrows */}

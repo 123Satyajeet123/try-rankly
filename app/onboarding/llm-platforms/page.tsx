@@ -217,15 +217,14 @@ export default function LLMPlatformsPage() {
         className="w-full max-w-4xl relative z-10 px-4 py-4"
       >
         <div className={cn("flex flex-col gap-6")}>
-          <Card className="overflow-hidden p-0 shadow-lg">
+          <Card className="overflow-hidden p-0 shadow-lg relative">
+            <NavigationArrows 
+              previousPath="/onboarding/personas"
+              nextPath="/onboarding/results"
+            />
             <CardContent className="grid p-0 md:grid-cols-2 h-[600px]">
             {/* Left Section - Region & Language Selection (Light Background) */}
-            <div className="bg-background  p-6 sm:p-8 flex flex-col justify-center relative">
-              {/* Navigation Arrows positioned over the left card */}
-              <NavigationArrows 
-                previousPath="/onboarding/personas"
-                nextPath="/onboarding/results"
-              />
+            <div className="bg-background  p-6 sm:p-8 flex flex-col justify-center">
               <div className="space-y-6 w-full">
                 <div className="text-left">
                   <h1 className="text-xl font-semibold tracking-tight text-foreground mb-1">
@@ -273,7 +272,7 @@ export default function LLMPlatformsPage() {
                 >
                   {isGenerating ? (
                     <>
-                      Generating Prompts & Testing
+                      Generating Prompts
                       <span className="inline-block w-6 text-left">
                         {'.'.repeat(dotCount)}
                       </span>

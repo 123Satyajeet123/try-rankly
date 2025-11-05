@@ -67,14 +67,16 @@ router.get('/by-url', authenticateToken, async (req, res) => {
     console.log(`🔗 URL: ${url}`);
     console.log('='.repeat(70));
 
-    // Find the most recent analysis for this URL and user
-    const urlAnalysis = await UrlAnalysis.findOne({
+    // ✅ FIX: Correct syntax - findOne doesn't support sort, use find().sort().limit(1)
+    const urlAnalysisList = await UrlAnalysis.find({
       userId: req.userId,
       url: url
     })
     .sort({ analysisDate: -1 })
+    .limit(1)
     .select('_id url analysisDate brandContext.companyName status')
     .lean();
+    const urlAnalysis = urlAnalysisList[0] || null;
 
     if (!urlAnalysis) {
       return res.status(404).json({
@@ -160,14 +162,16 @@ router.get('/:id/metrics', authenticateToken, async (req, res) => {
     console.log(`🔗 URL Analysis ID: ${id}`);
     console.log('='.repeat(70));
 
-    // Get overall metrics
-    let overall = await AggregatedMetrics.findOne({
+    // ✅ FIX: Correct syntax - findOne doesn't support sort, use find().sort().limit(1)
+    const overallList = await AggregatedMetrics.find({
       userId: req.userId,
       urlAnalysisId: id,
       scope: 'overall'
     })
     .sort({ lastCalculated: -1 })
+    .limit(1)
     .lean();
+    let overall = overallList[0] || null;
 
     // Get all platform metrics
     let platforms = await AggregatedMetrics.find({

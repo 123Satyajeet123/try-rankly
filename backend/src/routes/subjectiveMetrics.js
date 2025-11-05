@@ -54,10 +54,11 @@ router.post('/evaluate',
         });
       }
 
-      // Check if already evaluated
+      // ✅ FIX: Add userId filter for security - ensure user can only see their own metrics
       const existingMetrics = await SubjectiveMetrics.findOne({
         promptId,
-        brandName
+        brandName,
+        userId: req.userId
       });
 
       if (existingMetrics) {

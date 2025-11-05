@@ -87,7 +87,7 @@ export function AuthCard({ mode, onGoogleAuth, onEmailAuth, isLoading, error }: 
   }
   
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background p-6 md:p-10 relative">
+    <main className="flex h-screen w-full items-center justify-center bg-background text-foreground overflow-hidden relative">
       <BackgroundBeams className="absolute inset-0 z-0" />
       
       {/* Logo - Top Left */}
@@ -131,13 +131,6 @@ export function AuthCard({ mode, onGoogleAuth, onEmailAuth, isLoading, error }: 
               )}
             </Button>
           )}
-        </div>
-      </div>
-
-      {/* N Logo - Bottom Right */}
-      <div className="fixed bottom-6 right-6 z-50">
-        <div className="w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center">
-          <span className="text-sm font-bold text-foreground">N</span>
         </div>
       </div>
 

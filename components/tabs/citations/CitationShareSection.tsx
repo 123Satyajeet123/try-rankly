@@ -18,6 +18,7 @@ import { useSkeletonLoadingWithData } from '@/components/ui/with-skeleton-loadin
 import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
 import { truncateForDisplay, truncateForChart, truncateForRanking, truncateForTooltip } from '@/lib/textUtils'
+import { formatToTwoDecimals } from '@/lib/numberUtils'
 
 // ✅ No more default fallback data - use real data from API
 
@@ -70,16 +71,32 @@ const getRankingsFromDashboard = (dashboardData: any) => {
 
   const userBrandName = dashboardData.overall?.summary?.userBrand?.name || dashboardData.metrics.competitorsByCitation[0]?.name
   
-  return dashboardData.metrics.competitorsByCitation
+  // Map competitors with their scores
+  const competitorsWithScores = dashboardData.metrics.competitorsByCitation
     .map((competitor: any) => ({
-      rank: competitor.rank || 1, // This is citationRank from backend
+      rank: competitor.rank || 0, // This is citationRank from backend
       name: competitor.name,
       isOwner: competitor.isOwner || false, // Use isOwner from backend data
       rankChange: competitor.change || 0, // TODO: Calculate from historical data when available
-      citationShare: competitor.score || 0, // This is citationShare from backend
-      computedScore: competitor.score || 0
+      citationShare: competitor.score || competitor.value || 0, // This is citationShare from backend
+      computedScore: competitor.score || competitor.value || 0,
+      score: competitor.score || competitor.value || 0 // For consistency with other sections
     }))
-    .sort((a: any, b: any) => a.rank - b.rank)
+
+  // ✅ CRITICAL FIX: Re-sort by citation share value (higher is better) and re-assign ranks
+  // This ensures rankings are correct even if backend ranking logic has issues
+  const sortedByScore = [...competitorsWithScores].sort((a: any, b: any) => {
+    const scoreA = a.score || 0
+    const scoreB = b.score || 0
+    // Higher score = better rank (citation share 45.20% is better than 32.50%)
+    return scoreB - scoreA // Descending: higher scores first
+  })
+
+  // Re-assign ranks based on sorted order (rank 1 = highest/best citation share)
+  return sortedByScore.map((competitor, index) => ({
+    ...competitor,
+    rank: index + 1 // Rank 1 = best (highest citation share)
+  }))
 }
 
 // Show top 5 by default, but include owned brand if it's not in top 5
@@ -255,19 +272,44 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
 
   // Get rankings for specific citation type
   const getRankingsForCitationType = (citationType: string) => {
+    // For citation type breakdowns, use the specific type value
+    // For overall citation share, use the main score
     const sortedData = [...chartData].sort((a, b) => {
-      const aValue = (a as any)[citationType] || 0
-      const bValue = (b as any)[citationType] || 0
+      let aValue: number
+      let bValue: number
+      
+      if (citationType === 'brand' || citationType === 'social' || citationType === 'earned') {
+        // Use specific citation type breakdown
+        aValue = (a as any)[citationType] || 0
+        bValue = (b as any)[citationType] || 0
+      } else {
+        // Use overall citation share score
+        aValue = a.score || 0
+        bValue = b.score || 0
+      }
+      
+      // Higher is better (descending sort)
       return bValue - aValue
     })
     
-    return sortedData.map((item, index) => ({
-      rank: index + 1,
-      name: item.name,
-      total: ((item as any)[citationType] || 0).toString(),
-      rankChange: Math.floor(Math.random() * 3) - 1,
-      isOwner: item.isOwner
-    }))
+    return sortedData.map((item, index) => {
+      let scoreValue: number
+      if (citationType === 'brand' || citationType === 'social' || citationType === 'earned') {
+        scoreValue = (item as any)[citationType] || 0
+      } else {
+        scoreValue = item.score || 0
+      }
+      
+      return {
+        rank: index + 1,
+        name: item.name,
+        score: scoreValue, // ✅ Add score field for display
+        citationShare: scoreValue, // For backward compatibility
+        total: scoreValue.toString(),
+        rankChange: Math.floor(Math.random() * 3) - 1,
+        isOwner: item.isOwner
+      }
+    })
   }
 
   const getComparisonLabel = () => {
@@ -865,7 +907,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                           <TableCell className="text-right py-3 px-3 w-16">
                             <div className="flex items-center justify-end gap-2">
                               <span className="body-text text-foreground">
-                                #{item.rank}
+                                {formatToTwoDecimals(item.score || item.citationShare || 0)}%
                               </span>
                               {showComparison && (
                                 <Badge 
@@ -921,7 +963,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                                 Company
                               </TableHead>
                               <TableHead className="text-right caption text-muted-foreground py-2 px-3">
-                                Rank
+                                Citation Share
                               </TableHead>
                             </TableRow>
                           </TableHeader>
@@ -955,7 +997,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                                       className="body-text font-medium" 
                                       style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
                                     >
-                                      #{item.rank}
+                                      {formatToTwoDecimals(item.score || item.citationShare || 0)}%
                                     </span>
                                     {showComparison && (
                                       <Badge 

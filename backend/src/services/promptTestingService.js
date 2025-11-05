@@ -276,8 +276,27 @@ class PromptTestingService {
    */
   async testSinglePrompt(prompt, brandContext, urlAnalysisId) {
     try {
-      console.log(`\n🔬 [PROMPT] Testing: "${prompt.text.substring(0, 60)}..."`);
-      console.log(`   Prompt ID: ${prompt._id}`);
+      // Safety checks for demo reliability
+      if (!prompt || typeof prompt !== 'object') {
+        throw new Error('Invalid prompt object provided to testSinglePrompt');
+      }
+      if (!brandContext || typeof brandContext !== 'object') {
+        console.warn('⚠️ [SAFETY] Invalid brandContext in testSinglePrompt, using defaults');
+        brandContext = { companyName: 'Unknown Brand', competitors: [] };
+      }
+      if (!urlAnalysisId) {
+        console.warn('⚠️ [SAFETY] Missing urlAnalysisId in testSinglePrompt');
+        // Don't throw - continue with undefined (may cause save to fail gracefully)
+      }
+
+      const promptText = prompt.text || '';
+      if (!promptText || promptText.trim().length === 0) {
+        console.error('   ❌ [ERROR] Prompt text is empty, cannot test');
+        throw new Error('Prompt text is empty');
+      }
+      
+      console.log(`\n🔬 [PROMPT] Testing: "${promptText.substring(0, 60)}..."`);
+      console.log(`   Prompt ID: ${prompt._id || 'MISSING'}`);
       console.log(`   Query Type: ${prompt.queryType || 'MISSING'}`);
       console.log(`   Topic ID: ${prompt.topicId?._id || prompt.topicId || 'MISSING'}`);
       console.log(`   Persona ID: ${prompt.personaId?._id || prompt.personaId || 'MISSING'}`);
@@ -285,12 +304,12 @@ class PromptTestingService {
       // Step 1: Send prompt to all 4 LLMs in parallel
       console.log(`   🚀 [STEP 1] Sending to 4 LLMs in parallel...`);
       const llmStartTime = Date.now();
-      
+
       const llmResponses = await Promise.allSettled([
-        this.callLLM(prompt.text, 'openai', prompt),
-        this.callLLM(prompt.text, 'gemini', prompt),
-        this.callLLM(prompt.text, 'claude', prompt),
-        this.callLLM(prompt.text, 'perplexity', prompt)
+        this.callLLM(promptText, 'openai', prompt),
+        this.callLLM(promptText, 'gemini', prompt),
+        this.callLLM(promptText, 'claude', prompt),
+        this.callLLM(promptText, 'perplexity', prompt)
       ]);
       
       const llmDuration = ((Date.now() - llmStartTime) / 1000).toFixed(2);
@@ -314,9 +333,16 @@ class PromptTestingService {
 
         try {
           // Calculate metrics deterministically from citations and brand mentions
+          // Safety check: validate llmResponse structure
+          if (!llmResponse || typeof llmResponse !== 'object' || !llmResponse.response) {
+            console.error(`   ❌ [${llmProvider.toUpperCase()}] Invalid LLM response structure`);
+            return this.createFailedTest(prompt, llmProvider, 'Invalid LLM response structure', urlAnalysisId);
+          }
+
+          // Calculate metrics deterministically from citations and brand mentions
           const scorecard = this.calculateDeterministicScore(
-            llmResponse.response,
-            llmResponse.citations,
+            llmResponse.response || '',
+            llmResponse.citations || [],
             brandContext
           );
 
@@ -947,8 +973,135 @@ Be thorough, accurate, and helpful in your responses.`;
   }
 
   /**
+   * Remove common words (articles, prepositions) from brand name
+   * Generic algorithm that works for any brand
+   */
+  removeCommonWords(text) {
+    const commonWords = new Set([
+      'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+      'from', 'as', 'is', 'was', 'are', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
+      'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must',
+      'company', 'inc', 'incorporated', 'corp', 'corporation', 'ltd', 'limited', 'llc',
+      'group', 'holdings', 'enterprises', 'industries', 'international', 'global'
+    ]);
+    
+    const words = text.toLowerCase().split(/\s+/);
+    return words.filter(word => {
+      const cleanWord = word.replace(/[^a-z0-9]/g, '');
+      return cleanWord.length > 2 && !commonWords.has(cleanWord);
+    });
+  }
+
+  /**
+   * Extract first syllables from a word (simple heuristic)
+   * For "American" → "am", "ame", "amer"
+   */
+  extractFirstSyllables(word, maxSyllables = 3) {
+    const syllables = [];
+    const vowels = /[aeiouy]/gi;
+    let vowelCount = 0;
+    let currentSyllable = '';
+    
+    for (let i = 0; i < word.length && vowelCount < maxSyllables; i++) {
+      currentSyllable += word[i];
+      if (vowels.test(word[i])) {
+        vowelCount++;
+        if (currentSyllable.length >= 2) {
+          syllables.push(currentSyllable);
+        }
+      }
+    }
+    
+    return syllables.filter(s => s.length >= 2);
+  }
+
+  /**
+   * Generate abbreviations for ANY brand name (generic algorithm)
+   * No hardcoded brand names - works for financial, tech, retail, SaaS, etc.
+   * Returns a map of abbreviation -> full brand name
+   */
+  getBrandAbbreviationsForDomain(brandName) {
+    const abbreviations = new Map();
+    if (!brandName || typeof brandName !== 'string') return abbreviations;
+    
+    // Step 1: Remove common words and get significant words
+    const significantWords = this.removeCommonWords(brandName);
+    if (significantWords.length === 0) {
+      // If all words were common, use original (but clean it)
+      significantWords.push(...brandName.toLowerCase().split(/\s+/).filter(w => w.length > 2));
+    }
+    
+    // Step 2: Generate acronyms from first letters
+    if (significantWords.length > 1) {
+      // Full acronym: "American Express" → "ae"
+      const fullAcronym = significantWords.map(w => w[0]).join('').toLowerCase();
+      if (fullAcronym.length >= 2) {
+        abbreviations.set(fullAcronym, brandName);
+      }
+      
+      // First two words acronym: "American Express Company" → "ae"
+      if (significantWords.length >= 2) {
+        const twoWordAcronym = significantWords.slice(0, 2).map(w => w[0]).join('').toLowerCase();
+        if (twoWordAcronym.length >= 2 && twoWordAcronym !== fullAcronym) {
+          abbreviations.set(twoWordAcronym, brandName);
+        }
+      }
+    }
+    
+    // Step 3: Generate syllable-based abbreviations (for longer names)
+    significantWords.forEach(word => {
+      if (word.length > 6) {
+        const syllables = this.extractFirstSyllables(word, 2);
+        syllables.forEach(syllable => {
+          if (syllable.length >= 2 && syllable.length <= 6) {
+            abbreviations.set(syllable, brandName);
+          }
+        });
+      }
+    });
+    
+    // Step 4: Generate word-based abbreviations
+    // First word only: "American Express" → "american"
+    if (significantWords.length > 1 && significantWords[0].length >= 3) {
+      abbreviations.set(significantWords[0], brandName);
+    }
+    
+    // First two words: "American Express" → "americanexpress", "americanexp"
+    if (significantWords.length >= 2) {
+      const firstTwo = significantWords.slice(0, 2).join('');
+      if (firstTwo.length >= 3) {
+        abbreviations.set(firstTwo, brandName);
+        // Also add truncated version if long
+        if (firstTwo.length > 8) {
+          abbreviations.set(firstTwo.substring(0, 8), brandName);
+        }
+      }
+    }
+    
+    // Step 5: Generate first letter + partial word combinations
+    // "American Express" → "aexpress", "amxpress"
+    if (significantWords.length >= 2) {
+      const firstLetter = significantWords[0][0];
+      significantWords.slice(1).forEach(word => {
+        if (word.length >= 4) {
+          // First letter + first 3-5 chars of second word
+          for (let len = 3; len <= Math.min(5, word.length); len++) {
+            const combo = firstLetter + word.substring(0, len);
+            if (combo.length >= 3) {
+              abbreviations.set(combo, brandName);
+            }
+          }
+        }
+      });
+    }
+
+    return abbreviations;
+  }
+
+  /**
    * Classify if a domain belongs to a brand (official brand-owned sources)
    * Enhanced to work dynamically with any brand from the database
+   * Now includes abbreviation detection and better domain matching
    */
   classifyBrandCitation(domain, allBrands = []) {
     // First, check against user's brands and competitors dynamically
@@ -957,22 +1110,66 @@ Be thorough, accurate, and helpful in your responses.`;
         const brandName = brand.name || brand;
         if (!brandName) continue;
         
-        // Generate possible domain variations for this brand
+        // Strategy 1: Generate possible domain variations for this brand (generic algorithm)
         const possibleDomains = this.generateDomainVariations(brandName);
         
-        // Check exact domain match
-        if (possibleDomains.includes(domain)) {
-          return { 
-            type: 'brand', 
-            brand: brandName, 
-            confidence: 0.95,
-            label: 'brand_owned_domain'
-          };
+        // Extract domain base (without TLD) for matching
+        const domainParts = domain.split('.');
+        const domainBase = domainParts.slice(0, -1).join('.'); // Everything except last part (TLD)
+        const domainWithoutTLD = domainParts[0]; // First part only
+        
+        // Check exact domain match (with or without TLD)
+        // Match against base variations (without TLD)
+        for (const possibleDomain of possibleDomains) {
+          const cleanPossible = possibleDomain.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const cleanDomainBase = domainBase.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const cleanDomainWithoutTLD = domainWithoutTLD.toLowerCase().replace(/[^a-z0-9]/g, '');
+          
+          // Exact match with domain base
+          if (cleanDomainBase === cleanPossible || cleanDomainWithoutTLD === cleanPossible) {
+            return { 
+              type: 'brand', 
+              brand: brandName, 
+              confidence: 0.95,
+              label: 'brand_owned_domain'
+            };
+          }
+          
+          // Match domain contains variation (e.g., "americanexpress" in "americanexpress.com")
+          if (cleanDomainBase.includes(cleanPossible) || cleanDomainWithoutTLD.includes(cleanPossible)) {
+            if (cleanPossible.length >= 3) { // Only if significant length
+              return { 
+                type: 'brand', 
+                brand: brandName, 
+                confidence: 0.9,
+                label: 'brand_domain_contains'
+              };
+            }
+          }
         }
         
-        // Check subdomain patterns (e.g., blog.example.com, www.example.com)
+        // Strategy 2: Check subdomain patterns (e.g., blog.example.com, www.example.com)
+        // Extract root domain (second-to-last part + TLD)
+        const rootDomain = domainParts.length >= 2 
+          ? domainParts.slice(-2).join('.') 
+          : domain;
+        
         for (const possibleDomain of possibleDomains) {
-          if (domain.endsWith('.' + possibleDomain)) {
+          const cleanPossible = possibleDomain.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const cleanRoot = rootDomain.toLowerCase().replace(/[^a-z0-9]/g, '');
+          
+          // Check if root domain matches variation
+          if (cleanRoot.includes(cleanPossible) && cleanPossible.length >= 3) {
+            return { 
+              type: 'brand', 
+              brand: brandName, 
+              confidence: 0.85,
+              label: 'brand_subdomain'
+            };
+          }
+          
+          // Check if domain ends with variation (subdomain pattern)
+          if (domain.endsWith('.' + possibleDomain) || domain.endsWith('.' + cleanPossible + '.com')) {
             return { 
               type: 'brand', 
               brand: brandName, 
@@ -982,7 +1179,33 @@ Be thorough, accurate, and helpful in your responses.`;
           }
         }
         
-        // Check for brand name patterns in domain
+        // Strategy 3: Check abbreviation-based domains (e.g., amex.com → American Express)
+        const abbreviations = this.getBrandAbbreviationsForDomain(brandName);
+        for (const [abbrev, fullBrand] of abbreviations.entries()) {
+          // Check if domain matches abbreviation (e.g., amex.com)
+          const abbrevDomain = abbrev + '.com';
+          const abbrevDomainWithWWW = 'www.' + abbrev + '.com';
+          if (domain === abbrevDomain || domain === abbrevDomainWithWWW || 
+              domain.endsWith('.' + abbrevDomain) || domain.endsWith('.' + abbrevDomainWithWWW)) {
+            return { 
+              type: 'brand', 
+              brand: brandName, 
+              confidence: 0.9,
+              label: 'brand_abbreviation_domain'
+            };
+          }
+          // Also check if abbreviation appears in domain
+          if (domain.includes(abbrev) && domain.length < abbrev.length + 10) {
+            return { 
+              type: 'brand', 
+              brand: brandName, 
+              confidence: 0.8,
+              label: 'brand_abbreviation_pattern'
+            };
+          }
+        }
+        
+        // Strategy 4: Check for brand name patterns in domain (fuzzy matching)
         const brandPatterns = this.generateBrandPatterns(brandName);
         for (const pattern of brandPatterns) {
           const normalizedPattern = pattern.toLowerCase().replace(/\s+/g, '');
@@ -998,8 +1221,43 @@ Be thorough, accurate, and helpful in your responses.`;
       }
     }
     
-    // Fallback: Check against hardcoded brand domains (for legacy support)
-    const brandDomains = [
+    // Step 5: Generic fuzzy matching for edge cases (if no exact match found)
+    // Use Levenshtein distance for similar domain names
+    if (allBrands && allBrands.length > 0) {
+      // Note: metricsExtractionService exports an instance, not a class
+      const extractionService = require('./metricsExtractionService');
+      const domainBase = domain.split('.')[0]; // Get domain without TLD
+      
+      for (const brand of allBrands) {
+        const brandName = brand.name || brand;
+        if (!brandName) continue;
+        
+        // Generate domain variations for this brand
+        const brandVariations = this.generateDomainVariations(brandName);
+        
+        // Check fuzzy similarity with domain base
+        for (const variation of brandVariations) {
+          const cleanVariation = variation.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const cleanDomainBase = domainBase.toLowerCase().replace(/[^a-z0-9]/g, '');
+          
+          if (cleanVariation.length >= 3 && cleanDomainBase.length >= 3) {
+            const similarity = extractionService.calculateSimilarity(cleanVariation, cleanDomainBase);
+            if (similarity >= 0.7) {
+              return { 
+                type: 'brand', 
+                brand: brandName, 
+                confidence: similarity * 0.85, // Scale confidence by similarity
+                label: 'brand_fuzzy_match'
+              };
+            }
+          }
+        }
+      }
+    }
+    
+    // Fallback: Legacy hardcoded domains (DEPRECATED - only for backward compatibility)
+    // TODO: Remove after sufficient testing confirms generic algorithm works
+    const legacyBrandDomains = [
       'americanexpress.com', 'amex.com', 'americanexpress.co.uk', 'amex.co.uk',
       'chase.com', 'chasebank.com', 'chase.co.uk',
       'capitalone.com', 'capitalone.co.uk',
@@ -1009,24 +1267,24 @@ Be thorough, accurate, and helpful in your responses.`;
       'discover.com', 'discovercard.com'
     ];
     
-    // Check exact domain matches
-    if (brandDomains.includes(domain)) {
+    if (legacyBrandDomains.includes(domain)) {
+      console.warn(`⚠️ [LEGACY] Using hardcoded domain match for ${domain} - consider updating to generic matching`);
       return { 
         type: 'brand', 
         brand: this.extractBrandFromDomain(domain), 
         confidence: 0.9,
-        label: 'brand_owned_domain'
+        label: 'brand_owned_domain_legacy'
       };
     }
     
-    // Check subdomain patterns for brands
-    for (const brandDomain of brandDomains) {
+    for (const brandDomain of legacyBrandDomains) {
       if (domain.endsWith('.' + brandDomain)) {
+        console.warn(`⚠️ [LEGACY] Using hardcoded subdomain match for ${domain} - consider updating to generic matching`);
         return { 
           type: 'brand', 
           brand: this.extractBrandFromDomain(brandDomain), 
           confidence: 0.8,
-          label: 'brand_subdomain'
+          label: 'brand_subdomain_legacy'
         };
       }
     }
@@ -1035,44 +1293,57 @@ Be thorough, accurate, and helpful in your responses.`;
   }
 
   /**
-   * Generate possible domain variations for a brand name
+   * Generate possible domain variations for ANY brand name (GENERIC)
+   * Works for financial, tech, retail, SaaS, etc. - no hardcoding
    * Used for dynamic brand citation detection
    */
   generateDomainVariations(brandName) {
     const variations = new Set();
+    if (!brandName || typeof brandName !== 'string') return [];
     
-    // Clean brand name
-    const cleanName = brandName.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
-    const words = cleanName.split(/\s+/);
+    // Step 1: Remove common words for better domain matching
+    const significantWords = this.removeCommonWords(brandName);
+    const cleanBrandName = significantWords.length > 0 
+      ? significantWords.join(' ') 
+      : brandName.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
     
-    // Add exact brand name
-    variations.add(cleanName);
+    const words = cleanBrandName.split(/\s+/).filter(w => w.length > 0);
     
-    // Add without spaces
-    variations.add(cleanName.replace(/\s+/g, ''));
+    // Step 2: Generate base variations (no TLD yet)
+    const baseVariations = new Set();
     
-    // Add with hyphens
-    variations.add(cleanName.replace(/\s+/g, '-'));
+    // Full brand name variations
+    baseVariations.add(cleanBrandName);                                    // "american express"
+    baseVariations.add(cleanBrandName.replace(/\s+/g, ''));                // "americanexpress"
+    baseVariations.add(cleanBrandName.replace(/\s+/g, '-'));               // "american-express"
+    baseVariations.add(cleanBrandName.replace(/\s+/g, '.'));               // "american.express"
+    baseVariations.add(cleanBrandName.replace(/\s+/g, '_'));                // "american_express"
     
-    // Add with dots
-    variations.add(cleanName.replace(/\s+/g, '.'));
-    
-    // Add with underscores
-    variations.add(cleanName.replace(/\s+/g, '_'));
-    
-    // Add first word only
-    if (words.length > 1) {
-      variations.add(words[0]);
+    // First word only
+    if (words.length > 1 && words[0].length >= 3) {
+      baseVariations.add(words[0]);                                         // "american"
     }
     
-    // Add first two words
+    // First two words combined
     if (words.length >= 2) {
-      variations.add(words.slice(0, 2).join(''));
-      variations.add(words.slice(0, 2).join('-'));
-      variations.add(words.slice(0, 2).join('.'));
+      const firstTwo = words.slice(0, 2);
+      baseVariations.add(firstTwo.join(''));                                // "americanexpress"
+      baseVariations.add(firstTwo.join('-'));                               // "american-express"
+      baseVariations.add(firstTwo.join('.'));                               // "american.express"
     }
     
-    return Array.from(variations);
+    // Step 3: Add abbreviations (generic algorithm)
+    const abbreviations = this.getBrandAbbreviationsForDomain(brandName);
+    for (const abbrev of abbreviations.keys()) {
+      if (abbrev.length >= 2 && abbrev.length <= 15) {
+        baseVariations.add(abbrev);                                         // "amex", "ae", etc.
+      }
+    }
+    
+    // Step 4: Add common TLDs to each base variation
+    // Note: We return base variations only (without TLD) to match against domain hostnames
+    // The TLD matching is done separately in classifyBrandCitation
+    return Array.from(baseVariations);
   }
 
   /**
@@ -1358,6 +1629,24 @@ Be thorough, accurate, and helpful in your responses.`;
    * @returns {Array} - brandMetrics array with complete data
    */
   extractBrandMetrics(responseText, citations, brandName, competitors = []) {
+    // Safety checks for demo reliability
+    if (!responseText || typeof responseText !== 'string') {
+      console.warn('⚠️ [SAFETY] Invalid responseText in extractBrandMetrics, using empty string');
+      responseText = '';
+    }
+    if (!brandName || typeof brandName !== 'string') {
+      console.warn('⚠️ [SAFETY] Invalid brandName in extractBrandMetrics, using fallback');
+      brandName = 'Unknown Brand';
+    }
+    if (!Array.isArray(citations)) {
+      console.warn('⚠️ [SAFETY] Invalid citations array, using empty array');
+      citations = [];
+    }
+    if (!Array.isArray(competitors)) {
+      console.warn('⚠️ [SAFETY] Invalid competitors array, using empty array');
+      competitors = [];
+    }
+
     // Generate intelligent brand matching patterns using generic algorithm
     const brandPatterns = this.generateBrandPatterns(brandName);
     // Split response into sentences
@@ -1366,7 +1655,7 @@ Be thorough, accurate, and helpful in your responses.`;
       .split('|')
       .filter(s => s.trim().length > 0);
 
-    const allBrands = [brandName, ...competitors.filter(c => c.name).map(c => c.name)];
+    const allBrands = [brandName, ...competitors.filter(c => c && c.name).map(c => c.name)];
     const brandMetrics = [];
 
     // Process each brand
@@ -1407,8 +1696,17 @@ Be thorough, accurate, and helpful in your responses.`;
       // Use intelligent brand pattern generation for citation classification
       const citationBrandPatterns = this.generateBrandPatterns(brand);
       
+      // Safety check: ensure citations is an array
+      if (!Array.isArray(citations)) {
+        console.warn(`⚠️ [SAFETY] Citations is not an array for brand ${brand}, using empty array`);
+        citations = [];
+      }
+      
       // Filter citations that match this brand using the same logic as calculateDeterministicScore
       const allBrandCitations = citations.filter(cit => {
+        if (!cit || typeof cit !== 'object' || !cit.url || typeof cit.url !== 'string') {
+          return false;
+        }
         const urlLower = cit.url.toLowerCase();
         
         // ✅ FIX: Citation markers are just placeholder references, not actual citations
@@ -1476,17 +1774,27 @@ Be thorough, accurate, and helpful in your responses.`;
     });
 
     // Add earned citations to primary brand if mentioned
+    // These are citations that weren't matched to any brand, so classify them as earned
     const assignedUrls = new Set(
       brandMetrics.flatMap(bm => bm.citations.map(c => c.url))
     );
-    const earnedCitations = citations.filter(cit => !assignedUrls.has(cit.url));
+    const unassignedCitations = citations.filter(cit => !assignedUrls.has(cit.url));
 
-    if (earnedCitations.length > 0 && brandMetrics.length > 0) {
-      brandMetrics[0].citations.push(...earnedCitations.map(cit => ({
-        url: cit.url,
-        type: 'earned',
-        context: cit.text || 'Citation'
-      })));
+    if (unassignedCitations.length > 0 && brandMetrics.length > 0) {
+      const allBrandsForClassification = [brandName, ...competitors.map(c => c.name)];
+      
+      brandMetrics[0].citations.push(...unassignedCitations.map(cit => {
+        // Classify unassigned citations properly (should be earned or social)
+        const classification = this.categorizeCitation(cit.url, brandName, allBrandsForClassification);
+        
+        return {
+          url: cit.url,
+          type: classification.type === 'unknown' ? 'earned' : classification.type, // Default to earned if unknown
+          brand: classification.brand,
+          confidence: classification.confidence || 0.8, // Default confidence for earned citations
+          context: cit.text || 'Citation'
+        };
+      }));
     }
 
     return brandMetrics;
@@ -1544,31 +1852,17 @@ Be thorough, accurate, and helpful in your responses.`;
       // patterns.add(words.join(' '));
     }
     
-    // Add strategic abbreviations for major brands
-    const firstWord = words[0];
-    if (firstWord) {
-      const abbreviationMap = {
-        'american': 'amex',
-        'american express': 'amex',
-        'chase': 'jpmorgan',
-        'jpmorgan': 'chase',
-        'capital': 'cap1',
-        'citibank': 'citi',
-        'mastercard': 'mc',
-        'visa': 'vs'
-      };
-      
-      const lowerFirst = firstWord.toLowerCase();
-      if (abbreviationMap[lowerFirst]) {
-        patterns.add(abbreviationMap[lowerFirst]);
+    // Add generic abbreviations (GENERIC - no hardcoding)
+    // Use the generic abbreviation generation algorithm
+    const abbreviations = this.getBrandAbbreviationsForDomain(brandName);
+    
+    // Add all generated abbreviations to patterns
+    for (const abbrev of abbreviations.keys()) {
+      if (abbrev.length >= 2 && abbrev.length <= 15) {
+        patterns.add(abbrev);
+        patterns.add(abbrev.toLowerCase());
+        patterns.add(abbrev.toUpperCase());
       }
-      
-      // Check if first word contains major brand names
-      Object.entries(abbreviationMap).forEach(([key, abbrev]) => {
-        if (lowerFirst.includes(key)) {
-          patterns.add(abbrev);
-        }
-      });
     }
     
     // Add parent brand patterns for product-specific names
@@ -1612,8 +1906,26 @@ Be thorough, accurate, and helpful in your responses.`;
    * @returns {object} - Scorecard with visibility and overall scores
    */
   calculateDeterministicScore(responseText, citations, brandContext) {
-    const brandName = brandContext.companyName || 'the brand';
-    const competitors = brandContext.competitors || [];
+    // Safety checks for demo reliability
+    if (!responseText || typeof responseText !== 'string') {
+      console.warn('⚠️ [SAFETY] Invalid responseText in calculateDeterministicScore');
+      return this.getDefaultScorecard();
+    }
+    
+    // Validate brandContext with fallbacks
+    if (!brandContext || typeof brandContext !== 'object') {
+      console.warn('⚠️ [SAFETY] Invalid brandContext in calculateDeterministicScore, using defaults');
+      brandContext = { companyName: 'Unknown Brand', competitors: [] };
+    }
+
+    const brandName = brandContext.companyName || 'Unknown Brand';
+    const competitors = Array.isArray(brandContext.competitors) ? brandContext.competitors : [];
+    
+    // Ensure citations is an array
+    if (!Array.isArray(citations)) {
+      console.warn('⚠️ [SAFETY] Invalid citations in calculateDeterministicScore, using empty array');
+      citations = [];
+    }
 
     console.log(`      🎯 [SCORING] Creating simple scorecard for: ${brandName}`);
 
@@ -1665,8 +1977,10 @@ Be thorough, accurate, and helpful in your responses.`;
     let earnedCitationsCount = 0;
     let socialCitationsCount = 0;
     
-    // Create all brands list for classification
-    const allBrands = [brandName, ...competitors.map(c => c.name)];
+    // Create all brands list for classification (with safety check)
+    const allBrands = [brandName, ...competitors
+      .filter(c => c && typeof c === 'object' && c.name && typeof c.name === 'string')
+      .map(c => c.name)];
     
     allBrandCitations.forEach(cit => {
       const classification = this.categorizeCitation(cit.url, brandName, allBrands);
@@ -1684,8 +1998,16 @@ Be thorough, accurate, and helpful in your responses.`;
     // Find competitors mentioned in response using intelligent pattern matching
     const competitorsMentioned = [];
     
+    // Safety check: ensure competitors is an array
+    if (!Array.isArray(competitors)) {
+      console.warn('⚠️ [SAFETY] Competitors is not an array, skipping competitor detection');
+      competitors = [];
+    }
+    
     competitors.forEach(comp => {
-      if (!comp.name || comp.name.trim().length === 0) return;
+      if (!comp || typeof comp !== 'object' || !comp.name || typeof comp.name !== 'string' || comp.name.trim().length === 0) {
+        return;
+      }
       
       // Generate intelligent patterns for competitor name (same as brand patterns)
       const competitorPatterns = this.generateBrandPatterns(comp.name);
@@ -1771,13 +2093,25 @@ Be thorough, accurate, and helpful in your responses.`;
     try {
       console.log(`      💾 [SAVE] Preparing to save test result for ${llmProvider}`);
 
+      // Safety checks for demo reliability
+      if (!prompt || typeof prompt !== 'object') {
+        throw new Error('Invalid prompt object provided to saveTestResult');
+      }
+      if (!llmResponse || typeof llmResponse !== 'object') {
+        throw new Error('Invalid llmResponse object provided to saveTestResult');
+      }
+      if (!scorecard || typeof scorecard !== 'object') {
+        console.warn('⚠️ [SAFETY] Invalid scorecard, using default');
+        scorecard = this.getDefaultScorecard();
+      }
+
       // Extract IDs from populated objects if needed
       const topicId = prompt.topicId?._id || prompt.topicId;
       const personaId = prompt.personaId?._id || prompt.personaId;
 
       console.log(`      📋 [SAVE] Extracted IDs - topicId: ${topicId}, personaId: ${personaId}, queryType: ${prompt.queryType}`);
 
-      // Ensure we have the required fields
+      // Ensure we have the required fields with graceful fallback
       if (!topicId || !personaId || !prompt.queryType) {
         console.error(`      ❌ [SAVE ERROR] Missing required fields in prompt:`, {
           topicId,
@@ -1787,15 +2121,28 @@ Be thorough, accurate, and helpful in your responses.`;
           rawTopicId: prompt.topicId,
           rawPersonaId: prompt.personaId
         });
-        throw new Error('Missing required fields: topicId, personaId, or queryType');
+        // For demo reliability, create a failed test instead of throwing
+        console.warn('      ⚠️ [SAFETY] Creating failed test instead of throwing error');
+        return await this.createFailedTest(
+          prompt,
+          llmProvider,
+          `Missing required fields: topicId=${!!topicId}, personaId=${!!personaId}, queryType=${!!prompt.queryType}`,
+          urlAnalysisId
+        );
+      }
+
+      // Safety check: ensure brandContext is valid
+      if (!brandContext || typeof brandContext !== 'object') {
+        console.warn('      ⚠️ [SAFETY] Invalid brandContext, using defaults');
+        brandContext = { companyName: 'Unknown Brand', competitors: [] };
       }
 
       // Extract complete brand metrics (mentions, positions, sentences, citations)
       const brandMetrics = this.extractBrandMetrics(
-        llmResponse.response,
+        llmResponse.response || '',
         llmResponse.citations || [],
-        brandContext.companyName,
-        brandContext.competitors
+        brandContext.companyName || 'Unknown Brand',
+        brandContext.competitors || []
       );
 
       console.log(`      📊 [SAVE] Extracted ${brandMetrics.length} brand entries with complete metrics`);

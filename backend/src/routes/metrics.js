@@ -127,9 +127,12 @@ router.get('/overall', authenticateToken, async (req, res) => {
       query.dateTo = { $lte: dateTo ? new Date(dateTo) : new Date() };
     }
 
-    const metrics = await AggregatedMetrics.findOne(query)
+    // ✅ FIX: Correct syntax - findOne doesn't support sort, use find().sort().limit(1)
+    const metrics = await AggregatedMetrics.find(query)
       .sort({ lastCalculated: -1 })
-      .lean();
+      .limit(1)
+      .lean()
+      .then(results => results[0] || null);
 
     if (!metrics) {
       return res.status(404).json({

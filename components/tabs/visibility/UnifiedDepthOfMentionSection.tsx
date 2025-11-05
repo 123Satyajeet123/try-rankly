@@ -91,12 +91,28 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
       return []
     }
 
-    return depthCompetitors.map((competitor: any, index: number) => ({
-      rank: competitor.rank, // ✅ Now uses depthRank from backend
+    // Map competitors with their scores
+    const competitorsWithScores = depthCompetitors.map((competitor: any) => ({
+      rank: competitor.rank || 0, // ✅ Now uses depthRank from backend
       name: competitor.name,
       isOwner: competitor.isOwner || false, // Use isOwner from backend
       rankChange: 0, // TODO: Calculate from historical data
-      score: competitor.score // ✅ Now uses depthOfMention score
+      score: competitor.score || competitor.value || 0 // ✅ Now uses depthOfMention score
+    }))
+
+    // ✅ CRITICAL FIX: Re-sort by depth of mention value (higher is better) and re-assign ranks
+    // This ensures rankings are correct even if backend ranking logic has issues
+    const sortedByScore = [...competitorsWithScores].sort((a, b) => {
+      const scoreA = a.score || 0
+      const scoreB = b.score || 0
+      // Higher score = better rank (depth 85.20% is better than 72.50%)
+      return scoreB - scoreA // Descending: higher scores first
+    })
+
+    // Re-assign ranks based on sorted order (rank 1 = highest/best depth of mention)
+    return sortedByScore.map((competitor, index) => ({
+      ...competitor,
+      rank: index + 1 // Rank 1 = best (highest depth of mention)
     }))
   }
 
@@ -755,7 +771,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                       <TableCell className="text-right py-3 px-3">
                         <div className="flex items-center justify-end gap-2">
                           <span className="body-text text-foreground">
-                            #{item.rank}
+                            {formatToTwoDecimals(item.score || 0)}%
                           </span>
                           {showComparison && (
                             <Badge 
@@ -845,7 +861,7 @@ function UnifiedDepthOfMentionSection({ filterContext, dashboardData }: UnifiedD
                                   className="body-text font-medium" 
                                   style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
                                 >
-                                  #{item.rank}
+                                  {formatToTwoDecimals(item.score || 0)}%
                                 </span>
                                 {showComparison && (
                                   <Badge 

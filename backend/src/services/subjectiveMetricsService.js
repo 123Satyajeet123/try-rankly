@@ -299,31 +299,19 @@ class SubjectiveMetricsService {
       }
     }
     
-    // Add strategic abbreviations for major brands
-    const firstWord = words[0];
-    if (firstWord) {
-      const abbreviationMap = {
-        'american': 'amex',
-        'american express': 'amex',
-        'chase': 'jpmorgan',
-        'jpmorgan': 'chase',
-        'capital': 'cap1',
-        'citibank': 'citi',
-        'mastercard': 'mc',
-        'visa': 'vs'
-      };
-      
-      const lowerFirst = firstWord.toLowerCase();
-      if (abbreviationMap[lowerFirst]) {
-        patterns.add(abbreviationMap[lowerFirst]);
+    // Add generic abbreviations (GENERIC - no hardcoding)
+    // Use the generic abbreviation generation algorithm
+    const metricsExtractionService = require('./metricsExtractionService');
+    const extractionService = new metricsExtractionService();
+    const abbreviations = extractionService.getBrandAbbreviations(brandName);
+    
+    // Add all generated abbreviations to patterns
+    for (const abbrev of abbreviations.keys()) {
+      if (abbrev.length >= 2 && abbrev.length <= 15) {
+        patterns.add(abbrev);
+        patterns.add(abbrev.toLowerCase());
+        patterns.add(abbrev.toUpperCase());
       }
-      
-      // Check if first word contains major brand names
-      Object.entries(abbreviationMap).forEach(([key, abbrev]) => {
-        if (lowerFirst.includes(key)) {
-          patterns.add(abbrev);
-        }
-      });
     }
     
     // Add parent brand patterns for product-specific names

@@ -23,11 +23,12 @@ router.get('/visibility', authenticateToken, async (req, res) => {
       baseQuery.urlAnalysisId = urlAnalysisId;
     }
 
-    // Get overall metrics
-    const overall = await AggregatedMetrics.findOne({
+    // ✅ FIX: Correct syntax - findOne doesn't support sort, use find().sort().limit(1)
+    const overallList = await AggregatedMetrics.find({
       ...baseQuery,
       scope: 'overall'
-    }).sort({ lastCalculated: -1 }).lean();
+    }).sort({ lastCalculated: -1 }).limit(1).lean();
+    const overall = overallList[0] || null;
 
     if (!overall) {
       return res.status(404).json({
@@ -397,9 +398,12 @@ router.get('/summary', authenticateToken, async (req, res) => {
       console.warn('⚠️ [ANALYTICS/SUMMARY] No urlAnalysisId provided, returning all data (may mix data from multiple analyses)');
     }
     
-    const overall = await AggregatedMetrics.findOne(metricsQuery)
+    // ✅ FIX: Correct syntax - findOne doesn't support sort
+    const overallList = await AggregatedMetrics.find(metricsQuery)
       .sort({ lastCalculated: -1 })
+      .limit(1)
       .lean();
+    const overall = overallList[0] || null;
 
     const tests = await PromptTest.countDocuments(testQuery);
     const prompts = await require('../models/Prompt').countDocuments(promptQuery);

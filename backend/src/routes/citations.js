@@ -12,12 +12,20 @@ const UrlAnalysis = require('../models/UrlAnalysis');
 router.get('/debug', authenticateToken, async (req, res) => {
   try {
     const userId = req.userId;
+    const { urlAnalysisId } = req.query;
     
-    // Get all prompt tests with brand metrics
-    const promptTests = await PromptTest.find({
+    // ✅ FIX: Build query with urlAnalysisId if provided
+    const query = {
       userId,
       'brandMetrics': { $exists: true, $ne: [] }
-    }).lean();
+    };
+    
+    if (urlAnalysisId) {
+      query.urlAnalysisId = urlAnalysisId;
+    }
+    
+    // Get all prompt tests with brand metrics (filtered by urlAnalysisId if provided)
+    const promptTests = await PromptTest.find(query).lean();
     
     const debugInfo = promptTests.map(test => ({
       id: test._id,
@@ -51,14 +59,22 @@ router.get('/debug/:brandName', authenticateToken, async (req, res) => {
   try {
     const { brandName } = req.params;
     const userId = req.userId;
+    const { urlAnalysisId } = req.query;
     
     console.log(`📊 [CITATIONS TEST] Testing brand: "${brandName}"`);
     
-    // Get all prompt tests with brand metrics
-    const allPromptTests = await PromptTest.find({
+    // ✅ FIX: Build query with urlAnalysisId if provided
+    const query = {
       userId,
       'brandMetrics.brandName': new RegExp(brandName, 'i')
-    }).lean();
+    };
+    
+    if (urlAnalysisId) {
+      query.urlAnalysisId = urlAnalysisId;
+    }
+    
+    // Get all prompt tests with brand metrics (filtered by urlAnalysisId if provided)
+    const allPromptTests = await PromptTest.find(query).lean();
     
     console.log(`📊 [CITATIONS TEST] Found ${allPromptTests.length} prompt tests with brand "${brandName}"`);
     
@@ -101,7 +117,7 @@ router.get('/debug/:brandName', authenticateToken, async (req, res) => {
  */
 router.post('/prompt-ids', authenticateToken, async (req, res) => {
   try {
-    const { citationUrls, brandName } = req.body;
+    const { citationUrls, brandName, urlAnalysisId } = req.body;
     const userId = req.userId;
 
     if (!citationUrls || !Array.isArray(citationUrls) || citationUrls.length === 0) {
@@ -113,23 +129,32 @@ router.post('/prompt-ids', authenticateToken, async (req, res) => {
 
     console.log(`🔍 [CITATION PROMPT IDS] Finding prompt IDs for ${citationUrls.length} URLs, brand: ${brandName}`);
 
-    // Get the latest URL analysis for the user
-    const urlAnalysis = await UrlAnalysis.findOne({ userId })
-      .sort({ analysisDate: -1 })
-      .lean();
-
-    if (!urlAnalysis) {
-      return res.status(404).json({
-        success: false,
-        message: 'No URL analysis found for user'
-      });
+    // ✅ FIX: Use urlAnalysisId from request body if provided, otherwise get latest
+    let targetUrlAnalysisId = urlAnalysisId;
+    
+    if (!targetUrlAnalysisId) {
+      // Fallback: Get the latest URL analysis for the user
+      const urlAnalysis = await UrlAnalysis.find({ userId })
+        .sort({ analysisDate: -1 })
+        .limit(1)
+        .lean();
+      
+      if (!urlAnalysis || urlAnalysis.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'No URL analysis found for user. Please provide urlAnalysisId or complete onboarding first.'
+        });
+      }
+      
+      targetUrlAnalysisId = urlAnalysis[0]._id;
+      console.warn(`⚠️ [CITATION PROMPT IDS] No urlAnalysisId provided, using latest: ${targetUrlAnalysisId}`);
     }
 
     // Find prompt tests that contain these citation URLs
     // Query for tests that have citations matching any of the URLs
     const promptTests = await PromptTest.find({
       userId,
-      urlAnalysisId: urlAnalysis._id,
+      urlAnalysisId: targetUrlAnalysisId,
       'brandMetrics.citations.url': { $in: citationUrls }
     })
     .select('promptId llmProvider brandMetrics')
@@ -189,29 +214,39 @@ router.get('/:brandName/:type', authenticateToken, async (req, res) => {
   try {
     console.log(`🚀 [CITATIONS] Route hit! Params:`, req.params);
     const { brandName, type } = req.params;
+    const { urlAnalysisId } = req.query;
     const userId = req.userId;
 
     console.log(`📊 [CITATIONS] Fetching ${type} citations for ${brandName}, User: ${userId}`);
 
-    // Get the latest URL analysis for the user
-    const urlAnalysis = await UrlAnalysis.findOne({ userId })
-      .sort({ analysisDate: -1 })
-      .lean();
+    // ✅ FIX: Use urlAnalysisId from query if provided, otherwise get latest
+    let targetUrlAnalysisId = urlAnalysisId;
+    
+    if (!targetUrlAnalysisId) {
+      // Fallback: Get the latest URL analysis for the user
+      const urlAnalysisList = await UrlAnalysis.find({ userId })
+        .sort({ analysisDate: -1 })
+        .limit(1)
+        .lean();
 
-    if (!urlAnalysis) {
-      return res.status(404).json({
-        success: false,
-        message: 'No URL analysis found for user'
-      });
+      if (!urlAnalysisList || urlAnalysisList.length === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'No URL analysis found for user. Please provide urlAnalysisId query parameter.'
+        });
+      }
+      
+      targetUrlAnalysisId = urlAnalysisList[0]._id;
+      console.warn(`⚠️ [CITATIONS] No urlAnalysisId provided, using latest: ${targetUrlAnalysisId}`);
     }
 
     // Build query to find prompt tests with citations for this brand
-    console.log(`📊 [CITATIONS] Query params: userId=${userId}, urlAnalysisId=${urlAnalysis._id}, brandName="${brandName}"`);
+    console.log(`📊 [CITATIONS] Query params: userId=${userId}, urlAnalysisId=${targetUrlAnalysisId}, brandName="${brandName}"`);
     
     // First, let's try a simpler query to see if we can find the documents
     const allPromptTests = await PromptTest.find({
       userId,
-      urlAnalysisId: urlAnalysis._id,
+      urlAnalysisId: targetUrlAnalysisId,
       'brandMetrics.brandName': new RegExp(brandName, 'i')
     }).lean();
     
@@ -241,7 +276,7 @@ router.get('/:brandName/:type', authenticateToken, async (req, res) => {
       // Try without the citations filter to see if we can find the brand
       const promptTestsWithoutCitationFilter = await PromptTest.find({
         userId,
-        urlAnalysisId: urlAnalysis._id,
+        urlAnalysisId: targetUrlAnalysisId,
         'brandMetrics.brandName': new RegExp(brandName, 'i')
       }).lean();
       
