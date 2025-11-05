@@ -70,8 +70,8 @@ export function GA4AgentAnalyticsTab({
       const response = await checkGA4Connection()
       console.log('Connection status response:', response)
       
-      // Backend returns { connected, isActive } directly, not wrapped in success/data
-      if (response.connected && response.isActive) {
+      // Backend returns { success, data: { connected, isActive } } wrapped in GA4ApiResponse
+      if (response.success && response.data?.connected && response.data?.isActive) {
         setIsConnected(true)
       } else {
         setIsConnected(false)
