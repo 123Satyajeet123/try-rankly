@@ -2,12 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { BackgroundBeams } from '@/components/ui/background-beams'
 import { NavigationArrows } from '@/components/NavigationArrows'
+import { ThemeToggleButton } from '@/components/ThemeToggleButton'
 import { useOnboarding } from '@/contexts/OnboardingContext'
 import { useAuth } from '@/contexts/AuthContext'
 import apiService from '@/services/api'
@@ -212,6 +214,20 @@ export default function PersonasPage() {
       {/* Background Beams */}
       <BackgroundBeams className="absolute inset-0 z-0" />
       
+      {/* Theme Toggle - Top Right */}
+      <div className="absolute top-6 right-6 z-10">
+        <ThemeToggleButton />
+      </div>
+      
+      {/* Rankly Logo - Top Left */}
+      <div className="absolute top-6 left-6 z-10">
+        <Link href="/" className="flex items-center">
+          <span className="text-2xl font-logo text-foreground">
+            Rankly
+          </span>
+        </Link>
+      </div>
+      
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -366,7 +382,7 @@ export default function PersonasPage() {
               {/* Continue Button */}
               <Button
                 onClick={handleContinue}
-                className="w-[400px] h-10 font-semibold"
+                className="w-full h-10 font-semibold"
                 disabled={isSaving || selectedCount === 0}
               >
                 {isSaving ? 'Saving...' : `Continue with ${selectedCount} Persona${selectedCount !== 1 ? 's' : ''}`}

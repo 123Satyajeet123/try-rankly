@@ -10,8 +10,6 @@ import { Label } from '@/components/ui/label'
 import Link from 'next/link'
 import { BackgroundBeams } from '@/components/ui/background-beams'
 import { useAuth } from '@/contexts/AuthContext'
-import { useTheme } from 'next-themes'
-import { Sun, Moon } from 'lucide-react'
 import apiService from '@/services/api'
 
 interface AuthCardProps {
@@ -25,13 +23,7 @@ interface AuthCardProps {
 export function AuthCard({ mode, onGoogleAuth, onEmailAuth, isLoading, error }: AuthCardProps) {
   const { login, register } = useAuth()
   const router = useRouter()
-  const { theme, setTheme } = useTheme()
-  const [mounted, setMounted] = useState(false)
   const isSignup = mode === 'signup'
-  
-  useEffect(() => {
-    setMounted(true)
-  }, [])
   
   // Check if user has existing analysis data
   const checkExistingAnalysis = async (): Promise<boolean> => {
@@ -116,21 +108,7 @@ export function AuthCard({ mode, onGoogleAuth, onEmailAuth, isLoading, error }: 
             </svg>
             Contact us
           </a>
-          {mounted && (
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-              className="h-8 w-8 rounded-full bg-muted/50 hover:bg-muted transition-all"
-              aria-label="Toggle theme"
-            >
-              {theme === 'dark' ? (
-                <Sun className="h-4 w-4" />
-              ) : (
-                <Moon className="h-4 w-4" />
-              )}
-            </Button>
-          )}
+          <ThemeToggleButton />
         </div>
       </div>
 
