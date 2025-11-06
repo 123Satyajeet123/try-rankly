@@ -1,6 +1,12 @@
 const axios = require('axios');
 // Removed hyperparameters config dependency
 
+// Import modular components
+const { buildSystemPrompt: buildSystemPromptModule, buildUserPrompt: buildUserPromptModule } = require('./promptGeneration/prompts');
+const { parsePromptsFromResponse: parsePromptsFromResponseModule } = require('./promptGeneration/parsing');
+const { normalizePromptText: normalizePromptTextModule, simpleHash: simpleHashModule, isNearDuplicate: isNearDuplicateModule } = require('./promptGeneration/deduplication');
+const { sleep: sleepModule } = require('./promptGeneration/utils');
+
 /**
  * Prompt Generation Service
  * Generates natural, persona-specific prompts for LLM testing
@@ -631,7 +637,7 @@ async function generatePrompts({
  * Utility function to wait for a specified time
  */
 async function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return sleepModule(ms);
 }
 
 /**
@@ -776,6 +782,14 @@ async function generatePromptsForCombination({
  * @param {Object} options - Optional configuration overrides
  */
 function buildSystemPrompt(totalPrompts = 20, options = null) {
+  return buildSystemPromptModule(totalPrompts, options);
+}
+
+/**
+ * Legacy buildSystemPrompt - kept for reference
+ * @deprecated Use the modular version from promptGeneration/prompts
+ */
+function buildSystemPromptLegacy(totalPrompts = 20, options = null) {
   // Use override options if provided, otherwise use defaults
   const brandedPercentage = options?.brandedPercentage ?? 15; // 15% branded (reduced from 20% for better TOFU balance)
   
@@ -898,7 +912,15 @@ Example: ["Best credit cards for travel rewards", "Top loan options for students
  * @param {Object} params - Prompt building parameters
  * @param {Object} params.options - Optional configuration overrides
  */
-function buildUserPrompt({
+function buildUserPrompt(params) {
+  return buildUserPromptModule(params);
+}
+
+/**
+ * Legacy buildUserPrompt - kept for reference
+ * @deprecated Use the modular version from promptGeneration/prompts
+ */
+function buildUserPromptLegacy({
   topic,
   persona,
   region,
@@ -1076,6 +1098,14 @@ Example: ["Best credit cards for travel rewards", "Top loan options for students
  * Parse prompts from AI response
  */
 function parsePromptsFromResponse(content, topic, persona, totalPrompts = 20) {
+  return parsePromptsFromResponseModule(content, topic, persona, totalPrompts);
+}
+
+/**
+ * Legacy parsePromptsFromResponse - kept for reference
+ * @deprecated Use the modular version from promptGeneration/parsing
+ */
+function parsePromptsFromResponseLegacy(content, topic, persona, totalPrompts = 20) {
   try {
     const jsonMatch = content.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
@@ -1159,11 +1189,7 @@ function parsePromptsFromResponse(content, topic, persona, totalPrompts = 20) {
 
 // Utility to normalize prompt text (case, punctuation, whitespace)
 function normalizePromptText(text) {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/gi, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  return normalizePromptTextModule(text);
 }
 
 /**
@@ -1173,13 +1199,7 @@ function normalizePromptText(text) {
  * @returns {number} - Hash value
  */
 function simpleHash(str) {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  return Math.abs(hash); // Return positive hash
+  return simpleHashModule(str);
 }
 
 /**
@@ -1234,6 +1254,14 @@ function wordSimilarity(a, b) {
  * Uses Levenshtein distance, word overlap, and substring matching
  */
 function isNearDuplicate(a, b) {
+  return isNearDuplicateModule(a, b);
+}
+
+/**
+ * Legacy isNearDuplicate - kept for reference
+ * @deprecated Use the modular version from promptGeneration/deduplication
+ */
+function isNearDuplicateLegacy(a, b) {
   if (!a || !b) return false;
   
   const normA = normalizePromptText(a);
@@ -1312,5 +1340,11 @@ function hasGoodDiversity(promptText, existingPrompts, minDiversity = 0.3) {
 
 module.exports = {
   generatePrompts,
-  normalizePromptText
+  normalizePromptText,
+  buildSystemPrompt,
+  buildUserPrompt,
+  parsePromptsFromResponse,
+  simpleHash,
+  isNearDuplicate,
+  sleep
 };

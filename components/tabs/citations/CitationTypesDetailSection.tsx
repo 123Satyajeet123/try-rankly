@@ -4,6 +4,7 @@ import { UnifiedCard, UnifiedCardContent } from '@/components/ui/unified-card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Calendar as CalendarIcon, ExternalLink, ChevronRight, Sparkles, Check } from 'lucide-react'
 import { useState } from 'react'
 import { Calendar } from '@/components/ui/calendar'
@@ -83,7 +84,7 @@ const getDetailedCitationData = (dashboardData: any) => {
         citationRanks: brandRanks,
         totalCitations: brandCitations,
         isOwner: competitor.isOwner || false, // ✅ Use isOwner from backend data, not index
-        favicon: getDynamicFaviconUrl((competitor as any).url || competitor.name)
+        favicon: getDynamicFaviconUrl((competitor as any).url ? { url: (competitor as any).url, name: competitor.name } : competitor.name, 16)
       })
     }
 
@@ -423,27 +424,33 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
         </div>
       </TableCell>
       
-      <TableCell className="py-3 px-3 text-left">
-        <div className="flex items-center gap-3">
-          {item.platforms.map((platform: string, idx: number) => (
-            <div key={idx} className="flex items-center gap-1">
-              <img 
-                src={getPlatformFavicon(platform)} 
-                alt={getPlatformDisplayName(platform)}
-                className="w-4 h-4"
-                onError={handleFaviconError}
-              />
-              <span className="text-xs">{getPlatformDisplayName(platform)}</span>
-            </div>
-          ))}
-          {item.platforms.length === 0 && (
-            <span className="text-muted-foreground">-</span>
-          )}
-        </div>
+      <TableCell className="py-3 px-3 text-center">
+        <TooltipProvider>
+          <div className="flex items-center justify-center gap-2">
+            {item.platforms.map((platform: string, idx: number) => (
+              <Tooltip key={idx}>
+                <TooltipTrigger asChild>
+                  <img 
+                    src={getPlatformFavicon(platform)} 
+                    alt={getPlatformDisplayName(platform)}
+                    className="w-4 h-4"
+                    onError={handleFaviconError}
+                  />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{getPlatformDisplayName(platform)}</p>
+                </TooltipContent>
+              </Tooltip>
+            ))}
+            {item.platforms.length === 0 && (
+              <span className="text-muted-foreground">-</span>
+            )}
+          </div>
+        </TooltipProvider>
       </TableCell>
       
-      <TableCell className="py-3 px-3 text-right">
-        <div className="flex items-center justify-end gap-3">
+      <TableCell className="py-3 px-3 text-center">
+        <div className="flex items-center justify-center gap-3">
           {item.citationShares.map((share: any, idx: number) => (
             <div key={idx} className="flex items-center gap-1">
               <img 
@@ -461,8 +468,8 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
         </div>
       </TableCell>
       
-      <TableCell className="py-3 px-3 text-right">
-        <div className="flex items-center justify-end gap-3">
+      <TableCell className="py-3 px-3 text-center">
+        <div className="flex items-center justify-center gap-3">
           {item.citationRanks.map((rank: any, idx: number) => (
             <div key={idx} className="flex items-center gap-1">
               <img 
@@ -542,9 +549,9 @@ export function CitationTypesDetailSection({ filterContext, dashboardData }: Cit
             <TableHeader>
               <TableRow className="bg-muted/30">
                 <TableHead className="py-3 px-3 font-semibold text-left">Citation Type</TableHead>
-                <TableHead className="py-3 px-3 font-semibold text-left">Platform(s)</TableHead>
-                <TableHead className="py-3 px-3 font-semibold text-right">Citation Share</TableHead>
-                <TableHead className="py-3 px-3 font-semibold text-right">Citation Rank</TableHead>
+                <TableHead className="py-3 px-3 font-semibold text-center">Platform(s)</TableHead>
+                <TableHead className="py-3 px-3 font-semibold text-center">Citation Share</TableHead>
+                <TableHead className="py-3 px-3 font-semibold text-center">Citation Rank</TableHead>
                 <TableHead className="py-3 px-3 font-semibold text-center">Subjective Impression</TableHead>
               </TableRow>
             </TableHeader>

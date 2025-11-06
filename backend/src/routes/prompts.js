@@ -541,8 +541,18 @@ router.get('/:promptId/tests', authenticateToken, async (req, res) => {
       });
     }
     
-    // Get all test results for this prompt
-    const tests = await PromptTest.find({ promptId, userId })
+    // ✅ FIX: Filter by urlAnalysisId if provided to ensure data isolation
+    const { urlAnalysisId } = req.query;
+    const testQuery = { promptId, userId };
+    if (urlAnalysisId) {
+      testQuery.urlAnalysisId = urlAnalysisId;
+      console.log(`🔍 [PROMPTS/TESTS] Filtering by urlAnalysisId: ${urlAnalysisId}`);
+    } else {
+      console.warn('⚠️ [PROMPTS/TESTS] No urlAnalysisId provided, may mix data from multiple analyses');
+    }
+    
+    // Get all test results for this prompt (filtered by urlAnalysisId)
+    const tests = await PromptTest.find(testQuery)
       .sort({ testedAt: -1 })
       .lean();
     
@@ -1250,20 +1260,71 @@ router.get('/details/:promptId', authenticateToken, async (req, res) => {
     const latestAnalysis = analysisList[0] || null;
     
     const brandName = latestAnalysis?.brandContext?.companyName || 'Unknown Brand';
+    const brandUrl = latestAnalysis?.url || null; // ✅ FIX: Get user's brand URL from UrlAnalysis
     const brandId = brandName.toLowerCase().replace(/[^a-z0-9®]/g, '-').replace(/-+/g, '-').replace(/-$/, '');
 
     console.log(`✅ [PROMPT DETAILS] Brand name: ${brandName}, brandId: ${brandId}`);
+    console.log(`🔍 [PROMPT DETAILS] Brand URL: ${brandUrl}`);
 
-    // Find all prompt tests for this prompt
-    const promptTests = await PromptTest.find({ 
+    // ✅ FIX: Get competitor URLs map (like in /dashboard endpoint)
+    const Competitor = require('../models/Competitor');
+    const urlAnalysisId = latestAnalysis?._id;
+    
+    // ✅ FIX: Filter by urlAnalysisId if available to ensure data isolation
+    const allBrandNames = new Set();
+    const promptTestQuery = { 
       userId, 
       promptId 
-    })
+    };
+    
+    // Use urlAnalysisId from latestAnalysis if available
+    if (urlAnalysisId) {
+      promptTestQuery.urlAnalysisId = urlAnalysisId;
+      console.log(`🔍 [PROMPTS/BRAND-NAMES] Filtering by urlAnalysisId: ${urlAnalysisId}`);
+    } else {
+      console.warn('⚠️ [PROMPTS/BRAND-NAMES] No urlAnalysisId available, may mix data from multiple analyses');
+    }
+    
+    const promptTests = await PromptTest.find(promptTestQuery)
     .populate('topicId')
     .populate('personaId')
     .lean();
+    
+    promptTests.forEach(test => {
+      if (Array.isArray(test.brandMetrics)) {
+        test.brandMetrics.forEach(bm => {
+          if (bm.mentioned && bm.brandName) {
+            allBrandNames.add(bm.brandName);
+          }
+        });
+      }
+    });
+    
+    // Fetch competitor URLs
+    const competitorUrlMap = new Map();
+    if (urlAnalysisId && allBrandNames.size > 0) {
+      const query = {
+        userId: userId,
+        selected: true,
+        name: { $in: Array.from(allBrandNames) }
+      };
+      query.urlAnalysisId = urlAnalysisId;
+      
+      const competitors = await Competitor.find(query).select('name url').lean();
+      competitors.forEach(comp => {
+        if (comp.url) {
+          competitorUrlMap.set(comp.name, comp.url);
+        }
+      });
+    }
+    
+    // Add user's brand URL to map
+    if (brandName && brandUrl) {
+      competitorUrlMap.set(brandName, brandUrl);
+    }
 
     console.log(`✅ [PROMPT DETAILS] Found ${promptTests.length} tests for prompt: ${prompt.text}`);
+    console.log(`✅ [PROMPT DETAILS] URL map size: ${competitorUrlMap.size}`);
 
     // Group responses by platform
     const platformResponses = {};
@@ -1277,13 +1338,29 @@ router.get('/details/:promptId', authenticateToken, async (req, res) => {
     promptTests.forEach(test => {
       const platformName = platformNames[test.llmProvider] || test.llmProvider;
 
-      // Extract mentioned brands/competitors for this prompt test
+      // ✅ FIX: Extract mentioned brands/competitors with URLs (like /dashboard endpoint)
       let mentionedBrands = [];
       let mentionedCompetitors = [];
       if (Array.isArray(test.brandMetrics)) {
-        mentionedBrands = test.brandMetrics.filter(bm => bm.mentioned && bm.isOwner !== false).map(bm => bm.brandName);
-        // Heuristic: any brandMetric not known as the user's brand is treated as competitor
-        mentionedCompetitors = test.brandMetrics.filter(bm => bm.mentioned && bm.isOwner === false).map(bm => bm.brandName);
+        // Build brand objects with URLs (like /dashboard endpoint)
+        const brandObjects = test.brandMetrics
+          .filter(bm => bm.mentioned && bm.isOwner !== false)
+          .map(bm => ({
+            name: bm.brandName,
+            url: bm.brandName.toLowerCase() === brandName.toLowerCase() ? brandUrl : competitorUrlMap.get(bm.brandName) || null,
+            isOwner: bm.brandName.toLowerCase() === brandName.toLowerCase()
+          }));
+        mentionedBrands = brandObjects;
+        
+        // Build competitor objects with URLs
+        const competitorObjects = test.brandMetrics
+          .filter(bm => bm.mentioned && bm.isOwner === false)
+          .map(bm => ({
+            name: bm.brandName,
+            url: competitorUrlMap.get(bm.brandName) || null,
+            isOwner: false
+          }));
+        mentionedCompetitors = competitorObjects;
       }
 
       if (!platformResponses[platformName]) {

@@ -3,6 +3,13 @@ const PromptTest = require('../models/PromptTest');
 const Prompt = require('../models/Prompt');
 const UrlAnalysis = require('../models/UrlAnalysis');
 
+// Import modular services
+const citationExtractionService = require('./citationExtractionService');
+const citationClassificationService = require('./citationClassificationService');
+const brandPatternService = require('./brandPatternService');
+const sentimentAnalysisService = require('./sentimentAnalysisService');
+const scoringService = require('./scoringService');
+
 class PromptTestingService {
   constructor(options = {}) {
     require('dotenv').config();
@@ -149,7 +156,8 @@ class PromptTestingService {
 
       // Get brand name for scoring context
       console.log(`\n🏢 [CONTEXT] Fetching brand context for scoring...`);
-      const brandContext = await this.getBrandContext(userId);
+      // ✅ FIX: Pass urlAnalysisId to getBrandContext to ensure data isolation
+      const brandContext = await this.getBrandContext(userId, latestUrlAnalysis._id);
       console.log(`✅ [CONTEXT] Brand: ${brandContext.companyName}, Competitors: ${brandContext.competitors.length}`);
       
       let flatResults;
@@ -340,7 +348,7 @@ class PromptTestingService {
           }
 
           // Calculate metrics deterministically from citations and brand mentions
-          const scorecard = this.calculateDeterministicScore(
+          const scorecard = scoringService.calculateDeterministicScore(
             llmResponse.response || '',
             llmResponse.citations || [],
             brandContext
@@ -388,23 +396,8 @@ class PromptTestingService {
    * @returns {string} - System prompt text
    */
   getLLMSystemPrompt() {
-    return `You are a helpful AI assistant providing comprehensive answers to user questions.
-
-IMPORTANT: When providing information about companies, brands, products, or services, please include relevant citations and links whenever possible. This helps users verify information and access additional resources.
-
-Guidelines for citations:
-1. Include hyperlinks to official websites, documentation, or authoritative sources
-2. Use markdown link format: [link text](https://example.com)
-3. Provide citations for:
-   - Company websites and official pages
-   - Product documentation and features
-   - Reviews and testimonials (when available)
-   - Pricing and service information
-   - News articles and press releases
-
-If you cannot find or provide specific links, mention that information is based on your training data and suggest where users might find more current information.
-
-Be thorough, accurate, and helpful in your responses.`;
+    const { getLLMSystemPrompt } = require('./promptTesting/llm');
+    return getLLMSystemPrompt();
   }
 
   /**
@@ -416,6 +409,20 @@ Be thorough, accurate, and helpful in your responses.`;
    * @returns {Promise<object>} - LLM response with metadata
    */
   async callLLM(promptText, llmProvider, promptDoc, retryCount = 0) {
+    const { callLLM: callLLMModule } = require('./promptTesting/llm');
+    const config = {
+      openRouterApiKey: this.openRouterApiKey,
+      openRouterBaseUrl: this.openRouterBaseUrl,
+      llmModels: this.llmModels
+    };
+    return callLLMModule(promptText, llmProvider, promptDoc, config, retryCount);
+  }
+
+  /**
+   * Legacy callLLM implementation - kept for reference
+   * @deprecated Use the modular version from promptTesting/llm
+   */
+  async callLLMLegacy(promptText, llmProvider, promptDoc, retryCount = 0) {
     const maxRetries = 3;
     const baseDelay = 2000; // 2 seconds
     const startTime = Date.now();
@@ -484,8 +491,8 @@ Be thorough, accurate, and helpful in your responses.`;
       }
       const tokensUsed = response.data.usage?.total_tokens || 0;
 
-      // Extract citations from response
-      const citations = this.extractCitations(response.data, llmProvider, content);
+      // Extract citations from response using citation extraction service
+      const citations = citationExtractionService.extractCitations(response.data, llmProvider, content);
 
       if (retryCount > 0) {
         console.log(`      ✅ [API] ${llmProvider} responded after ${retryCount} retry(ies) in ${responseTime}ms (${tokensUsed} tokens, ${content.length} chars, ${citations.length} citations)`);
@@ -538,1089 +545,6 @@ Be thorough, accurate, and helpful in your responses.`;
   }
 
   /**
-   * Extract citations from LLM response - Enhanced for unlimited capture across all 4 LLMs
-   * @param {object} responseData - Full API response
-   * @param {string} llmProvider - LLM provider name (openai, gemini, claude, perplexity)
-   * @param {string} responseText - Response text content
-   * @returns {Array} - Array of citation objects with proper labeling
-   */
-  extractCitations(responseData, llmProvider, responseText) {
-    const citations = [];
-    const seenUrls = new Set(); // Track unique URLs to prevent duplicates
-    const seenIds = new Set(); // Track unique citation IDs
-
-    try {
-      console.log(`      🔍 [CITATIONS] Starting enhanced extraction for ${llmProvider}`);
-
-      // ===== PROVIDER-SPECIFIC CITATION EXTRACTION =====
-      
-      // Method 1: Perplexity API citations (structured in API response)
-      if (llmProvider === 'perplexity' && responseData.citations) {
-        responseData.citations.forEach((cit, idx) => {
-          const cleanUrl = this.cleanUrl(cit);
-          if (cleanUrl && !seenUrls.has(cleanUrl)) {
-            citations.push({
-              url: cleanUrl,
-              text: `Citation ${idx + 1}`,
-              type: 'api_source',
-              position: citations.length + 1,
-              provider: 'perplexity_api',
-              confidence: 1.0,
-              label: 'perplexity_api_citation',
-              extractedAt: new Date().toISOString()
-            });
-            seenUrls.add(cleanUrl);
-          }
-        });
-        console.log(`         ✅ Extracted ${responseData.citations.length} citations from Perplexity API`);
-      }
-
-      // Method 2: Claude API citations (if available in structured format)
-      if (llmProvider === 'claude' && responseData.sources) {
-        responseData.sources.forEach((source, idx) => {
-          const url = source.url || source;
-          const cleanUrl = this.cleanUrl(url);
-          if (cleanUrl && !seenUrls.has(cleanUrl)) {
-            citations.push({
-              url: cleanUrl,
-              text: source.text || `Claude source ${idx + 1}`,
-              type: 'api_source',
-              position: citations.length + 1,
-              provider: 'claude_api',
-              confidence: 0.95,
-              label: 'claude_api_citation',
-              extractedAt: new Date().toISOString()
-            });
-            seenUrls.add(cleanUrl);
-          }
-        });
-      }
-
-      // Method 3: OpenAI API citations (if available in structured format)
-      if (llmProvider === 'openai' && responseData.citations) {
-        responseData.citations.forEach((cit, idx) => {
-          const cleanUrl = this.cleanUrl(cit.url || cit);
-          if (cleanUrl && !seenUrls.has(cleanUrl)) {
-            citations.push({
-              url: cleanUrl,
-              text: cit.text || `OpenAI citation ${idx + 1}`,
-              type: 'api_source',
-              position: citations.length + 1,
-              provider: 'openai_api',
-              confidence: 0.95,
-              label: 'openai_api_citation',
-              extractedAt: new Date().toISOString()
-            });
-            seenUrls.add(cleanUrl);
-          }
-        });
-      }
-
-      // Method 4: Gemini API citations (if available in structured format)
-      if (llmProvider === 'gemini' && responseData.citations) {
-        responseData.citations.forEach((cit, idx) => {
-          const cleanUrl = this.cleanUrl(cit.url || cit);
-          if (cleanUrl && !seenUrls.has(cleanUrl)) {
-            citations.push({
-              url: cleanUrl,
-              text: cit.text || `Gemini citation ${idx + 1}`,
-              type: 'api_source',
-              position: citations.length + 1,
-              provider: 'gemini_api',
-              confidence: 0.95,
-              label: 'gemini_api_citation',
-              extractedAt: new Date().toISOString()
-            });
-            seenUrls.add(cleanUrl);
-          }
-        });
-      }
-
-      // ===== TEXT-BASED CITATION EXTRACTION (Universal for all LLMs) =====
-
-      // Method 5: Enhanced markdown link parsing [text](url) - Multiple patterns
-      const markdownPatterns = [
-        /\[([^\]]+)\]\(([^)]+)\)/g,  // [text](url)
-        /\[([^\]]+)\]\[([^\]]+)\]/g, // [text][ref]
-        /\[([^\]]+)\]:\s*(https?:\/\/[^\s]+)/g, // [ref]: url
-        /\[([^\]]+)\]:\s*([^\s]+)/g  // [ref]: url (without protocol)
-      ];
-
-      markdownPatterns.forEach(pattern => {
-        let match;
-        while ((match = pattern.exec(responseText)) !== null) {
-          const text = match[1]?.trim();
-          let url = match[2]?.trim();
-          
-          if (url) {
-            // Add protocol if missing
-            if (!url.startsWith('http')) {
-              url = 'https://' + url;
-            }
-            
-            const cleanUrl = this.cleanUrl(url);
-            if (cleanUrl && !seenUrls.has(cleanUrl) && this.isValidUrl(cleanUrl)) {
-              citations.push({
-                url: cleanUrl,
-                text: text || 'Link',
-                type: 'markdown_link',
-                position: citations.length + 1,
-                provider: llmProvider,
-                confidence: 0.9,
-                label: 'markdown_link',
-                extractedAt: new Date().toISOString()
-              });
-              seenUrls.add(cleanUrl);
-            }
-          }
-        }
-      });
-
-      // Method 6: Bare URLs extraction - Enhanced regex patterns
-      const urlPatterns = [
-        /https?:\/\/[^\s<>"{}|\\^`[\]]+/g,  // Standard URLs
-        /https?:\/\/[^\s<>"{}|\\^`[\]]*[^\s<>"{}|\\^`[\].]/g,  // URLs ending properly
-        /www\.[^\s<>"{}|\\^`[\]]+\.[a-zA-Z]{2,}[^\s<>"{}|\\^`[\]]*/g,  // www URLs
-        /[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s<>"{}|\\^`[\]]*/g  // Domain patterns
-      ];
-
-      urlPatterns.forEach(pattern => {
-        const urls = responseText.match(pattern) || [];
-        urls.forEach(url => {
-          const cleanUrl = this.cleanUrl(url);
-          if (cleanUrl && !seenUrls.has(cleanUrl) && this.isValidUrl(cleanUrl)) {
-            citations.push({
-              url: cleanUrl,
-              text: null,
-              type: 'bare_url',
-              position: citations.length + 1,
-              provider: llmProvider,
-              confidence: 0.8,
-              label: 'bare_url',
-              extractedAt: new Date().toISOString()
-            });
-            seenUrls.add(cleanUrl);
-          }
-        });
-      });
-
-      // Method 7: Citation markers and references [1][2][3] or [1,2,3]
-      const citationMarkerPatterns = [
-        /\[([0-9,\s]+)\]/g,  // [1,2,3] or [1 2 3]
-        /\[([0-9]+)\]/g,     // [1] [2] [3]
-        /\(([0-9,\s]+)\)/g,  // (1,2,3) or (1 2 3)
-        /\(([0-9]+)\)/g,     // (1) (2) (3)
-        /^\[([0-9]+)\]:\s*(.+)$/gm,  // [1]: url
-        /^(\d+)\.\s*(https?:\/\/[^\s]+)/gm  // 1. url
-      ];
-
-      citationMarkerPatterns.forEach(pattern => {
-        let match;
-        while ((match = pattern.exec(responseText)) !== null) {
-          // Handle direct URL references
-          if (match[2] && match[2].startsWith('http')) {
-            const cleanUrl = this.cleanUrl(match[2]);
-            if (cleanUrl && !seenUrls.has(cleanUrl) && this.isValidUrl(cleanUrl)) {
-              citations.push({
-                url: cleanUrl,
-                text: `Reference ${match[1]}`,
-                type: 'reference',
-                position: citations.length + 1,
-                provider: llmProvider,
-                confidence: 0.9,
-                label: 'numbered_reference',
-                extractedAt: new Date().toISOString()
-              });
-              seenUrls.add(cleanUrl);
-            }
-          } else if (match[1] && !match[2]) {
-            // Citation markers without URLs
-            const citationNumbers = match[1].split(/[,\s]+/).filter(n => n.trim());
-            citationNumbers.forEach(num => {
-              const citationId = num.trim();
-              if (citationId && !seenIds.has(citationId)) {
-                citations.push({
-                  id: citationId,
-                  url: `citation_${citationId}`,
-                  text: `Citation ${citationId}`,
-                  type: 'citation_marker',
-                  position: citations.length + 1,
-                  provider: llmProvider,
-                  confidence: 0.7,
-                  label: 'citation_marker',
-                  extractedAt: new Date().toISOString()
-                });
-                seenIds.add(citationId);
-              }
-            });
-          }
-        }
-      });
-
-      // Method 8: HTML links <a href="url">text</a>
-      const htmlPatterns = [
-        /<a[^>]+href=["']([^"']+)["'][^>]*>([^<]*)<\/a>/gi,  // <a href="url">text</a>
-        /<a[^>]+href=([^\s>]+)[^>]*>([^<]*)<\/a>/gi,         // <a href=url>text</a>
-        /href=["']([^"']+)["']/gi,                           // href="url"
-        /href=([^\s>]+)/gi                                   // href=url
-      ];
-
-      htmlPatterns.forEach(pattern => {
-        let match;
-        while ((match = pattern.exec(responseText)) !== null) {
-          const url = match[1] || match[0];
-          const text = match[2] || 'Link';
-          
-          if (url && url.startsWith('http')) {
-            const cleanUrl = this.cleanUrl(url);
-            if (cleanUrl && !seenUrls.has(cleanUrl) && this.isValidUrl(cleanUrl)) {
-              citations.push({
-                url: cleanUrl,
-                text: text,
-                type: 'html_link',
-                position: citations.length + 1,
-                provider: llmProvider,
-                confidence: 0.9,
-                label: 'html_link',
-                extractedAt: new Date().toISOString()
-              });
-              seenUrls.add(cleanUrl);
-            }
-          }
-        }
-      });
-
-      // Method 9: Reference patterns and footnotes
-      const referencePatterns = [
-        /See\s+(?:also\s+)?(?:https?:\/\/[^\s]+)/gi,  // See also url
-        /For\s+more\s+information[^:]*:\s*(https?:\/\/[^\s]+)/gi,  // For more info: url
-        /Source:\s*(https?:\/\/[^\s]+)/gi,  // Source: url
-        /Reference:\s*(https?:\/\/[^\s]+)/gi,  // Reference: url
-        /Visit:\s*(https?:\/\/[^\s]+)/gi,  // Visit: url
-        /Learn\s+more[^:]*:\s*(https?:\/\/[^\s]+)/gi,  // Learn more: url
-        /Check\s+out[^:]*:\s*(https?:\/\/[^\s]+)/gi  // Check out: url
-      ];
-
-      referencePatterns.forEach(pattern => {
-        let match;
-        while ((match = pattern.exec(responseText)) !== null) {
-          const url = match[1] || match[0];
-          if (url && url.startsWith('http')) {
-            const cleanUrl = this.cleanUrl(url);
-            if (cleanUrl && !seenUrls.has(cleanUrl) && this.isValidUrl(cleanUrl)) {
-              citations.push({
-                url: cleanUrl,
-                text: 'Reference',
-                type: 'reference',
-                position: citations.length + 1,
-                provider: llmProvider,
-                confidence: 0.8,
-                label: 'textual_reference',
-                extractedAt: new Date().toISOString()
-              });
-              seenUrls.add(cleanUrl);
-            }
-          }
-        }
-      });
-
-      // Clean and validate all citations
-      const cleanedCitations = this.cleanAndValidateCitations(citations, llmProvider);
-
-      // Sort by position
-      cleanedCitations.sort((a, b) => a.position - b.position);
-
-      console.log(`      📎 [CITATIONS] Extracted ${cleanedCitations.length} unique citations from ${llmProvider}`);
-      console.log(`      📊 [CITATIONS] Breakdown: ${this.getCitationBreakdown(cleanedCitations)}`);
-
-      return cleanedCitations;
-
-    } catch (error) {
-      console.error(`      ❌ [CITATIONS ERROR] Failed to extract citations:`, error.message);
-      console.error(`      Stack:`, error.stack);
-      return citations; // Return what we have so far
-    }
-  }
-
-  /**
-   * Clean URL by removing trailing punctuation and normalizing
-   */
-  cleanUrl(url) {
-    if (!url || typeof url !== 'string') return null;
-    
-    try {
-      // Remove trailing punctuation
-      let cleanUrl = url.replace(/[)\\].,;!?]+$/, '');
-      
-      // Add protocol if missing
-      if (!cleanUrl.startsWith('http')) {
-        cleanUrl = 'https://' + cleanUrl;
-      }
-      
-      // Normalize URL
-      const urlObj = new URL(cleanUrl);
-      return urlObj.toString();
-    } catch (e) {
-      // If URL parsing fails, try basic cleaning
-      return url.replace(/[)\\].,;!?]+$/, '').trim();
-    }
-  }
-
-  /**
-   * Validate if URL is properly formatted
-   */
-  isValidUrl(url) {
-    if (!url || typeof url !== 'string') return false;
-    
-    try {
-      const urlObj = new URL(url);
-      return urlObj.protocol === 'http:' || urlObj.protocol === 'https:';
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /**
-   * Clean and validate all extracted citations
-   */
-  cleanAndValidateCitations(citations, llmProvider) {
-    return citations
-      .filter(citation => {
-        // Remove invalid citations
-        if (!citation.url || citation.url === 'undefined' || citation.url === 'null') {
-          return false;
-        }
-        
-        // Keep citation markers (they're placeholders for references)
-        // But filter them out if they're not valid
-        if (citation.url.startsWith('citation_')) {
-          return true; // Keep citation markers
-        }
-        
-        // Validate URL format
-        return this.isValidUrl(citation.url);
-      })
-      .map(citation => ({
-        ...citation,
-        url: citation.url.startsWith('citation_') ? citation.url : this.cleanUrl(citation.url),
-        llmProvider: llmProvider,
-        extractedAt: citation.extractedAt || new Date().toISOString()
-      }));
-  }
-
-  /**
-   * Get citation breakdown for logging
-   */
-  getCitationBreakdown(citations) {
-    const breakdown = {};
-    citations.forEach(citation => {
-      const type = citation.type || 'unknown';
-      breakdown[type] = (breakdown[type] || 0) + 1;
-    });
-    return Object.entries(breakdown)
-      .map(([type, count]) => `${type}: ${count}`)
-      .join(', ');
-  }
-
-  /**
-   * Categorize a citation by type
-   * @param {string} url - Citation URL
-   * @param {string} brandName - Brand to check for
-   * @returns {string} - 'brand', 'earned', or 'social'
-   */
-  categorizeCitation(url, brandName, allBrands = []) {
-    // Handle citation markers (e.g., "citation_1", "citation_2")
-    // ✅ FIX: Citation markers are just placeholder references, not actual brand citations
-    if (url.startsWith('citation_')) {
-      return { type: 'unknown', brand: null, confidence: 0.0 };
-    }
-    
-    const urlLower = url.toLowerCase();
-    
-    // Extract domain from URL
-    let domain = '';
-    let cleanUrl = url.replace(/[)\\].,;!?]+$/, '');
-    
-    try {
-      const urlObj = new URL(cleanUrl);
-      domain = urlObj.hostname.toLowerCase();
-    } catch (e) {
-      const match = cleanUrl.toLowerCase().match(/(?:https?:\/\/)?(?:www\.)?([^\/\\)]+)/);
-      if (match) {
-        domain = match[1].replace(/[)\\].,;!?]+$/, '');
-      }
-    }
-    
-    if (!domain) {
-      return { type: 'unknown', brand: null, confidence: 0 };
-    }
-    
-    // 1. Check for Brand citations (official brand-owned sources)
-    const brandClassification = this.classifyBrandCitation(domain, allBrands);
-    if (brandClassification.type === 'brand') {
-      return brandClassification;
-    }
-    
-    // 2. Check for Social citations (community-driven mentions)
-    const socialClassification = this.classifySocialCitation(domain);
-    if (socialClassification.type === 'social') {
-      return socialClassification;
-    }
-    
-    // 3. Everything else is Earned media (third-party editorial references)
-    const earnedClassification = this.classifyEarnedCitation(domain, allBrands);
-    return earnedClassification;
-  }
-
-  /**
-   * Remove common words (articles, prepositions) from brand name
-   * Generic algorithm that works for any brand
-   */
-  removeCommonWords(text) {
-    const commonWords = new Set([
-      'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
-      'from', 'as', 'is', 'was', 'are', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
-      'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'must',
-      'company', 'inc', 'incorporated', 'corp', 'corporation', 'ltd', 'limited', 'llc',
-      'group', 'holdings', 'enterprises', 'industries', 'international', 'global'
-    ]);
-    
-    const words = text.toLowerCase().split(/\s+/);
-    return words.filter(word => {
-      const cleanWord = word.replace(/[^a-z0-9]/g, '');
-      return cleanWord.length > 2 && !commonWords.has(cleanWord);
-    });
-  }
-
-  /**
-   * Extract first syllables from a word (simple heuristic)
-   * For "American" → "am", "ame", "amer"
-   */
-  extractFirstSyllables(word, maxSyllables = 3) {
-    const syllables = [];
-    const vowels = /[aeiouy]/gi;
-    let vowelCount = 0;
-    let currentSyllable = '';
-    
-    for (let i = 0; i < word.length && vowelCount < maxSyllables; i++) {
-      currentSyllable += word[i];
-      if (vowels.test(word[i])) {
-        vowelCount++;
-        if (currentSyllable.length >= 2) {
-          syllables.push(currentSyllable);
-        }
-      }
-    }
-    
-    return syllables.filter(s => s.length >= 2);
-  }
-
-  /**
-   * Generate abbreviations for ANY brand name (generic algorithm)
-   * No hardcoded brand names - works for financial, tech, retail, SaaS, etc.
-   * Returns a map of abbreviation -> full brand name
-   */
-  getBrandAbbreviationsForDomain(brandName) {
-    const abbreviations = new Map();
-    if (!brandName || typeof brandName !== 'string') return abbreviations;
-    
-    // Step 1: Remove common words and get significant words
-    const significantWords = this.removeCommonWords(brandName);
-    if (significantWords.length === 0) {
-      // If all words were common, use original (but clean it)
-      significantWords.push(...brandName.toLowerCase().split(/\s+/).filter(w => w.length > 2));
-    }
-    
-    // Step 2: Generate acronyms from first letters
-    if (significantWords.length > 1) {
-      // Full acronym: "American Express" → "ae"
-      const fullAcronym = significantWords.map(w => w[0]).join('').toLowerCase();
-      if (fullAcronym.length >= 2) {
-        abbreviations.set(fullAcronym, brandName);
-      }
-      
-      // First two words acronym: "American Express Company" → "ae"
-      if (significantWords.length >= 2) {
-        const twoWordAcronym = significantWords.slice(0, 2).map(w => w[0]).join('').toLowerCase();
-        if (twoWordAcronym.length >= 2 && twoWordAcronym !== fullAcronym) {
-          abbreviations.set(twoWordAcronym, brandName);
-        }
-      }
-    }
-    
-    // Step 3: Generate syllable-based abbreviations (for longer names)
-    significantWords.forEach(word => {
-      if (word.length > 6) {
-        const syllables = this.extractFirstSyllables(word, 2);
-        syllables.forEach(syllable => {
-          if (syllable.length >= 2 && syllable.length <= 6) {
-            abbreviations.set(syllable, brandName);
-          }
-        });
-      }
-    });
-    
-    // Step 4: Generate word-based abbreviations
-    // First word only: "American Express" → "american"
-    if (significantWords.length > 1 && significantWords[0].length >= 3) {
-      abbreviations.set(significantWords[0], brandName);
-    }
-    
-    // First two words: "American Express" → "americanexpress", "americanexp"
-    if (significantWords.length >= 2) {
-      const firstTwo = significantWords.slice(0, 2).join('');
-      if (firstTwo.length >= 3) {
-        abbreviations.set(firstTwo, brandName);
-        // Also add truncated version if long
-        if (firstTwo.length > 8) {
-          abbreviations.set(firstTwo.substring(0, 8), brandName);
-        }
-      }
-    }
-    
-    // Step 5: Generate first letter + partial word combinations
-    // "American Express" → "aexpress", "amxpress"
-    if (significantWords.length >= 2) {
-      const firstLetter = significantWords[0][0];
-      significantWords.slice(1).forEach(word => {
-        if (word.length >= 4) {
-          // First letter + first 3-5 chars of second word
-          for (let len = 3; len <= Math.min(5, word.length); len++) {
-            const combo = firstLetter + word.substring(0, len);
-            if (combo.length >= 3) {
-              abbreviations.set(combo, brandName);
-            }
-          }
-        }
-      });
-    }
-
-    return abbreviations;
-  }
-
-  /**
-   * Classify if a domain belongs to a brand (official brand-owned sources)
-   * Enhanced to work dynamically with any brand from the database
-   * Now includes abbreviation detection and better domain matching
-   */
-  classifyBrandCitation(domain, allBrands = []) {
-    // First, check against user's brands and competitors dynamically
-    if (allBrands && allBrands.length > 0) {
-      for (const brand of allBrands) {
-        const brandName = brand.name || brand;
-        if (!brandName) continue;
-        
-        // Strategy 1: Generate possible domain variations for this brand (generic algorithm)
-        const possibleDomains = this.generateDomainVariations(brandName);
-        
-        // Extract domain base (without TLD) for matching
-        const domainParts = domain.split('.');
-        const domainBase = domainParts.slice(0, -1).join('.'); // Everything except last part (TLD)
-        const domainWithoutTLD = domainParts[0]; // First part only
-        
-        // Check exact domain match (with or without TLD)
-        // Match against base variations (without TLD)
-        for (const possibleDomain of possibleDomains) {
-          const cleanPossible = possibleDomain.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const cleanDomainBase = domainBase.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const cleanDomainWithoutTLD = domainWithoutTLD.toLowerCase().replace(/[^a-z0-9]/g, '');
-          
-          // Exact match with domain base
-          if (cleanDomainBase === cleanPossible || cleanDomainWithoutTLD === cleanPossible) {
-            return { 
-              type: 'brand', 
-              brand: brandName, 
-              confidence: 0.95,
-              label: 'brand_owned_domain'
-            };
-          }
-          
-          // Match domain contains variation (e.g., "americanexpress" in "americanexpress.com")
-          if (cleanDomainBase.includes(cleanPossible) || cleanDomainWithoutTLD.includes(cleanPossible)) {
-            if (cleanPossible.length >= 3) { // Only if significant length
-              return { 
-                type: 'brand', 
-                brand: brandName, 
-                confidence: 0.9,
-                label: 'brand_domain_contains'
-              };
-            }
-          }
-        }
-        
-        // Strategy 2: Check subdomain patterns (e.g., blog.example.com, www.example.com)
-        // Extract root domain (second-to-last part + TLD)
-        const rootDomain = domainParts.length >= 2 
-          ? domainParts.slice(-2).join('.') 
-          : domain;
-        
-        for (const possibleDomain of possibleDomains) {
-          const cleanPossible = possibleDomain.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const cleanRoot = rootDomain.toLowerCase().replace(/[^a-z0-9]/g, '');
-          
-          // Check if root domain matches variation
-          if (cleanRoot.includes(cleanPossible) && cleanPossible.length >= 3) {
-            return { 
-              type: 'brand', 
-              brand: brandName, 
-              confidence: 0.85,
-              label: 'brand_subdomain'
-            };
-          }
-          
-          // Check if domain ends with variation (subdomain pattern)
-          if (domain.endsWith('.' + possibleDomain) || domain.endsWith('.' + cleanPossible + '.com')) {
-            return { 
-              type: 'brand', 
-              brand: brandName, 
-              confidence: 0.85,
-              label: 'brand_subdomain'
-            };
-          }
-        }
-        
-        // Strategy 3: Check abbreviation-based domains (e.g., amex.com → American Express)
-        const abbreviations = this.getBrandAbbreviationsForDomain(brandName);
-        for (const [abbrev, fullBrand] of abbreviations.entries()) {
-          // Check if domain matches abbreviation (e.g., amex.com)
-          const abbrevDomain = abbrev + '.com';
-          const abbrevDomainWithWWW = 'www.' + abbrev + '.com';
-          if (domain === abbrevDomain || domain === abbrevDomainWithWWW || 
-              domain.endsWith('.' + abbrevDomain) || domain.endsWith('.' + abbrevDomainWithWWW)) {
-            return { 
-              type: 'brand', 
-              brand: brandName, 
-              confidence: 0.9,
-              label: 'brand_abbreviation_domain'
-            };
-          }
-          // Also check if abbreviation appears in domain
-          if (domain.includes(abbrev) && domain.length < abbrev.length + 10) {
-            return { 
-              type: 'brand', 
-              brand: brandName, 
-              confidence: 0.8,
-              label: 'brand_abbreviation_pattern'
-            };
-          }
-        }
-        
-        // Strategy 4: Check for brand name patterns in domain (fuzzy matching)
-        const brandPatterns = this.generateBrandPatterns(brandName);
-        for (const pattern of brandPatterns) {
-          const normalizedPattern = pattern.toLowerCase().replace(/\s+/g, '');
-          if (domain.includes(normalizedPattern)) {
-            return { 
-              type: 'brand', 
-              brand: brandName, 
-              confidence: 0.75,
-              label: 'brand_pattern_match'
-            };
-          }
-        }
-      }
-    }
-    
-    // Step 5: Generic fuzzy matching for edge cases (if no exact match found)
-    // Use Levenshtein distance for similar domain names
-    if (allBrands && allBrands.length > 0) {
-      // Note: metricsExtractionService exports an instance, not a class
-      const extractionService = require('./metricsExtractionService');
-      const domainBase = domain.split('.')[0]; // Get domain without TLD
-      
-      for (const brand of allBrands) {
-        const brandName = brand.name || brand;
-        if (!brandName) continue;
-        
-        // Generate domain variations for this brand
-        const brandVariations = this.generateDomainVariations(brandName);
-        
-        // Check fuzzy similarity with domain base
-        for (const variation of brandVariations) {
-          const cleanVariation = variation.toLowerCase().replace(/[^a-z0-9]/g, '');
-          const cleanDomainBase = domainBase.toLowerCase().replace(/[^a-z0-9]/g, '');
-          
-          if (cleanVariation.length >= 3 && cleanDomainBase.length >= 3) {
-            const similarity = extractionService.calculateSimilarity(cleanVariation, cleanDomainBase);
-            if (similarity >= 0.7) {
-              return { 
-                type: 'brand', 
-                brand: brandName, 
-                confidence: similarity * 0.85, // Scale confidence by similarity
-                label: 'brand_fuzzy_match'
-              };
-            }
-          }
-        }
-      }
-    }
-    
-    // Fallback: Legacy hardcoded domains (DEPRECATED - only for backward compatibility)
-    // TODO: Remove after sufficient testing confirms generic algorithm works
-    const legacyBrandDomains = [
-      'americanexpress.com', 'amex.com', 'americanexpress.co.uk', 'amex.co.uk',
-      'chase.com', 'chasebank.com', 'chase.co.uk',
-      'capitalone.com', 'capitalone.co.uk',
-      'citi.com', 'citibank.com', 'citibank.co.uk',
-      'wellsfargo.com', 'wellsfargoadvisors.com',
-      'bankofamerica.com', 'bofa.com',
-      'discover.com', 'discovercard.com'
-    ];
-    
-    if (legacyBrandDomains.includes(domain)) {
-      console.warn(`⚠️ [LEGACY] Using hardcoded domain match for ${domain} - consider updating to generic matching`);
-      return { 
-        type: 'brand', 
-        brand: this.extractBrandFromDomain(domain), 
-        confidence: 0.9,
-        label: 'brand_owned_domain_legacy'
-      };
-    }
-    
-    for (const brandDomain of legacyBrandDomains) {
-      if (domain.endsWith('.' + brandDomain)) {
-        console.warn(`⚠️ [LEGACY] Using hardcoded subdomain match for ${domain} - consider updating to generic matching`);
-        return { 
-          type: 'brand', 
-          brand: this.extractBrandFromDomain(brandDomain), 
-          confidence: 0.8,
-          label: 'brand_subdomain_legacy'
-        };
-      }
-    }
-    
-    return { type: 'unknown', brand: null, confidence: 0 };
-  }
-
-  /**
-   * Generate possible domain variations for ANY brand name (GENERIC)
-   * Works for financial, tech, retail, SaaS, etc. - no hardcoding
-   * Used for dynamic brand citation detection
-   */
-  generateDomainVariations(brandName) {
-    const variations = new Set();
-    if (!brandName || typeof brandName !== 'string') return [];
-    
-    // Step 1: Remove common words for better domain matching
-    const significantWords = this.removeCommonWords(brandName);
-    const cleanBrandName = significantWords.length > 0 
-      ? significantWords.join(' ') 
-      : brandName.toLowerCase().replace(/[^a-z0-9\s]/g, '').trim();
-    
-    const words = cleanBrandName.split(/\s+/).filter(w => w.length > 0);
-    
-    // Step 2: Generate base variations (no TLD yet)
-    const baseVariations = new Set();
-    
-    // Full brand name variations
-    baseVariations.add(cleanBrandName);                                    // "american express"
-    baseVariations.add(cleanBrandName.replace(/\s+/g, ''));                // "americanexpress"
-    baseVariations.add(cleanBrandName.replace(/\s+/g, '-'));               // "american-express"
-    baseVariations.add(cleanBrandName.replace(/\s+/g, '.'));               // "american.express"
-    baseVariations.add(cleanBrandName.replace(/\s+/g, '_'));                // "american_express"
-    
-    // First word only
-    if (words.length > 1 && words[0].length >= 3) {
-      baseVariations.add(words[0]);                                         // "american"
-    }
-    
-    // First two words combined
-    if (words.length >= 2) {
-      const firstTwo = words.slice(0, 2);
-      baseVariations.add(firstTwo.join(''));                                // "americanexpress"
-      baseVariations.add(firstTwo.join('-'));                               // "american-express"
-      baseVariations.add(firstTwo.join('.'));                               // "american.express"
-    }
-    
-    // Step 3: Add abbreviations (generic algorithm)
-    const abbreviations = this.getBrandAbbreviationsForDomain(brandName);
-    for (const abbrev of abbreviations.keys()) {
-      if (abbrev.length >= 2 && abbrev.length <= 15) {
-        baseVariations.add(abbrev);                                         // "amex", "ae", etc.
-      }
-    }
-    
-    // Step 4: Add common TLDs to each base variation
-    // Note: We return base variations only (without TLD) to match against domain hostnames
-    // The TLD matching is done separately in classifyBrandCitation
-    return Array.from(baseVariations);
-  }
-
-  /**
-   * Classify if a domain is social media (community-driven mentions)
-   */
-  classifySocialCitation(domain) {
-    const socialDomains = [
-      'twitter.com', 'x.com', 't.co',
-      'linkedin.com', 'linkedin.co.uk',
-      'facebook.com', 'fb.com', 'facebook.co.uk',
-      'instagram.com', 'ig.com',
-      'youtube.com', 'youtu.be', 'youtube.co.uk',
-      'reddit.com', 'reddit.co.uk',
-      'tiktok.com', 'tiktok.co.uk',
-      'pinterest.com', 'pinterest.co.uk',
-      'snapchat.com', 'snapchat.co.uk',
-      'telegram.org', 'telegram.me',
-      'discord.com', 'discord.gg',
-      'medium.com', 'medium.co.uk',
-      'quora.com', 'quora.co.uk',
-      'blogspot.com', 'blogger.com',
-      'wordpress.com', 'wordpress.co.uk',
-      'tumblr.com', 'tumblr.co.uk',
-      'flickr.com', 'flickr.co.uk',
-      'vimeo.com', 'vimeo.co.uk',
-      'dailymotion.com', 'dailymotion.co.uk'
-    ];
-    
-    for (const socialDomain of socialDomains) {
-      if (domain === socialDomain || domain.endsWith('.' + socialDomain)) {
-        return { 
-          type: 'social', 
-          brand: null, 
-          confidence: 0.9,
-          label: 'social_media_platform'
-        };
-      }
-    }
-    
-    return { type: 'unknown', brand: null, confidence: 0 };
-  }
-
-  /**
-   * Classify if a domain is earned media (third-party editorial references)
-   */
-  classifyEarnedCitation(domain, allBrands = []) {
-    // Check if it's a news/media domain
-    const newsDomains = [
-      'cnn.com', 'bbc.com', 'bbc.co.uk', 'reuters.com', 'bloomberg.com',
-      'wsj.com', 'nytimes.com', 'washingtonpost.com', 'guardian.com',
-      'forbes.com', 'techcrunch.com', 'wired.com', 'theverge.com',
-      'engadget.com', 'arstechnica.com', 'mashable.com', 'venturebeat.com',
-      'businessinsider.com', 'inc.com', 'fastcompany.com', 'hbr.org',
-      'economist.com', 'ft.com', 'ft.co.uk', 'marketwatch.com',
-      'cnbc.com', 'yahoo.com', 'msn.com', 'aol.com'
-    ];
-    
-    for (const newsDomain of newsDomains) {
-      if (domain === newsDomain || domain.endsWith('.' + newsDomain)) {
-        return { 
-          type: 'earned', 
-          brand: null, 
-          confidence: 0.9,
-          label: 'news_media_outlet'
-        };
-      }
-    }
-    
-    // Check if it's a review/analysis site
-    const reviewDomains = [
-      'trustpilot.com', 'trustpilot.co.uk',
-      'glassdoor.com', 'glassdoor.co.uk',
-      'yelp.com', 'yelp.co.uk',
-      'tripadvisor.com', 'tripadvisor.co.uk',
-      'g2.com', 'capterra.com', 'softwareadvice.com',
-      'consumerreports.org', 'which.co.uk',
-      'money.co.uk', 'moneysavingexpert.com',
-      'nerdwallet.com', 'nerdwallet.co.uk',
-      'thepointsguy.com', 'thepointsguy.co.uk',
-      'creditkarma.com', 'creditkarma.co.uk'
-    ];
-    
-    for (const reviewDomain of reviewDomains) {
-      if (domain === reviewDomain || domain.endsWith('.' + reviewDomain)) {
-        return { 
-          type: 'earned', 
-          brand: null, 
-          confidence: 0.8,
-          label: 'review_analysis_site'
-        };
-      }
-    }
-    
-    // Check if it's a financial/credit card specific site
-    const financialDomains = [
-      'creditcards.com', 'creditcards.co.uk',
-      'cardratings.com', 'cardratings.co.uk',
-      'myfico.com', 'myfico.co.uk',
-      'experian.com', 'experian.co.uk',
-      'equifax.com', 'equifax.co.uk',
-      'transunion.com', 'transunion.co.uk',
-      'bankrate.com', 'bankrate.co.uk',
-      'investopedia.com', 'investopedia.co.uk',
-      'fool.com', 'fool.co.uk'
-    ];
-    
-    for (const financialDomain of financialDomains) {
-      if (domain === financialDomain || domain.endsWith('.' + financialDomain)) {
-        return { 
-          type: 'earned', 
-          brand: null, 
-          confidence: 0.8,
-          label: 'financial_media_site'
-        };
-      }
-    }
-    
-    // Default to earned media for unknown domains (third-party editorial references)
-    return { 
-      type: 'earned', 
-      brand: null, 
-      confidence: 0.5,
-      label: 'third_party_editorial'
-    };
-  }
-
-  /**
-   * Extract brand name from domain using generic logic
-   * This is a fallback method - primary brand detection should come from Perplexity during onboarding
-   */
-  extractBrandFromDomain(domain) {
-    if (!domain) return 'Unknown Brand';
-    
-    // Generic domain-to-brand conversion
-    const domainPart = domain.split('.')[0];
-    if (!domainPart) return 'Unknown Brand';
-    
-    // Convert domain to readable format
-    return domainPart
-      .replace(/[-_]/g, ' ')
-      .split(' ')
-      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ');
-  }
-
-
-  /**
-   * Analyze sentiment of brand mentions in response
-   * @param {string} responseText - Full LLM response
-   * @param {string} brandName - Brand to analyze
-   * @param {Array} brandPatterns - Flexible brand patterns to match
-   * @returns {object} - Sentiment analysis { sentiment, sentimentScore, drivers }
-   */
-  analyzeSentiment(responseText, brandName, brandPatterns = [brandName]) {
-    // Expanded positive keywords - stronger signals
-    const positiveKeywords = [
-      'best', 'excellent', 'great', 'top', 'leading', 'trusted', 'reliable', 
-      'recommended', 'popular', 'strong', 'superior', 'outstanding', 'premier',
-      'robust', 'comprehensive', 'flexible', 'innovative', 'powerful', 'advanced',
-      'seamless', 'easy', 'simple', 'efficient', 'effective', 'preferred', 'ideal',
-      'unmatched', 'favored', 'recognized', 'renowned', 'good', 'quality', 'solid',
-      'worthy', 'valuable', 'beneficial', 'helpful', 'useful', 'proven', 'established',
-      'successful', 'well-regarded', 'highly', 'very', 'particularly', 'especially',
-      'impressive', 'notable', 'significant', 'substantial', 'essential', 'important',
-      'vital', 'crucial', 'advantageous', 'promising', 'suitable', 'appropriate'
-    ];
-
-    // Expanded negative keywords - stronger signals
-    const negativeKeywords = [
-      'bad', 'poor', 'worst', 'weak', 'limited', 'lacking', 'difficult', 
-      'complicated', 'expensive', 'costly', 'slow', 'unreliable', 'problematic',
-      'issues', 'problems', 'concerns', 'drawbacks', 'disadvantages', 'limitations',
-      'struggles', 'fails', 'inferior', 'outdated', 'challenging', 'complex',
-      'questionable', 'unclear', 'insufficient', 'inadequate', 'substandard',
-      'disappointing', 'concerning', 'troublesome', 'risky', 'uncertain', 'weak',
-      'fragile', 'unstable', 'inefficient', 'ineffective', 'unsuitable', 'inappropriate'
-    ];
-
-    // Negation words that flip sentiment
-    const negationWords = ['not', 'no', 'never', 'none', 'neither', 'barely', 'hardly', 'scarcely', 'rarely', 'seldom'];
-
-    // Extract sentences mentioning the brand using flexible patterns
-    const sentences = responseText.split(/[.!?]+/).filter(s => s.trim().length > 0);
-    const brandSentences = sentences.filter(s => {
-      const sentenceLower = s.toLowerCase();
-      return brandPatterns.some(pattern => 
-        sentenceLower.includes(pattern.toLowerCase())
-      );
-    });
-
-    if (brandSentences.length === 0) {
-      return { sentiment: 'neutral', sentimentScore: 0, drivers: [] };
-    }
-
-    // Analyze each sentence
-    let totalScore = 0;
-    const drivers = [];
-
-    brandSentences.forEach(sentence => {
-      const lowerSentence = sentence.toLowerCase();
-      let sentenceScore = 0;
-      const foundKeywords = [];
-
-      // Check for negation words first
-      const hasNegation = negationWords.some(neg => {
-        const regex = new RegExp(`\\b${neg}\\b`, 'i');
-        return regex.test(lowerSentence);
-      });
-
-      // Count positive keywords
-      positiveKeywords.forEach(keyword => {
-        const regex = new RegExp(`\\b${keyword}\\b`, 'i');
-        if (regex.test(lowerSentence)) {
-          // If negation is present, flip to negative
-          if (hasNegation) {
-            sentenceScore -= 0.2;
-            foundKeywords.push('-' + keyword + ' (negated)');
-          } else {
-            sentenceScore += 0.4; // Increased from 0.3 for better detection
-            foundKeywords.push('+' + keyword);
-          }
-        }
-      });
-
-      // Count negative keywords
-      negativeKeywords.forEach(keyword => {
-        const regex = new RegExp(`\\b${keyword}\\b`, 'i');
-        if (regex.test(lowerSentence)) {
-          // If negation is present, flip to positive
-          if (hasNegation) {
-            sentenceScore += 0.2;
-            foundKeywords.push('+' + keyword + ' (negated)');
-          } else {
-            sentenceScore -= 0.4; // Increased from 0.3 for better detection
-            foundKeywords.push('-' + keyword);
-          }
-        }
-      });
-
-      // Determine sentence sentiment with lower thresholds
-      let sentenceSentiment = 'neutral';
-      if (sentenceScore > 0.2) sentenceSentiment = 'positive'; // Lowered from 0.3
-      else if (sentenceScore < -0.2) sentenceSentiment = 'negative'; // Lowered from -0.3
-
-      if (foundKeywords.length > 0 || sentenceSentiment !== 'neutral') {
-        drivers.push({
-          text: sentence.substring(0, 150), // Increased length for better context
-          sentiment: sentenceSentiment,
-          keywords: foundKeywords
-        });
-      }
-
-      totalScore += sentenceScore;
-    });
-
-    // Calculate overall sentiment with improved thresholds
-    const avgScore = brandSentences.length > 0 ? totalScore / brandSentences.length : 0;
-    const normalizedScore = Math.max(-1, Math.min(1, avgScore)); // Clamp to -1 to +1
-
-    let overallSentiment = 'neutral';
-    // Lowered thresholds for better detection
-    if (normalizedScore > 0.1) overallSentiment = 'positive'; // Lowered from 0.2
-    else if (normalizedScore < -0.1) overallSentiment = 'negative'; // Lowered from -0.2
-    else if (drivers.some(d => d.sentiment === 'positive') && drivers.some(d => d.sentiment === 'negative')) {
-      overallSentiment = 'mixed';
-    }
-
-    console.log(`         😊 Sentiment: ${overallSentiment} (Score: ${normalizedScore.toFixed(3)}, Drivers: ${drivers.length})`);
-
-    return {
-      sentiment: overallSentiment,
-      sentimentScore: normalizedScore,
-      drivers: drivers.slice(0, 5) // Top 5 drivers
-    };
-  }
-
-  /**
    * Extract brand metrics from response text with sentence-level data
    * @param {string} responseText - LLM response
    * @param {Array} citations - Extracted citations
@@ -1647,35 +571,61 @@ Be thorough, accurate, and helpful in your responses.`;
       competitors = [];
     }
 
-    // Generate intelligent brand matching patterns using generic algorithm
-    const brandPatterns = this.generateBrandPatterns(brandName);
+    // ✅ FIX: Use metricsExtractionService for sophisticated brand detection
+    const metricsExtractionService = require('./metricsExtractionService');
+
     // Split response into sentences
     const sentences = responseText
       .replace(/([.!?])\s+/g, '$1|')
       .split('|')
       .filter(s => s.trim().length > 0);
 
+    // ✅ FIX: Build expected brands set for validation
+    const expectedBrands = new Set([brandName]);
+    competitors.filter(c => c && c.name).forEach(c => expectedBrands.add(c.name));
+    
     const allBrands = [brandName, ...competitors.filter(c => c && c.name).map(c => c.name)];
     const brandMetrics = [];
 
     // Process each brand
-    allBrands.forEach((brand, brandIndex) => {
-      // Use intelligent brand pattern generation for all brands
-      const patternsToUse = this.generateBrandPatterns(brand);
-      const escapedPatterns = patternsToUse.map(p => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-      const brandRegex = new RegExp(`(${escapedPatterns.join('|')})`, 'gi');
+    allBrands.forEach((brand) => {
+      // ✅ FIX: Validate that brand is in expected list (prevent false positives)
+      if (!expectedBrands.has(brand)) {
+        console.warn(`⚠️ [VALIDATION] Skipping unexpected brand: ${brand} (not in expected list)`);
+        return;
+      }
 
-      // Count brand mentions and track sentences
+      // ✅ FIX: Use sophisticated brand detection instead of simple regex
+      // This uses multi-strategy detection: exact match, abbreviation, partial, fuzzy, variation
+      const brandPatterns = brandPatternService.generateBrandPatterns(brand);
+      
+      // Count brand mentions and track sentences using sophisticated detection
       const brandSentences = [];
       let mentionCount = 0;
       let firstPosition = null;
       let totalWordCount = 0;
 
       sentences.forEach((sentence, idx) => {
-        const mentions = (sentence.match(brandRegex) || []).length;
-
-        if (mentions > 0) {
-          mentionCount += mentions;
+        // ✅ FIX: Use containsBrand() for accurate detection with word boundaries
+        const detectionResult = metricsExtractionService.containsBrand(sentence, brand);
+        
+        if (detectionResult.detected) {
+          // Count mentions using word-boundary pattern matching for accuracy
+          let sentenceMentions = 0;
+          for (const pattern of brandPatterns) {
+            // Use word boundaries to avoid false positives
+            const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            // Only use word boundaries for multi-word patterns or single words > 3 chars
+            const useWordBoundary = pattern.split(/\s+/).length > 1 || pattern.length > 3;
+            const regex = useWordBoundary 
+              ? new RegExp(`\\b${escaped}\\b`, 'gi')
+              : new RegExp(escaped, 'gi');
+            const matches = (sentence.match(regex) || []).length;
+            sentenceMentions += matches;
+          }
+          
+          // Use at least 1 mention if detected (even if pattern matching found 0)
+          mentionCount += Math.max(sentenceMentions, 1);
 
           if (firstPosition === null) {
             firstPosition = idx + 1; // 1-indexed
@@ -1694,7 +644,7 @@ Be thorough, accurate, and helpful in your responses.`;
 
       // Get and categorize citations for this brand using the new classification system
       // Use intelligent brand pattern generation for citation classification
-      const citationBrandPatterns = this.generateBrandPatterns(brand);
+      const citationBrandPatterns = brandPatternService.generateBrandPatterns(brand);
       
       // Safety check: ensure citations is an array
       if (!Array.isArray(citations)) {
@@ -1726,27 +676,49 @@ Be thorough, accurate, and helpful in your responses.`;
       let socialCitationsCount = 0;
 
       // Create all brands list for classification
-      const allBrands = [brand, ...competitors.map(c => c.name)];
+      const allBrandsForClassification = [brand, ...competitors.map(c => c.name)];
       
       const categorizedCitations = allBrandCitations.map(cit => {
-        const classification = this.categorizeCitation(cit.url, brand, allBrands);
+        // Clean and validate URL first
+        const urlValidation = citationClassificationService.cleanAndValidateUrl(cit.url);
         
-        // Count by type
-        if (classification.type === 'brand') brandCitationsCount++;
-        else if (classification.type === 'earned') earnedCitationsCount++;
-        else if (classification.type === 'social') socialCitationsCount++;
+        // Skip invalid URLs
+        if (!urlValidation.valid || !urlValidation.domain) {
+          return null;
+        }
+        
+        const classification = citationClassificationService.categorizeCitation(urlValidation.cleanedUrl, brand, allBrandsForClassification);
+        
+        // Only count if classification is valid and not unknown
+        if (classification.type === 'brand' && classification.brand === brand) {
+          brandCitationsCount++;
+        } else if (classification.type === 'earned') {
+          earnedCitationsCount++;
+        } else if (classification.type === 'social') {
+          socialCitationsCount++;
+        } else {
+          // Skip unknown/invalid citations
+          return null;
+        }
 
         return {
-          url: cit.url,
+          url: urlValidation.cleanedUrl, // Use cleaned URL
           type: classification.type,
           brand: classification.brand,
-          confidence: classification.confidence,
+          confidence: classification.confidence || 0.8, // Ensure confidence is always set
           context: cit.text || 'Citation'
         };
-      });
+      }).filter(cit => cit !== null); // Remove null entries
 
       // Analyze sentiment for this brand
-      const sentimentAnalysis = this.analyzeSentiment(responseText, brand);
+      const sentimentAnalysis = sentimentAnalysisService.analyzeSentiment(responseText, brand);
+
+      // ✅ FIX: Recalculate citationMetrics from actual categorizedCitations array to ensure accuracy
+      // This ensures citationMetrics matches the actual citations array
+      const actualBrandCitations = categorizedCitations.filter(c => c.type === 'brand' && c.brand === brand).length;
+      const actualEarnedCitations = categorizedCitations.filter(c => c.type === 'earned').length;
+      const actualSocialCitations = categorizedCitations.filter(c => c.type === 'social').length;
+      const actualTotalCitations = categorizedCitations.length;
 
       // Only add to metrics if brand was mentioned
       if (mentionCount > 0) {
@@ -1758,10 +730,11 @@ Be thorough, accurate, and helpful in your responses.`;
           sentences: brandSentences,        // For depth calculation
           totalWordCount: totalWordCount,   // For depth calculation
           citationMetrics: {
-            brandCitations: brandCitationsCount,
-            earnedCitations: earnedCitationsCount,
-            socialCitations: socialCitationsCount,
-            totalCitations: categorizedCitations.length
+            // ✅ FIX: Use actual counts from categorizedCitations array
+            brandCitations: actualBrandCitations,
+            earnedCitations: actualEarnedCitations,
+            socialCitations: actualSocialCitations,
+            totalCitations: actualTotalCitations
           },
           sentiment: sentimentAnalysis.sentiment,
           sentimentScore: sentimentAnalysis.sentimentScore,
@@ -1783,308 +756,37 @@ Be thorough, accurate, and helpful in your responses.`;
     if (unassignedCitations.length > 0 && brandMetrics.length > 0) {
       const allBrandsForClassification = [brandName, ...competitors.map(c => c.name)];
       
-      brandMetrics[0].citations.push(...unassignedCitations.map(cit => {
-        // Classify unassigned citations properly (should be earned or social)
-        const classification = this.categorizeCitation(cit.url, brandName, allBrandsForClassification);
-        
-        return {
-          url: cit.url,
-          type: classification.type === 'unknown' ? 'earned' : classification.type, // Default to earned if unknown
-          brand: classification.brand,
-          confidence: classification.confidence || 0.8, // Default confidence for earned citations
-          context: cit.text || 'Citation'
-        };
-      }));
+      const validUnassignedCitations = unassignedCitations
+        .map(cit => {
+          // Classify unassigned citations properly (should be earned or social)
+          // Clean and validate URL first
+          const urlValidation = citationClassificationService.cleanAndValidateUrl(cit.url);
+          if (!urlValidation.valid || !urlValidation.domain) {
+            return null; // Skip invalid URLs
+          }
+          
+          const classification = citationClassificationService.categorizeCitation(urlValidation.cleanedUrl, brandName, allBrandsForClassification);
+          
+          // Only include valid classifications
+          if (classification.type === 'unknown') {
+            return null;
+          }
+          
+          return {
+            url: urlValidation.cleanedUrl, // Use cleaned URL
+            type: classification.type === 'unknown' ? 'earned' : classification.type, // Default to earned if unknown
+            brand: classification.brand,
+            confidence: classification.confidence || 0.8, // Default confidence for earned citations
+            context: cit.text || 'Citation'
+          };
+        })
+        .filter(cit => cit !== null); // Remove null entries
+      
+      brandMetrics[0].citations.push(...validUnassignedCitations);
     }
 
     return brandMetrics;
   }
-
-  /**
-   * Generate intelligent brand matching patterns for any brand name
-   * @param {string} brandName - The brand name from database
-   * @returns {Array} - Array of patterns to match in LLM responses
-   */
-  generateBrandPatterns(brandName) {
-    const patterns = new Set([brandName]); // Always include exact brand name
-    
-    // Add case variations
-    patterns.add(brandName.toLowerCase());
-    patterns.add(brandName.toUpperCase());
-    patterns.add(brandName.charAt(0).toUpperCase() + brandName.slice(1).toLowerCase()); // Title case
-    
-    // Remove special characters and normalize
-    const cleanBrandName = brandName.replace(/[®™℠©]/g, '').trim();
-    patterns.add(cleanBrandName);
-    patterns.add(cleanBrandName.toLowerCase());
-    patterns.add(cleanBrandName.toUpperCase());
-    patterns.add(cleanBrandName.charAt(0).toUpperCase() + cleanBrandName.slice(1).toLowerCase());
-    
-    // Split brand name into words for intelligent matching
-    const words = cleanBrandName.split(/\s+/).filter(w => w.length > 1);
-    
-    if (words.length === 0) return Array.from(patterns);
-    
-    // Add individual significant words (excluding common product words)
-    const commonProductWords = new Set(['card', 'credit', 'debit', 'prepaid', 'rewards', 'cashback', 'travel', 'business', 'personal', 'premium', 'elite', 'gold', 'silver', 'platinum', 'diamond', 'black', 'blue', 'red', 'green', 'white']);
-    
-    words.forEach(word => {
-      if (!commonProductWords.has(word.toLowerCase())) {
-        patterns.add(word);
-        patterns.add(word.toLowerCase());
-        patterns.add(word.toUpperCase());
-        patterns.add(word.charAt(0).toUpperCase() + word.slice(1).toLowerCase());
-      }
-    });
-    
-    // Add meaningful word combinations (avoid over-generating)
-    if (words.length > 1) {
-      // Add first two words (common for "Brand Name" patterns)
-      if (words.length >= 2) {
-        const twoWords = `${words[0]} ${words[1]}`;
-        patterns.add(twoWords);
-        patterns.add(twoWords.toLowerCase());
-        patterns.add(twoWords.toUpperCase());
-        patterns.add(twoWords.charAt(0).toUpperCase() + twoWords.slice(1).toLowerCase());
-      }
-      
-      // Add full name without special chars (already added above)
-      // patterns.add(words.join(' '));
-    }
-    
-    // Add generic abbreviations (GENERIC - no hardcoding)
-    // Use the generic abbreviation generation algorithm
-    const abbreviations = this.getBrandAbbreviationsForDomain(brandName);
-    
-    // Add all generated abbreviations to patterns
-    for (const abbrev of abbreviations.keys()) {
-      if (abbrev.length >= 2 && abbrev.length <= 15) {
-        patterns.add(abbrev);
-        patterns.add(abbrev.toLowerCase());
-        patterns.add(abbrev.toUpperCase());
-      }
-    }
-    
-    // Add parent brand patterns for product-specific names
-    const productIndicators = ['card', 'credit', 'debit', 'rewards', 'cashback', 'travel', 'business'];
-    const hasProductIndicator = productIndicators.some(indicator => 
-      cleanBrandName.toLowerCase().includes(indicator)
-    );
-    
-    if (hasProductIndicator) {
-      // Extract parent brand name (everything before the first product indicator)
-      const productWords = cleanBrandName.toLowerCase().split(/\s+/);
-      const productIndex = productWords.findIndex(word => 
-        productIndicators.includes(word)
-      );
-      
-      if (productIndex > 0) {
-        const parentBrand = productWords.slice(0, productIndex).join(' ');
-        if (parentBrand.length > 0) {
-          patterns.add(parentBrand);
-          
-          // Add key parent brand + product combinations (not all combinations)
-          const keyProducts = ['card', 'credit'];
-          keyProducts.forEach(indicator => {
-            patterns.add(`${parentBrand} ${indicator}`);
-          });
-        }
-      }
-    }
-    
-    // Convert Set to Array, remove duplicates, and filter out empty patterns
-    return Array.from(patterns)
-      .filter(pattern => pattern && pattern.trim().length > 0)
-      .sort((a, b) => b.length - a.length); // Sort by length (longest first) for better matching
-  }
-
-  /**
-   * Calculate deterministic score based on brand mentions, position, and citations
-   * @param {string} responseText - LLM response text
-   * @param {Array} citations - Extracted citations
-   * @param {object} brandContext - Brand information
-   * @returns {object} - Scorecard with visibility and overall scores
-   */
-  calculateDeterministicScore(responseText, citations, brandContext) {
-    // Safety checks for demo reliability
-    if (!responseText || typeof responseText !== 'string') {
-      console.warn('⚠️ [SAFETY] Invalid responseText in calculateDeterministicScore');
-      return this.getDefaultScorecard();
-    }
-    
-    // Validate brandContext with fallbacks
-    if (!brandContext || typeof brandContext !== 'object') {
-      console.warn('⚠️ [SAFETY] Invalid brandContext in calculateDeterministicScore, using defaults');
-      brandContext = { companyName: 'Unknown Brand', competitors: [] };
-    }
-
-    const brandName = brandContext.companyName || 'Unknown Brand';
-    const competitors = Array.isArray(brandContext.competitors) ? brandContext.competitors : [];
-    
-    // Ensure citations is an array
-    if (!Array.isArray(citations)) {
-      console.warn('⚠️ [SAFETY] Invalid citations in calculateDeterministicScore, using empty array');
-      citations = [];
-    }
-
-    console.log(`      🎯 [SCORING] Creating simple scorecard for: ${brandName}`);
-
-    // Generate intelligent brand matching patterns using generic algorithm
-    const brandPatterns = this.generateBrandPatterns(brandName);
-
-    // Count brand mentions using flexible patterns
-    let brandMentions = 0;
-    let brandMentioned = false;
-    
-    for (const pattern of brandPatterns) {
-      const regex = new RegExp(pattern, 'gi');
-      const matches = (responseText.match(regex) || []).length;
-      brandMentions += matches;
-      if (matches > 0) brandMentioned = true;
-    }
-
-    // Calculate brand position (which sentence brand first appears in)
-    let brandPosition = null;
-    if (brandMentioned) {
-      const sentences = responseText.split(/[.!?]+/).filter(s => s.trim().length > 0);
-      for (let i = 0; i < sentences.length; i++) {
-        const sentence = sentences[i].toLowerCase();
-        // Check if any brand pattern appears in this sentence
-        for (const pattern of brandPatterns) {
-          if (sentence.includes(pattern.toLowerCase())) {
-            brandPosition = i + 1; // 1-indexed
-            break;
-          }
-        }
-        if (brandPosition) break;
-      }
-    }
-
-    // Categorize brand citations using flexible brand patterns
-    const allBrandCitations = citations.filter(c => {
-      // For citation markers, count them as citations if brand is mentioned
-      if (c.type === 'citation_marker') {
-        return brandMentioned; // If brand is mentioned, citation markers count as citations
-      }
-      // For URLs, check if they contain brand name
-      const urlLower = c.url.toLowerCase();
-      return brandPatterns.some(pattern => 
-        urlLower.includes(pattern.toLowerCase().replace(/\s+/g, ''))
-      );
-    });
-    
-    let brandCitationsCount = 0;
-    let earnedCitationsCount = 0;
-    let socialCitationsCount = 0;
-    
-    // Create all brands list for classification (with safety check)
-    const allBrands = [brandName, ...competitors
-      .filter(c => c && typeof c === 'object' && c.name && typeof c.name === 'string')
-      .map(c => c.name)];
-    
-    allBrandCitations.forEach(cit => {
-      const classification = this.categorizeCitation(cit.url, brandName, allBrands);
-      if (classification.type === 'brand') brandCitationsCount++;
-      else if (classification.type === 'earned') earnedCitationsCount++;
-      else if (classification.type === 'social') socialCitationsCount++;
-    });
-    
-    const totalCitations = allBrandCitations.length;
-    const citationPresent = totalCitations > 0;
-    const citationType = brandCitationsCount > 0 ? 'direct_link' : 
-                        earnedCitationsCount > 0 ? 'reference' : 
-                        socialCitationsCount > 0 ? 'social' : 'none';
-
-    // Find competitors mentioned in response using intelligent pattern matching
-    const competitorsMentioned = [];
-    
-    // Safety check: ensure competitors is an array
-    if (!Array.isArray(competitors)) {
-      console.warn('⚠️ [SAFETY] Competitors is not an array, skipping competitor detection');
-      competitors = [];
-    }
-    
-    competitors.forEach(comp => {
-      if (!comp || typeof comp !== 'object' || !comp.name || typeof comp.name !== 'string' || comp.name.trim().length === 0) {
-        return;
-      }
-      
-      // Generate intelligent patterns for competitor name (same as brand patterns)
-      const competitorPatterns = this.generateBrandPatterns(comp.name);
-      let competitorMentioned = false;
-      let totalMentions = 0;
-      
-      // Check if any pattern matches in the response
-      for (const pattern of competitorPatterns) {
-        const regex = new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-        const matches = (responseText.match(regex) || []).length;
-        if (matches > 0) {
-          competitorMentioned = true;
-          totalMentions += matches;
-        }
-      }
-      
-      if (competitorMentioned) {
-        competitorsMentioned.push(comp.name);
-        console.log(`         ✅ Competitor detected: ${comp.name} (${totalMentions} mentions)`);
-      }
-    });
-
-    // Analyze sentiment for user's brand using flexible patterns
-    const sentimentAnalysis = this.analyzeSentiment(responseText, brandName, brandPatterns);
-
-    console.log(`      📊 [SCORECARD] Brand: ${brandName}`);
-    console.log(`         Mentioned: ${brandMentioned}, Count: ${brandMentions}, Position: ${brandPosition}`);
-    console.log(`         Citations - Brand: ${brandCitationsCount}, Earned: ${earnedCitationsCount}, Social: ${socialCitationsCount}`);
-    console.log(`         Sentiment: ${sentimentAnalysis.sentiment} (Score: ${sentimentAnalysis.sentimentScore.toFixed(2)})`);
-
-    // Calculate visibility score using the correct formula:
-    // VisibilityScore(b) = (# of prompts where Brand b appears / Total prompts) × 100
-    // For individual prompt tests, this is either 100% (mentioned) or 0% (not mentioned)
-    // The aggregation service will calculate the overall visibility across all prompts
-    const visibilityScore = brandMentioned ? 100 : 0;
-    
-    // Calculate overall score (0-100) based on multiple factors
-    // This is a composite score that considers visibility, position, citations, and sentiment
-    let overallScore = 0;
-    
-    if (brandMentioned) {
-      // Base score for being mentioned (visibility component)
-      overallScore += 40;
-      
-      // Position bonus (earlier is better)
-      if (brandPosition === 1) overallScore += 30;
-      else if (brandPosition === 2) overallScore += 20;
-      else if (brandPosition === 3) overallScore += 10;
-      else if (brandPosition <= 5) overallScore += 5;
-      
-      // Citation bonus
-      if (brandCitationsCount > 0) overallScore += 20;
-      if (earnedCitationsCount > 0) overallScore += 10;
-      
-      // Sentiment bonus
-      if (sentimentAnalysis.sentiment === 'positive') overallScore += 10;
-      else if (sentimentAnalysis.sentiment === 'neutral') overallScore += 5;
-    }
-
-    return {
-      brandMentioned,
-      brandPosition,
-      brandMentionCount: brandMentions,
-      citationPresent,
-      citationType,
-      brandCitations: brandCitationsCount,
-      earnedCitations: earnedCitationsCount,
-      socialCitations: socialCitationsCount,
-      totalCitations: totalCitations,
-      sentiment: sentimentAnalysis.sentiment,
-      sentimentScore: sentimentAnalysis.sentimentScore,
-      competitorsMentioned,
-      visibilityScore,
-      overallScore
-    };
-  }
-
 
   /**
    * Save test result to database
@@ -2101,8 +803,8 @@ Be thorough, accurate, and helpful in your responses.`;
         throw new Error('Invalid llmResponse object provided to saveTestResult');
       }
       if (!scorecard || typeof scorecard !== 'object') {
-        console.warn('⚠️ [SAFETY] Invalid scorecard, using default');
-        scorecard = this.getDefaultScorecard();
+        console.warn('      ⚠️ [SAFETY] Invalid scorecard, using default');
+        scorecard = scoringService.getDefaultScorecard();
       }
 
       // Extract IDs from populated objects if needed
@@ -2218,7 +920,7 @@ Be thorough, accurate, and helpful in your responses.`;
         llmProvider: llmProvider,
         llmModel: this.llmModels[llmProvider],
         rawResponse: 'N/A - Test Failed',
-        scorecard: this.getDefaultScorecard(),
+        scorecard: scoringService.getDefaultScorecard(),
         status: 'failed',
         error: errorMessage
       });
@@ -2239,9 +941,6 @@ Be thorough, accurate, and helpful in your responses.`;
   }
 
   /**
-   * Get brand context for scoring
-   */
-  /**
    * Smart sampling: Select a balanced subset of prompts
    * Ensures even distribution across topic×persona combinations
    * @param {Array} prompts - All available prompts
@@ -2249,6 +948,15 @@ Be thorough, accurate, and helpful in your responses.`;
    * @returns {Array} - Sampled prompts
    */
   samplePrompts(prompts, limit) {
+    const { samplePrompts: samplePromptsModule } = require('./promptTesting/sampling');
+    return samplePromptsModule(prompts, limit);
+  }
+
+  /**
+   * Legacy samplePrompts implementation - kept for reference
+   * @deprecated Use the modular version from promptTesting/sampling
+   */
+  samplePromptsLegacy(prompts, limit) {
     if (prompts.length <= limit) {
       console.log(`   ℹ️  All ${prompts.length} prompts will be tested (under limit of ${limit})`);
       return prompts;
@@ -2299,17 +1007,37 @@ Be thorough, accurate, and helpful in your responses.`;
     return sampledPrompts;
   }
 
-  async getBrandContext(userId) {
+  async getBrandContext(userId, urlAnalysisId = null) {
     try {
       const UrlAnalysis = require('../models/UrlAnalysis');
       const Competitor = require('../models/Competitor');
       
-      const analysis = await UrlAnalysis.findOne({ userId })
-        .sort({ analysisDate: -1 })
-        .limit(1)
-        .lean();
+      // ✅ FIX: Filter by urlAnalysisId if provided to ensure data isolation
+      let analysis;
+      if (urlAnalysisId) {
+        analysis = await UrlAnalysis.findOne({ 
+          _id: urlAnalysisId,
+          userId 
+        }).lean();
+        console.log(`🔍 [getBrandContext] Filtering by urlAnalysisId: ${urlAnalysisId}`);
+      } else {
+        console.warn('⚠️ [getBrandContext] No urlAnalysisId provided, using latest analysis (may mix data)');
+        const analysisList = await UrlAnalysis.find({ userId })
+          .sort({ analysisDate: -1 })
+          .limit(1)
+          .lean();
+        analysis = analysisList[0] || null;
+      }
       
-      const competitors = await Competitor.find({ userId, selected: true })
+      // ✅ FIX: Filter competitors by urlAnalysisId if provided
+      const competitorQuery = { userId, selected: true };
+      if (urlAnalysisId) {
+        competitorQuery.urlAnalysisId = urlAnalysisId;
+      } else {
+        console.warn('⚠️ [getBrandContext] No urlAnalysisId for competitors query, may get competitors from other analyses');
+      }
+      
+      const competitors = await Competitor.find(competitorQuery)
         .limit(4)
         .lean();
       
@@ -2322,11 +1050,10 @@ Be thorough, accurate, and helpful in your responses.`;
           const domain = url.hostname.replace('www.', '');
           const domainParts = domain.split('.');
           if (domainParts.length > 1) {
-            const mainDomain = domainParts[0];
-            // Use the generic domain-to-brand mapping function
-            companyName = this.extractBrandFromDomain(domain);
+            // Use the generic domain-to-brand mapping function from citation classification service
+            companyName = citationClassificationService.extractBrandFromDomain(domain);
           }
-        } catch (e) {
+        } catch {
           // URL parsing failed, keep original name
         }
       }
@@ -2346,6 +1073,15 @@ Be thorough, accurate, and helpful in your responses.`;
    * Calculate summary statistics
    */
   calculateSummary(results) {
+    const { calculateSummary: calculateSummaryModule } = require('./promptTesting/summary');
+    return calculateSummaryModule(results);
+  }
+
+  /**
+   * Legacy calculateSummary implementation - kept for reference
+   * @deprecated Use the modular version from promptTesting/summary
+   */
+  calculateSummaryLegacy(results) {
     // Filter out null/undefined results
     const validResults = results.filter(r => r !== null && r !== undefined);
     const completed = validResults.filter(r => r.status === 'completed');
@@ -2393,29 +1129,7 @@ Be thorough, accurate, and helpful in your responses.`;
       llmPerformance: llmAverages
     };
   }
-
-  /**
-   * Get default scorecard structure for failed tests
-   * @returns {Object} Default scorecard with all metrics set to default values
-   */
-  getDefaultScorecard() {
-    return {
-      brandMentioned: false,
-      brandPosition: null,
-      brandMentionCount: 0,
-      citationPresent: false,
-      citationType: 'none',
-      brandCitations: 0,
-      earnedCitations: 0,
-      socialCitations: 0,
-      totalCitations: 0,
-      sentiment: 'neutral',
-      sentimentScore: 0,
-      competitorsMentioned: []
-    };
-  }
 }
 
 module.exports = new PromptTestingService();
-
 

@@ -362,6 +362,11 @@ app.listen(PORT, () => {
   console.log(`📚 API info: http://localhost:${PORT}/api`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Frontend URL: ${process.env.FRONTEND_URL || 'http://localhost:3000'}`);
+  
+  // Signal PM2 that app is ready (if using wait_ready)
+  if (process.send) {
+    process.send('ready');
+  }
 });
 
 module.exports = app;

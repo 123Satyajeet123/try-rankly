@@ -1614,63 +1614,63 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                         Brand Mentioned
                       </div>
                     </TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-center">
                       <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
+                        className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('visibilityScore')}
                       >
                         Visibility Score (%)
                         {getSortIcon('visibilityScore')}
                       </div>
                     </TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-center">
                       <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
+                        className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('visibilityRank')}
                       >
                         Visibility Rank
                         {getSortIcon('visibilityRank')}
                       </div>
                     </TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-center">
                       <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
+                        className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('depthOfMention')}
                       >
                         Depth of Mention (%)
                         {getSortIcon('depthOfMention')}
                       </div>
                     </TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-center">
                       <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
+                        className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('depthOfMentionRank')}
                       >
                         Depth of Mention Rank
                         {getSortIcon('depthOfMentionRank')}
                       </div>
                     </TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-center">
                       <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
+                        className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('averagePositionRank')}
                       >
                         Average Position Rank
                         {getSortIcon('averagePositionRank')}
                       </div>
                     </TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-center">
                       <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
+                        className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('citationShare')}
                       >
                         Citation Share
                         {getSortIcon('citationShare')}
                       </div>
                     </TableHead>
-                    <TableHead className="text-right">
+                    <TableHead className="text-center">
                       <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
+                        className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('citationRank')}
                       >
                         Citation Rank
@@ -1679,7 +1679,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                     </TableHead>
                     <TableHead className="text-center">
                       <div 
-                        className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
+                        className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded"
                         onClick={() => handleTableSort('subjectiveImpression')}
                       >
                         Subjective Impression
@@ -1763,19 +1763,19 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                               </div>
                             )}
                           </TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="text-center">
                             <span>{group.visibilityScore}</span>
                           </TableCell>
-                          <TableCell className="font-mono text-right">{group.visibilityRank} -</TableCell>
-                          <TableCell className="text-right">
+                          <TableCell className="font-mono text-center">{group.visibilityRank} -</TableCell>
+                          <TableCell className="text-center">
                             <Badge variant="default" className="text-xs">
                               {group.depthOfMention}
                             </Badge>
                           </TableCell>
-                          <TableCell className="font-mono text-right">{group.depthOfMentionRank || '#3'} -</TableCell>
-                          <TableCell className="font-mono text-right">{group.averagePositionRank || '#2'} -</TableCell>
-                          <TableCell className="text-right">{group.citationShare} -</TableCell>
-                          <TableCell className="font-mono text-right">{group.citationRank} -</TableCell>
+                          <TableCell className="font-mono text-center">{group.depthOfMentionRank || '#3'} -</TableCell>
+                          <TableCell className="font-mono text-center">{group.averagePositionRank || '#2'} -</TableCell>
+                          <TableCell className="text-center">{group.citationShare} -</TableCell>
+                          <TableCell className="font-mono text-center">{group.citationRank} -</TableCell>
                           <TableCell className="text-center">
                             <Button 
                               variant="ghost" 
@@ -1854,33 +1854,33 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                                 return null;
                               })()}
                             </TableCell>
-                            <TableCell className="text-sm text-right">
+                            <TableCell className="text-sm text-center">
                               {prompt.promptMetrics && prompt.promptMetrics.visibilityScore > 0 
                                 ? `${prompt.promptMetrics.visibilityScore}%` 
                                 : `${Math.round(Math.random() * 30 + 70)}%`}
                             </TableCell>
-                            <TableCell className="font-mono text-sm text-right">
+                            <TableCell className="font-mono text-sm text-center">
                               #{prompt.promptMetrics?.visibilityRank || 'N/A'} -
                             </TableCell>
-                            <TableCell className="text-sm text-right">
+                            <TableCell className="text-sm text-center">
                               <Badge variant="default" className="text-xs">
                                 {prompt.promptMetrics && prompt.promptMetrics.depthOfMention > 0 
                                   ? `${prompt.promptMetrics.depthOfMention.toFixed(1)}%` 
                                   : `${(Math.random() * 20 + 15).toFixed(1)}%`}
                             </Badge>
                       </TableCell>
-                            <TableCell className="font-mono text-sm text-right">
+                            <TableCell className="font-mono text-sm text-center">
                               #{prompt.promptMetrics?.depthRank || 'N/A'} -
                             </TableCell>
-                            <TableCell className="font-mono text-sm text-right">
+                            <TableCell className="font-mono text-sm text-center">
                               #{prompt.promptMetrics?.avgPositionRank || 'N/A'} -
                             </TableCell>
-                            <TableCell className="text-sm text-right">
+                            <TableCell className="text-sm text-center">
                               {prompt.promptMetrics && prompt.promptMetrics.citationShare > 0 
                                 ? `${prompt.promptMetrics.citationShare}%` 
                                 : `${Math.round(Math.random() * 30 + 70)}%`}
                             </TableCell>
-                            <TableCell className="font-mono text-sm text-right">
+                            <TableCell className="font-mono text-sm text-center">
                               #{prompt.promptMetrics?.citationShareRank || 'N/A'} -
                             </TableCell>
                             <TableCell className="text-sm text-center">
@@ -2059,41 +2059,58 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                                                 <div className="flex items-center gap-2 text-xs bg-primary/10 px-2 py-1.5 rounded-sm border border-primary/20">
                                                   <span className="font-semibold text-muted-foreground">Brands Mentioned:</span>
                                                   <div className="flex items-center gap-1.5 flex-wrap">
-                                                    {/* Brands */}
+                                                    {/* Brands - ✅ FIX: Handle both string (legacy) and object (new) formats */}
                                                     {platformResponse.mentionedEntities.brands && platformResponse.mentionedEntities.brands.length > 0 && (
-                                                      platformResponse.mentionedEntities.brands.map((brand: string, idx: number) => (
-                                                        <Tooltip key={`brand-${idx}`}>
-                                                          <TooltipTrigger asChild>
-                                                            <img
-                                                              src={getDynamicFaviconUrl(brand, 16)}
-                                                              alt={brand}
-                                                              className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
-                                                              onError={handleFaviconError}
-                                                            />
-                                                          </TooltipTrigger>
-                                                          <TooltipContent side="top" className="text-xs">
-                                                            {brand}
-                                                          </TooltipContent>
-                                                        </Tooltip>
-                                                      ))
+                                                      platformResponse.mentionedEntities.brands.map((brand: any, idx: number) => {
+                                                        // Handle both string (legacy) and object (new) formats
+                                                        const brandName = typeof brand === 'string' ? brand : brand.name;
+                                                        const brandUrl = typeof brand === 'object' ? brand.url : null;
+                                                        const isOwner = typeof brand === 'object' ? brand.isOwner : false;
+                                                        
+                                                        return (
+                                                          <Tooltip key={`brand-${idx}`}>
+                                                            <TooltipTrigger asChild>
+                                                              <img
+                                                                src={getDynamicFaviconUrl(brandUrl ? { url: brandUrl, name: brandName } : brandName, 16)}
+                                                                alt={brandName}
+                                                                className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
+                                                                data-favicon-identifier={brandUrl || brandName}
+                                                                data-favicon-size="16"
+                                                                onError={handleFaviconError}
+                                                              />
+                                                            </TooltipTrigger>
+                                                            <TooltipContent side="top" className="text-xs">
+                                                              {brandName}{isOwner ? ' (Your Brand)' : ''}
+                                                            </TooltipContent>
+                                                          </Tooltip>
+                                                        );
+                                                      })
                                                     )}
-                                                    {/* Competitors */}
+                                                    {/* Competitors - ✅ FIX: Handle both string (legacy) and object (new) formats */}
                                                     {platformResponse.mentionedEntities.competitors && platformResponse.mentionedEntities.competitors.length > 0 && (
-                                                      platformResponse.mentionedEntities.competitors.map((competitor: string, idx: number) => (
-                                                        <Tooltip key={`competitor-${idx}`}>
-                                                          <TooltipTrigger asChild>
-                                                            <img
-                                                              src={getDynamicFaviconUrl(competitor, 16)}
-                                                              alt={competitor}
-                                                              className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
-                                                              onError={handleFaviconError}
-                                                            />
-                                                          </TooltipTrigger>
-                                                          <TooltipContent side="top" className="text-xs">
-                                                            {competitor}
-                                                          </TooltipContent>
-                                                        </Tooltip>
-                                                      ))
+                                                      platformResponse.mentionedEntities.competitors.map((competitor: any, idx: number) => {
+                                                        // Handle both string (legacy) and object (new) formats
+                                                        const competitorName = typeof competitor === 'string' ? competitor : competitor.name;
+                                                        const competitorUrl = typeof competitor === 'object' ? competitor.url : null;
+                                                        
+                                                        return (
+                                                          <Tooltip key={`competitor-${idx}`}>
+                                                            <TooltipTrigger asChild>
+                                                              <img
+                                                                src={getDynamicFaviconUrl(competitorUrl ? { url: competitorUrl, name: competitorName } : competitorName, 16)}
+                                                                alt={competitorName}
+                                                                className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
+                                                                data-favicon-identifier={competitorUrl || competitorName}
+                                                                data-favicon-size="16"
+                                                                onError={handleFaviconError}
+                                                              />
+                                                            </TooltipTrigger>
+                                                            <TooltipContent side="top" className="text-xs">
+                                                              {competitorName}
+                                                            </TooltipContent>
+                                                          </Tooltip>
+                                                        );
+                                                      })
                                                     )}
                                                     {/* Empty state */}
                                                     {(!platformResponse.mentionedEntities.brands?.length && !platformResponse.mentionedEntities.competitors?.length) && (

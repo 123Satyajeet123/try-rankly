@@ -438,9 +438,11 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                           {/* X-axis labels */}
                           <div className="w-16 h-6 flex items-center justify-center mt-2">
                             <img
-                              src={getDynamicFaviconUrl((brand as any).url || brand.name)}
+                              src={getDynamicFaviconUrl((brand as any).url ? { url: (brand as any).url, name: brand.name } : brand.name, 16)}
                               alt={brand.name}
                               className="w-4 h-4 rounded-sm"
+                              data-favicon-identifier={(brand as any).url || brand.name}
+                              data-favicon-size="16"
                               onError={handleFaviconError}
                             />
                           </div>
@@ -525,9 +527,11 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                             style={{ backgroundColor: item.color }}
                           />
                           <img
-                            src={getDynamicFaviconUrl((item as any).url || item.name)}
+                            src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name, 16)}
                             alt={item.name}
                             className="w-4 h-4 rounded-sm"
+                            data-favicon-identifier={(item as any).url || item.name}
+                            data-favicon-size="16"
                             onError={handleFaviconError}
                           />
                           <span className="text-sm text-foreground">{truncateForChart(item.name)}</span>
@@ -546,9 +550,11 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                             style={{ backgroundColor: item.color }}
                           />
                           <img
-                            src={getDynamicFaviconUrl((item as any).url || item.name)}
+                            src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name, 16)}
                             alt={item.name}
                             className="w-4 h-4 rounded-sm"
+                            data-favicon-identifier={(item as any).url || item.name}
+                            data-favicon-size="16"
                             onError={handleFaviconError}
                           />
                           <span className="text-sm text-foreground">{truncateForChart(item.name)}</span>
@@ -561,28 +567,34 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
             </div>
 
             {/* Right Split - Rankings */}
-            <div className="space-y-4 pl-8 relative">
-                {/* Top Row - Button Group aligned with Chart Config */}
-                <div className="flex justify-end items-center">
-                  <div className="inline-flex rounded-lg overflow-hidden border border-border">
+            <div className="space-y-4 relative">
+                {/* Top Row - Group buttons aligned with left-side buttons */}
+                <div className="flex justify-between items-center">
+                  {/* Left side - Rank text */}
+                  <div className="space-y-2 pl-8">
+                    <h3 className="text-foreground">Sentiment Rankings</h3>
+                    <div className="text-xl font-semibold text-foreground">#{getRankingsForSentiment(selectedRankingSentiment, currentSentimentData).find(item => item.isOwner)?.rank || 4}</div>
+                  </div>
+
+                  {/* Right side - Group buttons aligned with left-side buttons */}
+                  <div className="inline-flex rounded-lg overflow-hidden border border-gray-300 -mt-2">
                     {(['positive', 'negative', 'neutral'] as const).map((sentiment, index) => (
                       <Button
                         key={sentiment}
-                        variant={selectedRankingSentiment === sentiment ? 'default' : 'outline'}
+                        variant="outline"
                         size="sm"
                         onClick={() => {
                           // Independent selection for all chart types
                           setSelectedRankingSentiment(sentiment)
                         }}
                         className={`
-                          body-text rounded-none border-0 text-xs font-medium
+                          body-text rounded-none border-0 text-xs font-medium px-3 py-1
                           ${index === 0 ? 'rounded-l-lg' : ''}
                           ${index === 2 ? 'rounded-r-lg' : ''}
-                          cursor-pointer
-                          ${index > 0 ? 'border-l border-border' : ''}
+                          ${index > 0 ? 'border-l border-gray-300' : ''}
                           ${selectedRankingSentiment === sentiment 
                             ? 'bg-black text-white hover:bg-black' 
-                            : 'bg-background text-muted-foreground hover:bg-muted'
+                            : 'bg-white text-gray-600 hover:bg-gray-50'
                           }
                         `}
                       >
@@ -592,16 +604,8 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                   </div>
                 </div>
 
-                {/* Right side header */}
-                <div className="space-y-2">
-                  <h3 className="text-foreground font-medium">Sentiment Rankings</h3>
-                  <div className="text-xl font-semibold text-foreground">
-                    #{getRankingsForSentiment(selectedRankingSentiment, currentSentimentData).find(item => item.isOwner)?.rank || 4}
-                  </div>
-                </div>
-
                 {/* Rankings Table */}
-                <div className="relative pb-8">
+                <div className="space-y-2 pb-8 relative pl-8">
                   <Table className="w-full">
                     <TableHeader>
                       <TableRow className="border-border/60">
@@ -616,20 +620,35 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
                         <TableRow key={`sentiment-ranking-${item.rank}-${index}`} className="border-border/60 hover:bg-muted/30 transition-colors">
                           <TableCell className="py-3 px-3 w-auto">
                             <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-2">
-                                <img
-                                  src={getDynamicFaviconUrl((item as any).url || item.name)}
-                                  alt={item.name}
-                                  className="w-4 h-4 rounded-sm"
-                                  onError={handleFaviconError}
-                                />
-                                <span
-                                  className="body-text font-medium"
-                                  style={{ color: item.isOwner ? '#2563EB' : 'inherit' }}
-                                >
-                                  {truncateForRanking(item.name)}
-                                </span>
-                              </div>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-2 cursor-help">
+                                      <img
+                                        src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name, 16)}
+                                        alt={item.name}
+                                        className="w-4 h-4 rounded-sm"
+                                        data-favicon-identifier={(item as any).url || item.name}
+                                        data-favicon-size="16"
+                                        onError={handleFaviconError}
+                                      />
+                                      <span
+                                        className="body-text font-medium"
+                                        style={{ color: item.isOwner ? '#2563EB' : 'inherit' }}
+                                      >
+                                        {truncateForRanking(item.name)}
+                                      </span>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="text-xs">
+                                      <strong>{item.name}</strong><br/>
+                                      {getSentimentLabel(selectedRankingSentiment)}: {item.total || 0}<br/>
+                                      Rank: #{item.rank}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
                             </div>
                           </TableCell>
                           <TableCell className="text-right py-3 px-3 w-16">
@@ -700,20 +719,35 @@ export function UnifiedSentimentSection({ filterContext, dashboardData }: Unifie
               {getAllRankingsForSentiment(selectedRankingSentiment, currentSentimentData).map((item, index) => (
                 <TableRow key={`all-sentiment-ranking-${item.rank}-${index}`}>
                   <TableCell>
-                    <div className="flex items-center gap-2">
-                      <img
-                        src={getDynamicFaviconUrl((item as any).url || item.name)}
-                        alt={item.name}
-                        className="w-4 h-4 rounded-sm"
-                        onError={handleFaviconError}
-                      />
-                      <span 
-                        className="text-foreground"
-                        style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
-                      >
-                        {truncateForRanking(item.name)}
-                      </span>
-                    </div>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="flex items-center gap-2 cursor-help">
+                            <img
+                              src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name, 16)}
+                              alt={item.name}
+                              className="w-4 h-4 rounded-sm"
+                              data-favicon-identifier={(item as any).url || item.name}
+                              data-favicon-size="16"
+                              onError={handleFaviconError}
+                            />
+                            <span 
+                              className="text-foreground"
+                              style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
+                            >
+                              {truncateForRanking(item.name)}
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">
+                            <strong>{item.name}</strong><br/>
+                            {getSentimentLabel(selectedRankingSentiment)}: {item.total || 0}<br/>
+                            Rank: #{item.rank}
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                   </TableCell>
                   <TableCell className="text-right">
                     <span 

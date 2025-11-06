@@ -319,7 +319,7 @@ class ApiService {
     return this.request('/onboarding/analyze-website', {
       method: 'POST',
       body: JSON.stringify({ url }),
-      timeout: 180000, // 3 minutes for website analysis (AI processing can take time)
+      timeout: 600000, // 10 minutes to match Nginx proxy_read_timeout (AI processing can take time)
     })
   }
 
@@ -342,7 +342,7 @@ class ApiService {
   async generatePrompts(urlAnalysisId?: string) {
     return this.request('/onboarding/generate-prompts', {
       method: 'POST',
-      timeout: 180000, // 3 minutes for prompt generation + testing (can involve multiple AI calls)
+      timeout: 600000, // 10 minutes to match Nginx proxy_read_timeout (can involve multiple AI calls)
       body: urlAnalysisId ? JSON.stringify({ urlAnalysisId }) : undefined,
     })
   }
@@ -364,7 +364,7 @@ class ApiService {
   async testPrompts() {
     return this.request('/prompts/test', {
       method: 'POST',
-      timeout: 180000, // 3 minutes for prompt testing (can involve multiple AI calls)
+      timeout: 600000, // 10 minutes to match Nginx proxy_read_timeout (can involve multiple AI calls)
     })
   }
 
@@ -489,7 +489,7 @@ class ApiService {
     return this.request('/insights/generate', {
       method: 'POST',
       body: JSON.stringify({ urlAnalysisId }),
-      timeout: 180000, // 3 minutes for insights generation (AI processing can take time)
+      timeout: 600000, // 10 minutes to match Nginx proxy_read_timeout (AI processing can take time)
     })
   }
 
@@ -497,8 +497,8 @@ class ApiService {
   async generateInsightsForTab(tabType: string, urlAnalysisId?: string) {
     return this.request('/insights/generate', {
       method: 'POST',
+      timeout: 600000, // 10 minutes to match Nginx proxy_read_timeout
       body: JSON.stringify({ tabType, urlAnalysisId }),
-      timeout: 180000, // 3 minutes for insights generation (AI processing can take time)
     })
   }
 

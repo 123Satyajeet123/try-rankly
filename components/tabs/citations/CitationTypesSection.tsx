@@ -466,9 +466,11 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                           {/* Type name below bars */}
                           <div className="w-16 h-6 flex items-center justify-center">
                             <img 
-                              src={getDynamicFaviconUrl((brand as any).url || brand.name)} 
+                              src={getDynamicFaviconUrl((brand as any).url ? { url: (brand as any).url, name: brand.name } : brand.name, 16)} 
                               alt={brand.name}
                               className="w-4 h-4 rounded-sm"
+                              data-favicon-identifier={(brand as any).url || brand.name}
+                              data-favicon-size="16"
                               onError={handleFaviconError}
                             />
                           </div>
@@ -579,9 +581,11 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                       style={{ backgroundColor: item.color }}
                             />
                             <img
-                              src={getDynamicFaviconUrl((item as any).url || item.name)}
+                              src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name, 16)}
                               alt={item.name}
-                              className="w-4 h-4 rounded-sm"
+                              className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
+                              data-favicon-identifier={(item as any).url || item.name}
+                              data-favicon-size="16"
                               onError={handleFaviconError}
                             />
                             <span className="caption text-foreground">{truncateForChart(item.name)}</span>
@@ -709,9 +713,11 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                               style={{ backgroundColor: item.color }}
                             />
                             <img
-                              src={getDynamicFaviconUrl((item as any).url || item.name)}
+                              src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name, 16)}
                               alt={item.name}
-                              className="w-4 h-4 rounded-sm"
+                              className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
+                              data-favicon-identifier={(item as any).url || item.name}
+                              data-favicon-size="16"
                               onError={handleFaviconError}
                             />
                             <span className="caption text-foreground">{truncateForChart(item.name)}</span>
@@ -832,20 +838,35 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                         >
                           <TableCell className="py-3 px-3 w-auto">
                             <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-2">
-                                <img
-                                  src={getDynamicFaviconUrl((item as any).url || item.name)}
-                                  alt={item.name}
-                                  className="w-4 h-4 rounded-sm"
-                                  onError={handleFaviconError}
-                                />
-                                <span 
-                                  className="body-text font-medium" 
-                                  style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
-                                >
-                                  {truncateForRanking(item.name)}
-                                </span>
-                              </div>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-2 cursor-help">
+                                      <img
+                                        src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name, 16)}
+                                        alt={item.name}
+                                        className="w-4 h-4 rounded-sm"
+                                        data-favicon-identifier={(item as any).url || item.name}
+                                        data-favicon-size="16"
+                                        onError={handleFaviconError}
+                                      />
+                                      <span 
+                                        className="body-text font-medium" 
+                                        style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
+                                      >
+                                        {truncateForRanking(item.name)}
+                                      </span>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="text-xs">
+                                      <strong>{item.name}</strong><br/>
+                                      Citation Share: {formatToTwoDecimals(item.score || parseFloat(item.total) || 0)}%<br/>
+                                      Rank: #{item.rank}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
                             </div>
                           </TableCell>
                           <TableCell className="text-right py-3 px-3 w-16">
@@ -919,20 +940,35 @@ export function CitationTypesSection({ filterContext, dashboardData }: CitationT
                               >
                                 <TableCell className="py-3 px-3">
                                   <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <img
-                      src={getDynamicFaviconUrl((item as any).url || item.name)}
-                      alt={item.name}
-                      className="w-4 h-4 rounded-sm"
-                      onError={handleFaviconError}
-                    />
-                    <span 
-                      className="body-text font-medium" 
-                      style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
-                    >
-                      {truncateForRanking(item.name)}
-                    </span>
-                  </div>
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <div className="flex items-center gap-2 cursor-help">
+                                            <img
+                                              src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name, 16)}
+                                              alt={item.name}
+                                              className="w-4 h-4 rounded-sm"
+                                              data-favicon-identifier={(item as any).url || item.name}
+                                              data-favicon-size="16"
+                                              onError={handleFaviconError}
+                                            />
+                                            <span 
+                                              className="body-text font-medium" 
+                                              style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
+                                            >
+                                              {truncateForRanking(item.name)}
+                                            </span>
+                                          </div>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p className="text-xs">
+                                            <strong>{item.name}</strong><br/>
+                                            Citation Share: {formatToTwoDecimals(item.score || parseFloat(item.total) || 0)}%<br/>
+                                            Rank: #{item.rank}
+                                          </p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
                                   </div>
                                 </TableCell>
                                 <TableCell className="text-right py-3 px-3">

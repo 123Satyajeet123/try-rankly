@@ -36,20 +36,32 @@ function UnifiedTopicRankingsSection({ filterContext, dashboardData }: UnifiedTo
     }
 
     // ✅ Use the backend-provided topic rankings structure
+    // ✅ FIX: Re-sort by visibility score to ensure correct rankings (higher is better)
     return dashboardData.metrics.topicRankings
       .filter((topicRanking: any) => topicRanking.rankings && topicRanking.rankings.length > 0)
-      .map((topicRanking: any) => ({
-        topic: topicRanking.topic,
-        rankings: topicRanking.rankings
-          .sort((a: any, b: any) => a.rank - b.rank) // ✅ Ensure proper ranking order
+      .map((topicRanking: any) => {
+        // Re-sort by visibility score (higher is better) and re-assign ranks
+        const sortedRankings = [...topicRanking.rankings]
+          .sort((a: any, b: any) => {
+            const scoreA = a.score || 0
+            const scoreB = b.score || 0
+            return scoreB - scoreA // Descending: higher scores first
+          })
           .slice(0, 5) // Show top 5
-          .map((competitor: any) => ({
-            rank: competitor.rank,
+          .map((competitor: any, index: number) => ({
+            rank: index + 1, // Re-assign rank based on sorted order
             name: competitor.name,
             isOwner: competitor.isOwner || false,
-            score: competitor.score || 0 // ✅ Include score for debugging
+            score: competitor.score || 0,
+            // ✅ FIX: Include URL from backend data (like Prompts tab)
+            url: competitor.url || null
           }))
-      }))
+        
+        return {
+          topic: topicRanking.topic,
+          rankings: sortedRankings
+        }
+      })
       .filter((topic: any) => topic.rankings.length > 0) // ✅ Only topics with actual rankings
   }
 
@@ -140,9 +152,9 @@ function UnifiedTopicRankingsSection({ filterContext, dashboardData }: UnifiedTo
                           <div className="w-20 h-8 flex items-center justify-center rounded-full px-2 cursor-help">
                             <div className="flex items-center gap-1">
                               <img
-                                src={getDynamicFaviconUrl((ranking as any).url ? { url: (ranking as any).url, name: ranking.name } : ranking.name)}
+                                src={getDynamicFaviconUrl((ranking as any).url ? { url: (ranking as any).url, name: ranking.name } : ranking.name, 16)}
                                 alt={ranking.name}
-                                className="w-3 h-3 rounded-sm"
+                                className="w-3 h-3 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
                                 data-favicon-identifier={(ranking as any).url || ranking.name}
                                 data-favicon-size="16"
                                 onError={handleFaviconError}

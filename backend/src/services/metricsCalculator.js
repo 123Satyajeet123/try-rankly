@@ -401,7 +401,7 @@ class MetricsCalculator {
       return ascending ? aVal - bVal : bVal - aVal;
     });
 
-    // Assign ranks (handle ties)
+    // ✅ FIX: Assign ranks with proper tie handling (same value = same rank)
     let currentRank = 1;
     sorted.forEach((brand, index) => {
       if (index > 0) {
@@ -412,7 +412,7 @@ class MetricsCalculator {
         if (prevValue !== currValue) {
           currentRank = index + 1;
         }
-        // If values are the same, keep the same rank
+        // If values are the same, keep the same rank (tie handling)
       }
       
       // Find original brand and assign rank

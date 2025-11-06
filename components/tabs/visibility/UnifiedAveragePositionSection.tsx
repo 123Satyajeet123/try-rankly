@@ -96,35 +96,53 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
                            dashboardData?.metrics?.competitors?.find((c: any) => c.name === item.name);
       const isOwner = competitorData?.isOwner || false;
       
+      // ✅ FIX: Prioritize URL from data array (backend provides it via formatAveragePositionData)
+      // Backend's formatAveragePositionData includes url in the data array, so item.url should be available
+      const url = item.url || competitorData?.url || null;
+      
       return {
         name: item.name,
         score: parseFloat(formatToTwoDecimals(item.value)), // Format to 2 decimal places
         color: isOwner ? '#3B82F6' : brandColors[(index + 1) % brandColors.length], // User's brand in blue, others from palette
-        isOwner: isOwner // Store for other uses
+        isOwner: isOwner, // Store for other uses
+        // ✅ FIX: Include URL from data array (backend provides it via formatAveragePositionData)
+        url: url
       };
     })
 
     console.log('📊 [AveragePosition] Transformed chart data:', currentChartData)
+    console.log('📊 [AveragePosition] URLs in chart data:', currentChartData.map(d => ({ name: d.name, url: d.url })))
     return currentChartData
   }
 
   const getRankingsFromDashboard = () => {
-    // ✅ Use position-specific rankings from brands array
-    const positionCompetitors = dashboardData?.metrics?.averagePosition?.brands || dashboardData?.metrics?.competitors || []
-    
-    if (positionCompetitors.length === 0) {
-      console.log('⚠️ [AveragePosition] No competitor data available')
+    // ✅ FIX: Use the same data source as chart data (averagePosition.data) for consistency
+    // This ensures left side scores match right side rankings
+    if (!dashboardData?.metrics?.averagePosition?.data || dashboardData.metrics.averagePosition.data.length === 0) {
+      console.log('⚠️ [AveragePosition] No average position data available')
       return []
     }
 
-    // Map competitors with their scores
-    const competitorsWithScores = positionCompetitors.map((competitor: any) => ({
-      rank: competitor.rank, // ✅ Now uses avgPositionRank from backend
-      name: competitor.name,
-      isOwner: competitor.isOwner || false, // Use isOwner from backend
-      rankChange: 0, // TODO: Calculate from historical data
-      score: competitor.score || competitor.value || 0 // ✅ Now uses avgPosition value
-    }))
+    // Get chart data to ensure we use the same scores
+    const chartData = getChartDataFromDashboard()
+    
+    // Map average position data with their scores (same as chart data)
+    const competitorsWithScores = chartData.map((item: any) => {
+      // Find competitor info for isOwner flag
+      const competitorData = dashboardData?.metrics?.competitorsByPosition?.find((c: any) => c.name === item.name) ||
+                           dashboardData?.metrics?.competitors?.find((c: any) => c.name === item.name)
+      
+      return {
+        rank: 0, // Will be assigned after sorting
+        name: item.name,
+        isOwner: item.isOwner || competitorData?.isOwner || false,
+        rankChange: 0, // TODO: Calculate from historical data
+        score: item.score || 0, // Use same score as chart data
+        // ✅ FIX: Use URL from chart data (which comes from backend's data array)
+        // chartData already includes url from item.url (backend provides it)
+        url: item.url || competitorData?.url || null
+      }
+    })
 
     // ✅ CRITICAL FIX: Re-sort by average position value (lower is better) and re-assign ranks
     // This ensures rankings are correct even if backend ranking logic has issues
@@ -431,9 +449,11 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
                         {/* Company name below bars */}
                         <div className="w-16 h-6 flex items-center justify-center">
                           <img 
-                            src={getDynamicFaviconUrl((bar as any).url || bar.name)} 
+                            src={getDynamicFaviconUrl((bar as any).url ? { url: (bar as any).url, name: bar.name } : bar.name, 16)} 
                             alt={bar.name}
-                            className="w-4 h-4 rounded-sm"
+                            className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
+                            data-favicon-identifier={(bar as any).url || bar.name}
+                            data-favicon-size="16"
                             onError={handleFaviconError}
                           />
                         </div>
@@ -526,9 +546,11 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
                           style={{ backgroundColor: item.color }}
                         />
                         <img
-                          src={getDynamicFaviconUrl((item as any).url || item.name)}
+                          src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name, 16)}
                           alt={item.name}
-                          className="w-4 h-4 rounded-sm"
+                          className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
+                          data-favicon-identifier={(item as any).url || item.name}
+                          data-favicon-size="16"
                           onError={handleFaviconError}
                         />
                         <span className="caption text-foreground">{truncateForChart(item.name)}</span>
@@ -612,9 +634,11 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
                           style={{ backgroundColor: item.color }}
                         />
                         <img
-                          src={getDynamicFaviconUrl((item as any).url || item.name)}
+                          src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name, 16)}
                           alt={item.name}
-                          className="w-4 h-4 rounded-sm"
+                          className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
+                          data-favicon-identifier={(item as any).url || item.name}
+                          data-favicon-size="16"
                           onError={handleFaviconError}
                         />
                         <span className="caption text-foreground">{truncateForChart(item.name)}</span>
@@ -679,9 +703,11 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
                       <TableCell className="py-3 px-0">
                         <div className="flex items-center gap-2">
                           <img
-                            src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name)}
+                            src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name, 16)}
                             alt={item.name}
-                            className="w-4 h-4 rounded-sm"
+                            className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
+                            data-favicon-identifier={(item as any).url || item.name}
+                            data-favicon-size="16"
                             onError={handleFaviconError}
                           />
                           <span 
@@ -750,20 +776,35 @@ function UnifiedAveragePositionSection({ filterContext, dashboardData }: Unified
                             `}
                           >
                             <TableCell className="py-3 px-0">
-                              <div className="flex items-center gap-2">
-                                <img
-                                  src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name)}
-                                  alt={item.name}
-                                  className="w-4 h-4 rounded-sm"
-                                  onError={handleFaviconError}
-                                />
-                                <span 
-                                  className="text-sm font-medium font-semibold" 
-                                  style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
-                                >
-                                  {truncateForRanking(item.name)}
-                                </span>
-                              </div>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-2 cursor-help">
+                                      <img
+                                        src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name, 16)}
+                                        alt={item.name}
+                                        className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
+                                        data-favicon-identifier={(item as any).url || item.name}
+                                        data-favicon-size="16"
+                                        onError={handleFaviconError}
+                                      />
+                                      <span 
+                                        className="text-sm font-medium font-semibold" 
+                                        style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
+                                      >
+                                        {truncateForRanking(item.name)}
+                                      </span>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="text-xs">
+                                      <strong>{item.name}</strong><br/>
+                                      Average Position: {formatToTwoDecimals(item.score || 0)}<br/>
+                                      Rank: #{item.rank}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
                             </TableCell>
                             <TableCell className="text-right py-3 px-0">
                               <span 

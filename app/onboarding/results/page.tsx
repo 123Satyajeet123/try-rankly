@@ -354,8 +354,11 @@ export default function ResultsPage() {
                       <h3 className="text-xs font-medium tracking-wide text-foreground">Citation Share</h3>
                       <span className="text-base font-semibold text-foreground">
                         {(() => {
-                          // Try multiple paths to find citation share
+                          // ✅ FIX: Use the correct path from metrics.citationShare.value (same structure as visibilityScore)
+                          // Fallback to other paths only if the primary path is not available
                           const citationShare = 
+                            metricsData?.metrics?.citationShare?.value ||
+                            metricsData?.overall?.brandMetrics?.find((b: any) => b.isOwner)?.citationShare ||
                             metricsData?.overall?.brandMetrics?.[0]?.citationShare ||
                             metricsData?.competitors?.find((c: any) => c.isOwner)?.citationShare ||
                             metricsData?.overall?.summary?.userBrand?.citationShare;

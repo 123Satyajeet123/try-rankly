@@ -37,23 +37,12 @@ const getChartDataFromDashboard = (dashboardData: any) => {
   console.log('✅ [CitationShareSection] Using real citation data:', dashboardData.metrics.competitorsByCitation)
 
   const chartData = dashboardData.metrics.competitorsByCitation.map((competitor: any, index: number) => {
-    // Get citation breakdown from the competitor data
-    const brandCitations = competitor.brandCitationsTotal || 0
-    const socialCitations = competitor.socialCitationsTotal || 0
-    const earnedCitations = competitor.earnedCitationsTotal || 0
-    const totalCitations = competitor.totalCitations || (brandCitations + socialCitations + earnedCitations)
-    
-    // Calculate percentages
-    const brand = totalCitations > 0 ? (brandCitations / totalCitations) * 100 : 0
-    const social = totalCitations > 0 ? (socialCitations / totalCitations) * 100 : 0
-    const earned = totalCitations > 0 ? (earnedCitations / totalCitations) * 100 : 0
-    
+    // ✅ Citation Share data only - removed Citation Types fields (brand, social, earned)
+    // Citation Share = (This brand's citations / Total citations of all brands) × 100
+    // Citation Types breakdown is handled in CitationTypesSection, not here
     return {
       name: competitor.name,
-      score: competitor.score || 0, // This is now citationShare from backend
-      brand: Math.round(brand * 10) / 10,
-      social: Math.round(social * 10) / 10,
-      earned: Math.round(earned * 10) / 10,
+      score: competitor.score || 0, // Overall citation share from backend
       color: brandColors[index % brandColors.length], // Always use our diverse color palette
       comparisonScore: competitor.score || 0, // For now, use same value for comparison
       isOwner: competitor.isOwner || false // ✅ Store isOwner flag for filtering
@@ -192,7 +181,6 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
   // ✅ Find user's brand from chart data to ensure we display correct metrics
   // Pattern matches Visibility tab: try chartData first, then fallback to formatted metric value
   const userBrandFromChart = chartData.find(item => item.isOwner === true)
-  const userBrandValue = userBrandFromChart?.score || dashboardData?.metrics?.citationShare?.value || 0
 
   // All hooks must be called before any conditional returns
   const [hoveredBar, setHoveredBar] = useState<{ name: string; score: string; x: number; y: number } | null>(null)
@@ -260,6 +248,46 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
     return formatDate(selectedDate)
   }
 
+  // ✅ Helper function to calculate citation share by type for a brand
+  // Citation share by type = (This brand's citations of that type / Total citations of that type across all brands) × 100
+  // MUST be defined before it's used in getUserBrandValue
+  const getCitationShareByType = (brandName: string, citationType: string): number => {
+    if (citationType !== 'brand' && citationType !== 'social' && citationType !== 'earned') {
+      // For overall, use the score from chartData
+      const brandData = chartData.find(item => item.name === brandName)
+      return brandData?.score || 0
+    }
+    
+    const allCompetitors = dashboardData?.metrics?.competitorsByCitation || []
+    const totalByType = allCompetitors.reduce((sum: number, comp: any) => {
+      if (citationType === 'brand') return sum + (comp.brandCitationsTotal || 0)
+      if (citationType === 'social') return sum + (comp.socialCitationsTotal || 0)
+      if (citationType === 'earned') return sum + (comp.earnedCitationsTotal || 0)
+      return sum
+    }, 0)
+    
+    const competitor = allCompetitors.find((c: any) => c.name === brandName)
+    if (!competitor) return 0
+    
+    let citationsOfType = 0
+    if (citationType === 'brand') citationsOfType = competitor.brandCitationsTotal || 0
+    else if (citationType === 'social') citationsOfType = competitor.socialCitationsTotal || 0
+    else if (citationType === 'earned') citationsOfType = competitor.earnedCitationsTotal || 0
+    
+    return totalByType > 0 ? Math.round((citationsOfType / totalByType) * 100 * 10) / 10 : 0
+  }
+
+  // ✅ FIX: Respect selectedCitationType filter - show citation share by type, not percentage breakdown
+  // Citation share by type = (This brand's citations of that type / Total citations of that type across all brands) × 100
+  // Must be defined after selectedCitationType hook
+  const getUserBrandValue = () => {
+    if (!userBrandFromChart) return dashboardData?.metrics?.citationShare?.value || 0
+    // Use helper function for consistency
+    return getCitationShareByType(userBrandFromChart.name, selectedCitationType)
+  }
+  
+  const userBrandValue = getUserBrandValue()
+
   // Helper function to get citation type label
   const getCitationTypeLabel = (type: string) => {
     switch (type) {
@@ -271,45 +299,64 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
   }
 
   // Get rankings for specific citation type
+  // ✅ FIX: Calculate citation share by type correctly
+  // Citation share by type = (This brand's citations of that type / Total citations of that type across all brands) × 100
   const getRankingsForCitationType = (citationType: string) => {
-    // For citation type breakdowns, use the specific type value
     // For overall citation share, use the main score
-    const sortedData = [...chartData].sort((a, b) => {
-      let aValue: number
-      let bValue: number
-      
-      if (citationType === 'brand' || citationType === 'social' || citationType === 'earned') {
-        // Use specific citation type breakdown
-        aValue = (a as any)[citationType] || 0
-        bValue = (b as any)[citationType] || 0
-      } else {
-        // Use overall citation share score
-        aValue = a.score || 0
-        bValue = b.score || 0
-      }
-      
-      // Higher is better (descending sort)
-      return bValue - aValue
-    })
+    if (citationType !== 'brand' && citationType !== 'social' && citationType !== 'earned') {
+      const sortedData = [...chartData].sort((a, b) => (b.score || 0) - (a.score || 0))
+      return sortedData.map((item, index) => ({
+        rank: index + 1,
+        name: item.name,
+        score: item.score || 0,
+        citationShare: item.score || 0,
+        total: (item.score || 0).toString(),
+        rankChange: Math.floor(Math.random() * 3) - 1,
+        isOwner: item.isOwner
+      }))
+    }
     
-    return sortedData.map((item, index) => {
-      let scoreValue: number
-      if (citationType === 'brand' || citationType === 'social' || citationType === 'earned') {
-        scoreValue = (item as any)[citationType] || 0
-      } else {
-        scoreValue = item.score || 0
-      }
+    // For citation type breakdowns, calculate citation share by type
+    // Get total citations of this type across all brands from dashboard data
+    const allCompetitors = dashboardData?.metrics?.competitorsByCitation || []
+    const totalByType = allCompetitors.reduce((sum: number, comp: any) => {
+      if (citationType === 'brand') return sum + (comp.brandCitationsTotal || 0)
+      if (citationType === 'social') return sum + (comp.socialCitationsTotal || 0)
+      if (citationType === 'earned') return sum + (comp.earnedCitationsTotal || 0)
+      return sum
+    }, 0)
+    
+    // Calculate citation share by type for each brand
+    const dataWithTypeShare = chartData.map((item) => {
+      const competitor = allCompetitors.find((c: any) => c.name === item.name)
+      if (!competitor) return { ...item, typeShare: 0 }
+      
+      let citationsOfType = 0
+      if (citationType === 'brand') citationsOfType = competitor.brandCitationsTotal || 0
+      else if (citationType === 'social') citationsOfType = competitor.socialCitationsTotal || 0
+      else if (citationType === 'earned') citationsOfType = competitor.earnedCitationsTotal || 0
+      
+      // Citation share by type = (This brand's citations of that type / Total citations of that type) × 100
+      const typeShare = totalByType > 0 ? (citationsOfType / totalByType) * 100 : 0
       
       return {
-      rank: index + 1,
-      name: item.name,
-        score: scoreValue, // ✅ Add score field for display
-        citationShare: scoreValue, // For backward compatibility
-        total: scoreValue.toString(),
-      rankChange: Math.floor(Math.random() * 3) - 1,
-      isOwner: item.isOwner
+        ...item,
+        typeShare: Math.round(typeShare * 10) / 10
       }
     })
+    
+    // Sort by citation share by type (descending)
+    const sortedData = [...dataWithTypeShare].sort((a, b) => (b.typeShare || 0) - (a.typeShare || 0))
+    
+    return sortedData.map((item, index) => ({
+      rank: index + 1,
+      name: item.name,
+      score: item.typeShare || 0,
+      citationShare: item.typeShare || 0,
+      total: (item.typeShare || 0).toString(),
+      rankChange: Math.floor(Math.random() * 3) - 1,
+      isOwner: item.isOwner
+    }))
   }
 
   const getComparisonLabel = () => {
@@ -471,7 +518,8 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                   {/* Y-axis labels on the left */}
                   <div className="absolute left-2 top-4 bottom-3 flex flex-col justify-between caption text-muted-foreground">
                     {(() => {
-                      const maxValue = Math.max(...chartData.map(d => (d as any)[selectedCitationType]), 1) // Ensure at least 1 to avoid division by zero
+                      // ✅ FIX: Use citation share by type, not percentage breakdown
+                      const maxValue = Math.max(...chartData.map(d => getCitationShareByType(d.name, selectedCitationType)), 1)
                       const step = maxValue / 5
                       return [4, 3, 2, 1, 0].map(i => (
                         <span key={`y-axis-${i}-${Math.round(i * step * 10) / 10}`}>{Math.round(i * step * 10) / 10}%</span>
@@ -487,9 +535,10 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                         className="flex flex-col items-center justify-end gap-2 flex-1 relative"
                         onMouseEnter={(e) => {
                           const rect = e.currentTarget.getBoundingClientRect()
+                          const shareByType = getCitationShareByType(bar.name, selectedCitationType)
                           setHoveredBar({
                             name: bar.name,
-                            score: `${(bar as any)[selectedCitationType]}%`,
+                            score: `${shareByType.toFixed(2)}%`,
                             x: rect.left + rect.width / 2,
                             y: rect.top - 10
                           })
@@ -499,9 +548,9 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                         {/* Score labels above bars - Only show when comparing */}
                         {showComparison && (
                           <div className="text-center mb-2">
-                            <div className="text-sm font-medium text-foreground">{(bar as any)[selectedCitationType]}%</div>
+                            <div className="text-sm font-medium text-foreground">{getCitationShareByType(bar.name, selectedCitationType).toFixed(2)}%</div>
                             <div className="text-xs text-muted-foreground">
-                              {(bar as any)[selectedCitationType]}%
+                              {getCitationShareByType(bar.name, selectedCitationType).toFixed(2)}%
                             </div>
                           </div>
                         )}
@@ -513,8 +562,9 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                             className="w-4 rounded-t-sm transition-all duration-300 hover:opacity-80 cursor-pointer"
                             style={{
                               height: `${(() => {
-                                const maxValue = Math.max(...chartData.map(d => (d as any)[selectedCitationType]), 1)
-                                return ((bar as any)[selectedCitationType] / maxValue) * 120
+                                const maxValue = Math.max(...chartData.map(d => getCitationShareByType(d.name, selectedCitationType)), 1)
+                                const shareByType = getCitationShareByType(bar.name, selectedCitationType)
+                                return (shareByType / maxValue) * 120
                               })()}px`,
                               minHeight: '4px',
                               backgroundColor: bar.color
@@ -527,8 +577,9 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                               className="w-4 rounded-t-sm opacity-70 transition-all duration-300 hover:opacity-90 cursor-pointer"
                               style={{
                                 height: `${(() => {
-                                  const maxValue = Math.max(...chartData.map(d => (d as any)[selectedCitationType]), 1)
-                                  return ((bar as any)[selectedCitationType] / maxValue) * 120
+                                  const maxValue = Math.max(...chartData.map(d => getCitationShareByType(d.name, selectedCitationType)), 1)
+                                  const shareByType = getCitationShareByType(bar.name, selectedCitationType)
+                                  return (shareByType / maxValue) * 120
                                 })()}px`,
                                 minHeight: '2px',
                                 backgroundColor: bar.color,
@@ -541,9 +592,11 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                         {/* Company name below bars */}
                         <div className="w-16 h-6 flex items-center justify-center">
                           <img 
-                            src={getDynamicFaviconUrl((bar as any).url || bar.name)} 
+                            src={getDynamicFaviconUrl((bar as any).url ? { url: (bar as any).url, name: bar.name } : bar.name, 16)} 
                             alt={bar.name}
-                            className="w-4 h-4 rounded-sm"
+                            className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
+                            data-favicon-identifier={(bar as any).url || bar.name}
+                            data-favicon-size="16"
                             onError={handleFaviconError}
                           />
                         </div>
@@ -559,9 +612,14 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                   <div className="w-48 h-48">
                     <PieChart width={192} height={192}>
                       {/* Current period (outer ring) */}
+                      {/* ✅ FIX: Create computed data with citation share by type for donut chart */}
                       <Pie
-                        data={chartData}
-                        dataKey="score"
+                        data={chartData.map(item => ({
+                          ...item,
+                          // Add computed citation share by type for donut chart
+                          computedShare: getCitationShareByType(item.name, selectedCitationType)
+                        }))}
+                        dataKey="computedShare"
                         nameKey="name"
                         innerRadius={showComparison ? 55 : 40}
                         outerRadius={80}
@@ -594,7 +652,8 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                               // ✅ Default to user's brand if no active index, not just first item
                               const userBrandData = chartData.find(item => item.isOwner === true)
                               const activeData = chartData[activeIndex] || userBrandData || chartData[0]
-                              // ✅ Use score (citationShare) for Citation Share metric, not selectedCitationType (breakdown)
+                              // ✅ FIX: Use helper function to calculate citation share by type
+                              const displayValue = getCitationShareByType(activeData.name, selectedCitationType)
                               return (
                                 <text
                                   x={viewBox.cx}
@@ -608,7 +667,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                                     y={viewBox.cy}
                                     className="fill-foreground text-lg font-bold transition-all duration-500 ease-in-out"
                                   >
-                                    {activeData.score?.toFixed(2) || '0.00'}%
+                                    {displayValue.toFixed(2)}%
                                   </tspan>
                                   <tspan
                                     x={viewBox.cx}
@@ -658,23 +717,29 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                           style={{ backgroundColor: item.color }}
                         />
                         <img
-                          src={getDynamicFaviconUrl((item as any).url || item.name)}
+                          src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name, 16)}
                           alt={item.name}
-                          className="w-4 h-4 rounded-sm"
+                          className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
+                          data-favicon-identifier={(item as any).url || item.name}
+                          data-favicon-size="16"
                           onError={handleFaviconError}
                         />
                         <span className="caption text-foreground">{truncateForChart(item.name)}</span>
                         <span className="caption text-muted-foreground">
                           {showComparison ? (
                             <div className="flex flex-col">
-                              {/* ✅ Use score (citationShare) for Citation Share metric, not selectedCitationType (breakdown) */}
-                              <span className="transition-all duration-500 ease-in-out">{item.score?.toFixed(2) || '0.00'}%</span>
+                              {/* ✅ FIX: Use helper function to calculate citation share by type */}
+                              <span className="transition-all duration-500 ease-in-out">
+                                {getCitationShareByType(item.name, selectedCitationType).toFixed(2)}%
+                              </span>
                               <span className="text-[10px] opacity-70">
                                 {item.comparisonScore?.toFixed(2) || '0.00'}%
                               </span>
                             </div>
                           ) : (
-                            <span className="transition-all duration-500 ease-in-out">{item.score?.toFixed(2) || '0.00'}%</span>
+                            <span className="transition-all duration-500 ease-in-out">
+                              {getCitationShareByType(item.name, selectedCitationType).toFixed(2)}%
+                            </span>
                           )}
                         </span>
                       </div>
@@ -783,9 +848,11 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                           style={{ backgroundColor: item.color }}
                         />
                         <img
-                          src={getDynamicFaviconUrl((item as any).url || item.name)}
+                          src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name, 16)}
                           alt={item.name}
-                          className="w-4 h-4 rounded-sm"
+                          className="w-4 h-4 rounded-sm border border-border/50 hover:border-primary/50 transition-colors"
+                          data-favicon-identifier={(item as any).url || item.name}
+                          data-favicon-size="16"
                           onError={handleFaviconError}
                         />
                         <span className="caption text-foreground">{truncateForChart(item.name)}</span>
@@ -833,7 +900,7 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
           </div>
 
               {/* Right Section: Ranking Table */}
-              <div className="space-y-6 pl-8 relative">
+              <div className="space-y-4 relative">
                 {/* Top Row - Group buttons aligned with left-side buttons */}
                 <div className="flex justify-between items-center">
                   {/* Left side - Rank text */}
@@ -867,8 +934,8 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                   </div>
                 </div>
 
-            {/* Simple Table */}
-                <div className="space-y-2 pb-8 relative">
+                {/* Simple Table */}
+                <div className="space-y-2 pb-8 relative pl-8">
                   <Table className="w-full">
                 <TableHeader>
                   <TableRow className="border-border/60">
@@ -888,20 +955,35 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                         >
                           <TableCell className="py-3 px-3 w-auto">
                             <div className="flex items-center gap-3">
-                              <div className="flex items-center gap-2">
-                                <img
-                                  src={getDynamicFaviconUrl((item as any).url || item.name)}
-                                  alt={item.name}
-                                  className="w-4 h-4 rounded-sm"
-                                  onError={handleFaviconError}
-                                />
-                                <span 
-                                  className="body-text font-medium" 
-                                  style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
-                                >
-                                  {truncateForRanking(item.name)}
-                                </span>
-                              </div>
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-2 cursor-help">
+                                      <img
+                                        src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name, 16)}
+                                        alt={item.name}
+                                        className="w-4 h-4 rounded-sm"
+                                        data-favicon-identifier={(item as any).url || item.name}
+                                        data-favicon-size="16"
+                                        onError={handleFaviconError}
+                                      />
+                                      <span 
+                                        className="body-text font-medium" 
+                                        style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
+                                      >
+                                        {truncateForRanking(item.name)}
+                                      </span>
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent>
+                                    <p className="text-xs">
+                                      <strong>{item.name}</strong><br/>
+                                      Citation Share: {formatToTwoDecimals(item.score || item.citationShare || 0)}%<br/>
+                                      Rank: #{item.rank}
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
                             </div>
                           </TableCell>
                           <TableCell className="text-right py-3 px-3 w-16">
@@ -975,20 +1057,35 @@ function CitationShareSection({ filterContext, dashboardData }: CitationShareSec
                     >
                       <TableCell className="py-3 px-3">
                         <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            <img
-                              src={getDynamicFaviconUrl((item as any).url || item.name)}
-                              alt={item.name}
-                              className="w-4 h-4 rounded-sm"
-                              onError={handleFaviconError}
-                            />
-                            <span 
-                              className="body-text font-medium" 
-                              style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
-                            >
-                              {truncateForRanking(item.name)}
-                            </span>
-                          </div>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <div className="flex items-center gap-2 cursor-help">
+                                  <img
+                                    src={getDynamicFaviconUrl((item as any).url ? { url: (item as any).url, name: item.name } : item.name, 16)}
+                                    alt={item.name}
+                                    className="w-4 h-4 rounded-sm"
+                                    data-favicon-identifier={(item as any).url || item.name}
+                                    data-favicon-size="16"
+                                    onError={handleFaviconError}
+                                  />
+                                  <span 
+                                    className="body-text font-medium" 
+                                    style={{color: item.isOwner ? '#2563EB' : 'inherit'}}
+                                  >
+                                    {truncateForRanking(item.name)}
+                                  </span>
+                                </div>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="text-xs">
+                                  <strong>{item.name}</strong><br/>
+                                  Citation Share: {formatToTwoDecimals(item.score || item.citationShare || 0)}%<br/>
+                                  Rank: #{item.rank}
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
                         </div>
                       </TableCell>
                       <TableCell className="text-right py-3 px-3">

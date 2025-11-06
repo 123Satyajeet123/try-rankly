@@ -302,8 +302,8 @@ class SubjectiveMetricsService {
     // Add generic abbreviations (GENERIC - no hardcoding)
     // Use the generic abbreviation generation algorithm
     const metricsExtractionService = require('./metricsExtractionService');
-    const extractionService = new metricsExtractionService();
-    const abbreviations = extractionService.getBrandAbbreviations(brandName);
+    // metricsExtractionService is already an instance, not a class
+    const abbreviations = metricsExtractionService.getBrandAbbreviations(brandName);
     
     // Add all generated abbreviations to patterns
     for (const abbrev of abbreviations.keys()) {

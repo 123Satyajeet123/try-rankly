@@ -116,6 +116,7 @@ router.get('/all', authenticateToken, async (req, res) => {
     }
 
     let userBrandName = urlAnalysis?.brandContext?.companyName || null;
+    let userBrandUrl = urlAnalysis?.url || null; // ✅ FIX: Get user's brand URL from UrlAnalysis (like prompts.js)
     let currentUrlAnalysisId = urlAnalysis?._id;
 
     console.log(`📊 [DASHBOARD] User: ${userId}, URL Analysis ID: ${currentUrlAnalysisId}, Brand: ${userBrandName}`);
@@ -493,28 +494,47 @@ router.get('/all', authenticateToken, async (req, res) => {
         personas: personas,
         
         // ✅ NEW: Frontend-compatible data structure (using filtered overall)
-        metrics: {
-          visibilityScore: formatVisibilityData(filteredOverall, userBrandName),
-          depthOfMention: formatDepthData(filteredOverall, userBrandName),
-          averagePosition: formatAveragePositionData(filteredOverall, userBrandName),
-          topicRankings: await formatTopicRankings(topics, userBrandName, userId, currentUrlAnalysisId), // ✅ FIX: Added await and missing params
-          personaRankings: await formatPersonaRankings(personas, userBrandName, userId, currentUrlAnalysisId), // ✅ FIX: Added await and missing params
-          performanceInsights: formatPerformanceInsights(filteredOverall, userBrandName),
-          competitors: await formatCompetitorsData(filteredOverall, userBrandName, userId, currentUrlAnalysisId),
-          // ✅ NEW: Citation-specific data structure for Citations tab
-          competitorsByCitation: await formatCompetitorsByCitationData(filteredOverall, userBrandName, userId, currentUrlAnalysisId),
-          // ✅ NEW: Citation share formatted data (similar to visibilityScore) for consistent fallback
-          citationShare: formatCitationShareData(filteredOverall, userBrandName)
-        },
+        // ✅ FIX: Fetch competitor URLs once and pass to all formatting functions (including user's brand URL)
+        metrics: await (async () => {
+          const brandNames = filteredOverall?.brandMetrics?.map(b => b.brandName).filter(Boolean) || [];
+          const competitorUrlMap = await getCompetitorUrlMap(userId, currentUrlAnalysisId, brandNames, userBrandName, userBrandUrl);
+          
+          return {
+            visibilityScore: await formatVisibilityData(filteredOverall, userBrandName, userId, currentUrlAnalysisId, competitorUrlMap),
+            depthOfMention: await formatDepthData(filteredOverall, userBrandName, userId, currentUrlAnalysisId, competitorUrlMap),
+            averagePosition: await formatAveragePositionData(filteredOverall, userBrandName, userId, currentUrlAnalysisId, competitorUrlMap),
+            topicRankings: await formatTopicRankings(topics, userBrandName, userId, currentUrlAnalysisId, userBrandUrl), // ✅ FIX: Added await and missing params
+            personaRankings: await formatPersonaRankings(personas, userBrandName, userId, currentUrlAnalysisId, userBrandUrl), // ✅ FIX: Added await and missing params
+            performanceInsights: formatPerformanceInsights(filteredOverall, userBrandName),
+            competitors: await formatCompetitorsData(filteredOverall, userBrandName, userId, currentUrlAnalysisId, userBrandUrl),
+            // ✅ NEW: Citation-specific data structure for Citations tab
+            competitorsByCitation: await formatCompetitorsByCitationData(filteredOverall, userBrandName, userId, currentUrlAnalysisId, userBrandUrl),
+            // ✅ NEW: Citation share formatted data (similar to visibilityScore) for consistent fallback
+            citationShare: await formatCitationShareData(filteredOverall, userBrandName, userId, currentUrlAnalysisId, competitorUrlMap)
+          };
+        })(),
         
         // ✅ Keep backward compatibility (using filtered overall)
-        visibility: formatVisibilityData(filteredOverall, userBrandName),
-        depthOfMention: formatDepthData(filteredOverall, userBrandName),
-        averagePosition: formatAveragePositionData(filteredOverall, userBrandName),
-        topicRankings: await formatTopicRankings(topics, userBrandName, userId, currentUrlAnalysisId),
-        personaRankings: await formatPersonaRankings(personas, userBrandName, userId, currentUrlAnalysisId),
+        // ✅ FIX: Fetch URLs for backward compatibility fields too (including user's brand URL)
+        visibility: await (async () => {
+          const brandNames = filteredOverall?.brandMetrics?.map(b => b.brandName).filter(Boolean) || [];
+          const competitorUrlMap = await getCompetitorUrlMap(userId, currentUrlAnalysisId, brandNames, userBrandName, userBrandUrl);
+          return await formatVisibilityData(filteredOverall, userBrandName, userId, currentUrlAnalysisId, competitorUrlMap);
+        })(),
+        depthOfMention: await (async () => {
+          const brandNames = filteredOverall?.brandMetrics?.map(b => b.brandName).filter(Boolean) || [];
+          const competitorUrlMap = await getCompetitorUrlMap(userId, currentUrlAnalysisId, brandNames, userBrandName, userBrandUrl);
+          return await formatDepthData(filteredOverall, userBrandName, userId, currentUrlAnalysisId, competitorUrlMap);
+        })(),
+        averagePosition: await (async () => {
+          const brandNames = filteredOverall?.brandMetrics?.map(b => b.brandName).filter(Boolean) || [];
+          const competitorUrlMap = await getCompetitorUrlMap(userId, currentUrlAnalysisId, brandNames, userBrandName, userBrandUrl);
+          return await formatAveragePositionData(filteredOverall, userBrandName, userId, currentUrlAnalysisId, competitorUrlMap);
+        })(),
+        topicRankings: await formatTopicRankings(topics, userBrandName, userId, currentUrlAnalysisId, userBrandUrl),
+        personaRankings: await formatPersonaRankings(personas, userBrandName, userId, currentUrlAnalysisId, userBrandUrl),
         performanceInsights: formatPerformanceInsights(filteredOverall, userBrandName),
-        competitors: await formatCompetitorsData(filteredOverall, userBrandName, userId, currentUrlAnalysisId),
+        competitors: await formatCompetitorsData(filteredOverall, userBrandName, userId, currentUrlAnalysisId, userBrandUrl),
         
         // Platform-level data (formatted) - using filtered platforms
         platforms: filteredPlatforms.map(p => {
@@ -557,7 +577,7 @@ router.get('/all', authenticateToken, async (req, res) => {
 /**
  * Format visibility score data for frontend
  */
-function formatVisibilityData(metrics, userBrandName) {
+async function formatVisibilityData(metrics, userBrandName, userId = null, urlAnalysisId = null, competitorUrlMap = null) {
   if (!metrics || !metrics.brandMetrics || metrics.brandMetrics.length === 0) {
     console.log('⚠️ [formatVisibilityData] No metrics or brand metrics found');
     return {
@@ -592,16 +612,46 @@ function formatVisibilityData(metrics, userBrandName) {
   const sortedBrands = metrics.brandMetrics
     .sort((a, b) => (a.visibilityRank || 0) - (b.visibilityRank || 0));
 
+  // ✅ FIX: Fetch URLs if not provided (include userBrandName and userBrandUrl for user's brand)
+  let urlMap = competitorUrlMap;
+  if (!urlMap && userId) {
+    const brandNames = sortedBrands.map(b => b.brandName).filter(Boolean);
+    // ✅ FIX: Get user's brand URL from UrlAnalysis if not provided
+    let userBrandUrl = null;
+    if (urlAnalysisId) {
+      const UrlAnalysis = require('../models/UrlAnalysis');
+      const analysis = await UrlAnalysis.findById(urlAnalysisId).lean();
+      userBrandUrl = analysis?.url || null;
+    }
+    urlMap = await getCompetitorUrlMap(userId, urlAnalysisId, brandNames, userBrandName, userBrandUrl);
+  }
+
   return {
     // ✅ Frontend expects 'value' property for the main metric
     value: userBrand.visibilityScore || 0,
     
     // ✅ Frontend expects 'data' array for chart visualization
-    data: sortedBrands.map(b => ({
-      name: b.brandName || 'Unknown',
-      value: b.visibilityScore || 0,
-      fill: getColorForBrand(b.brandName)
-    })),
+    data: sortedBrands.map(b => {
+      const brandName = b.brandName || 'Unknown';
+      const url = urlMap?.get(brandName) || null;
+      
+      // ✅ DEBUG: Log if URL is missing
+      if (!url) {
+        console.warn(`⚠️ [formatVisibilityData] No URL found for brand: ${brandName}`, {
+          brandName,
+          urlMapSize: urlMap?.size || 0,
+          urlMapKeys: urlMap ? Array.from(urlMap.keys()).slice(0, 10) : []
+        });
+      }
+      
+      return {
+        name: brandName,
+        value: b.visibilityScore || 0,
+        fill: getColorForBrand(brandName),
+        // ✅ FIX: Include URL for favicon display in charts
+        url: url
+      };
+    }),
     
     // ✅ Keep existing structure for backward compatibility
     current: {
@@ -612,6 +662,8 @@ function formatVisibilityData(metrics, userBrandName) {
       name: b.brandName || 'Unknown',
       score: b.visibilityScore || 0,
       rank: b.visibilityRank || 0,
+      // ✅ FIX: Include URL for favicon display
+      url: urlMap?.get(b.brandName || 'Unknown') || null,
       // ✅ Use isOwner from aggregated metrics (already set correctly) instead of name comparison
       isOwner: b.isOwner !== undefined ? b.isOwner : (b.brandName === userBrandName),
       color: getColorForBrand(b.brandName)
@@ -622,7 +674,7 @@ function formatVisibilityData(metrics, userBrandName) {
 /**
  * Format citation share data for frontend (similar to formatVisibilityData)
  */
-function formatCitationShareData(metrics, userBrandName) {
+async function formatCitationShareData(metrics, userBrandName, userId = null, urlAnalysisId = null, competitorUrlMap = null) {
   if (!metrics || !metrics.brandMetrics || metrics.brandMetrics.length === 0) {
     console.log('⚠️ [formatCitationShareData] No metrics or brand metrics found');
     return {
@@ -657,6 +709,20 @@ function formatCitationShareData(metrics, userBrandName) {
   const sortedBrands = metrics.brandMetrics
     .sort((a, b) => (a.citationShareRank || 0) - (b.citationShareRank || 0));
 
+  // ✅ FIX: Fetch URLs if not provided (include userBrandName and userBrandUrl for user's brand)
+  let urlMap = competitorUrlMap;
+  if (!urlMap && userId) {
+    const brandNames = sortedBrands.map(b => b.brandName).filter(Boolean);
+    // ✅ FIX: Get user's brand URL from UrlAnalysis if not provided
+    let userBrandUrl = null;
+    if (urlAnalysisId) {
+      const UrlAnalysis = require('../models/UrlAnalysis');
+      const analysis = await UrlAnalysis.findById(urlAnalysisId).lean();
+      userBrandUrl = analysis?.url || null;
+    }
+    urlMap = await getCompetitorUrlMap(userId, urlAnalysisId, brandNames, userBrandName, userBrandUrl);
+  }
+
   return {
     // ✅ Frontend expects 'value' property for the main metric
     value: userBrand.citationShare || 0,
@@ -665,7 +731,9 @@ function formatCitationShareData(metrics, userBrandName) {
     data: sortedBrands.map(b => ({
       name: b.brandName || 'Unknown',
       value: b.citationShare || 0,
-      fill: getColorForBrand(b.brandName)
+      fill: getColorForBrand(b.brandName),
+      // ✅ FIX: Include URL for favicon display in charts
+      url: urlMap?.get(b.brandName || 'Unknown') || null
     })),
     
     // ✅ Keep existing structure for backward compatibility
@@ -677,6 +745,8 @@ function formatCitationShareData(metrics, userBrandName) {
       name: b.brandName || 'Unknown',
       score: b.citationShare || 0,
       rank: b.citationShareRank || 0,
+      // ✅ FIX: Include URL for favicon display
+      url: urlMap?.get(b.brandName || 'Unknown') || null,
       // ✅ Use isOwner from aggregated metrics (already set correctly) instead of name comparison
       isOwner: b.isOwner !== undefined ? b.isOwner : (b.brandName === userBrandName),
       color: getColorForBrand(b.brandName)
@@ -687,7 +757,7 @@ function formatCitationShareData(metrics, userBrandName) {
 /**
  * Format depth of mention data for frontend
  */
-function formatDepthData(metrics, userBrandName) {
+async function formatDepthData(metrics, userBrandName, userId = null, urlAnalysisId = null, competitorUrlMap = null) {
   if (!metrics || !metrics.brandMetrics || metrics.brandMetrics.length === 0) {
     console.log('⚠️ [formatDepthData] No metrics or brand metrics found');
     return {
@@ -722,16 +792,47 @@ function formatDepthData(metrics, userBrandName) {
   const sortedBrands = metrics.brandMetrics
     .sort((a, b) => (a.depthRank || 0) - (b.depthRank || 0));
 
+  // ✅ FIX: Fetch URLs if not provided (include userBrandName and userBrandUrl for user's brand)
+  let urlMap = competitorUrlMap;
+  if (!urlMap && userId) {
+    const brandNames = sortedBrands.map(b => b.brandName).filter(Boolean);
+    // ✅ FIX: Get user's brand URL from UrlAnalysis if not provided
+    let userBrandUrl = null;
+    if (urlAnalysisId) {
+      const UrlAnalysis = require('../models/UrlAnalysis');
+      const analysis = await UrlAnalysis.findById(urlAnalysisId).lean();
+      userBrandUrl = analysis?.url || null;
+    }
+    urlMap = await getCompetitorUrlMap(userId, urlAnalysisId, brandNames, userBrandName, userBrandUrl);
+  }
+
   return {
     // ✅ Frontend expects 'value' property for the main metric
     value: userBrand.depthOfMention || 0,
     
     // ✅ Frontend expects 'data' array for chart visualization
-    data: sortedBrands.map(b => ({
-      name: b.brandName || 'Unknown',
-      value: b.depthOfMention || 0,
-      fill: getColorForBrand(b.brandName)
-    })),
+    data: sortedBrands.map(b => {
+      const brandName = b.brandName || 'Unknown';
+      const url = urlMap?.get(brandName) || null;
+      
+      // ✅ DEBUG: Log if URL is missing
+      if (!url) {
+        console.warn(`⚠️ [formatDepthData] No URL found for brand: ${brandName}`, {
+          brandName,
+          urlMapSize: urlMap?.size || 0,
+          urlMapKeys: urlMap ? Array.from(urlMap.keys()).slice(0, 10) : [],
+          availableBrands: sortedBrands.map(b => b.brandName).slice(0, 10)
+        });
+      }
+      
+      return {
+        name: brandName,
+        value: b.depthOfMention || 0,
+        fill: getColorForBrand(brandName),
+        // ✅ FIX: Include URL for favicon display in charts
+        url: url
+      };
+    }),
     
     // ✅ Keep existing structure for backward compatibility
     current: {
@@ -742,6 +843,8 @@ function formatDepthData(metrics, userBrandName) {
       name: b.brandName || 'Unknown',
       score: b.depthOfMention || 0,
       rank: b.depthRank || 0,
+      // ✅ FIX: Include URL for favicon display
+      url: urlMap?.get(b.brandName || 'Unknown') || null,
       isOwner: b.brandName === userBrandName,
       color: getColorForBrand(b.brandName)
     }))
@@ -751,7 +854,7 @@ function formatDepthData(metrics, userBrandName) {
 /**
  * Format average position data for frontend
  */
-function formatAveragePositionData(metrics, userBrandName) {
+async function formatAveragePositionData(metrics, userBrandName, userId = null, urlAnalysisId = null, competitorUrlMap = null) {
   if (!metrics || !metrics.brandMetrics || metrics.brandMetrics.length === 0) {
     console.log('⚠️ [formatAveragePositionData] No metrics or brand metrics found');
     return {
@@ -786,16 +889,46 @@ function formatAveragePositionData(metrics, userBrandName) {
   const sortedBrands = metrics.brandMetrics
     .sort((a, b) => (a.avgPositionRank || 0) - (b.avgPositionRank || 0));
 
+  // ✅ FIX: Fetch URLs if not provided (include userBrandName and userBrandUrl for user's brand)
+  let urlMap = competitorUrlMap;
+  if (!urlMap && userId) {
+    const brandNames = sortedBrands.map(b => b.brandName).filter(Boolean);
+    // ✅ FIX: Get user's brand URL from UrlAnalysis if not provided
+    let userBrandUrl = null;
+    if (urlAnalysisId) {
+      const UrlAnalysis = require('../models/UrlAnalysis');
+      const analysis = await UrlAnalysis.findById(urlAnalysisId).lean();
+      userBrandUrl = analysis?.url || null;
+    }
+    urlMap = await getCompetitorUrlMap(userId, urlAnalysisId, brandNames, userBrandName, userBrandUrl);
+  }
+
   return {
     // ✅ Frontend expects 'value' property for the main metric
     value: userBrand.avgPosition || 0,
     
     // ✅ Frontend expects 'data' array for chart visualization
-    data: sortedBrands.map(b => ({
-      name: b.brandName || 'Unknown',
-      value: b.avgPosition || 0,
-      fill: getColorForBrand(b.brandName)
-    })),
+    data: sortedBrands.map(b => {
+      const brandName = b.brandName || 'Unknown';
+      const url = urlMap?.get(brandName) || null;
+      
+      // ✅ DEBUG: Log if URL is missing
+      if (!url) {
+        console.warn(`⚠️ [formatAveragePositionData] No URL found for brand: ${brandName}`, {
+          brandName,
+          urlMapSize: urlMap?.size || 0,
+          urlMapKeys: urlMap ? Array.from(urlMap.keys()).slice(0, 10) : []
+        });
+      }
+      
+      return {
+        name: brandName,
+        value: b.avgPosition || 0,
+        fill: getColorForBrand(brandName),
+        // ✅ FIX: Include URL for favicon display in charts
+        url: url
+      };
+    }),
     
     // ✅ Keep existing structure for backward compatibility
     current: {
@@ -806,6 +939,8 @@ function formatAveragePositionData(metrics, userBrandName) {
       name: b.brandName || 'Unknown',
       score: b.avgPosition || 0,
       rank: b.avgPositionRank || 0,
+      // ✅ FIX: Include URL for favicon display
+      url: urlMap?.get(b.brandName || 'Unknown') || null,
       isOwner: b.brandName === userBrandName,
       color: getColorForBrand(b.brandName)
     }))
@@ -815,7 +950,7 @@ function formatAveragePositionData(metrics, userBrandName) {
 /**
  * Format topic rankings for frontend
  */
-async function formatTopicRankings(topicMetrics, userBrandName, userId, urlAnalysisId) {
+async function formatTopicRankings(topicMetrics, userBrandName, userId, urlAnalysisId, userBrandUrl = null) {
   if (!topicMetrics || topicMetrics.length === 0) {
     console.log('⚠️ [formatTopicRankings] No topic metrics provided');
     return [];
@@ -828,6 +963,15 @@ async function formatTopicRankings(topicMetrics, userBrandName, userId, urlAnaly
   // 1. User's brand (isOwner: true)
   // 2. Selected competitors for this urlAnalysisId
 
+  // ✅ FIX: Fetch URLs once for all topics
+  const allBrandNames = new Set();
+  topicMetrics.forEach(topic => {
+    if (topic.brandMetrics) {
+      topic.brandMetrics.forEach(b => allBrandNames.add(b.brandName));
+    }
+  });
+  const competitorUrlMap = await getCompetitorUrlMap(userId, urlAnalysisId, Array.from(allBrandNames), userBrandName, userBrandUrl);
+
   const results = topicMetrics.map(topic => {
     if (!topic.brandMetrics || topic.brandMetrics.length === 0) {
       console.log(`⚠️ [formatTopicRankings] Topic "${topic.scopeValue}" has no brandMetrics`);
@@ -839,9 +983,18 @@ async function formatTopicRankings(topicMetrics, userBrandName, userId, urlAnaly
 
     console.log(`🔍 [formatTopicRankings] Topic "${topic.scopeValue}": ${filteredBrandMetrics.length} brands`);
 
+    // ✅ FIX: Calculate ranks based on visibility scores WITHIN this topic (not overall ranks)
+    // Sort by visibility score (higher is better) and assign ranks
+    const sortedByScore = [...filteredBrandMetrics].sort((a, b) => {
+      const scoreA = a.visibilityScore || 0;
+      const scoreB = b.visibilityScore || 0;
+      return scoreB - scoreA; // Descending: higher scores first
+    });
+
     const userBrand = filteredBrandMetrics.find(b => b.isOwner === true) || 
                       filteredBrandMetrics.find(b => b.brandName === userBrandName);
-    const yourRank = userBrand?.visibilityRank || 999;
+    // Calculate user's rank within this topic
+    const yourRank = userBrand ? sortedByScore.findIndex(b => b.brandName === userBrand.brandName) + 1 : 999;
     
     // Determine status
     let status, statusColor;
@@ -856,13 +1009,14 @@ async function formatTopicRankings(topicMetrics, userBrandName, userId, urlAnaly
       statusColor = 'red';
     }
     
-    const rankings = filteredBrandMetrics
-      .sort((a, b) => a.visibilityRank - b.visibilityRank)
-      .slice(0, 5)
-      .map(b => ({
-        rank: b.visibilityRank,
+    const rankings = sortedByScore
+      .slice(0, 5) // Show top 5
+      .map((b, index) => ({
+        rank: index + 1, // Re-assign rank based on sorted order within this topic
         name: b.brandName,
-        score: b.visibilityScore,
+        score: b.visibilityScore || 0,
+        // ✅ FIX: Include URL for favicon display
+        url: competitorUrlMap.get(b.brandName) || null,
         isOwner: b.isOwner !== undefined ? b.isOwner : (b.brandName === userBrandName)
       }));
 
@@ -883,7 +1037,7 @@ async function formatTopicRankings(topicMetrics, userBrandName, userId, urlAnaly
 /**
  * Format persona rankings for frontend
  */
-async function formatPersonaRankings(personaMetrics, userBrandName, userId, urlAnalysisId) {
+async function formatPersonaRankings(personaMetrics, userBrandName, userId, urlAnalysisId, userBrandUrl = null) {
   if (!personaMetrics || personaMetrics.length === 0) {
     console.log('⚠️ [formatPersonaRankings] No persona metrics provided');
     return [];
@@ -896,6 +1050,15 @@ async function formatPersonaRankings(personaMetrics, userBrandName, userId, urlA
   // 1. User's brand (isOwner: true)
   // 2. Selected competitors for this urlAnalysisId
 
+  // ✅ FIX: Fetch URLs once for all personas
+  const allBrandNames = new Set();
+  personaMetrics.forEach(persona => {
+    if (persona.brandMetrics) {
+      persona.brandMetrics.forEach(b => allBrandNames.add(b.brandName));
+    }
+  });
+  const competitorUrlMap = await getCompetitorUrlMap(userId, urlAnalysisId, Array.from(allBrandNames), userBrandName, userBrandUrl);
+
   const results = personaMetrics.map(persona => {
     if (!persona.brandMetrics || persona.brandMetrics.length === 0) {
       console.log(`⚠️ [formatPersonaRankings] Persona "${persona.scopeValue}" has no brandMetrics`);
@@ -907,9 +1070,18 @@ async function formatPersonaRankings(personaMetrics, userBrandName, userId, urlA
 
     console.log(`🔍 [formatPersonaRankings] Persona "${persona.scopeValue}": ${filteredBrandMetrics.length} brands`);
 
+    // ✅ FIX: Calculate ranks based on visibility scores WITHIN this persona (not overall ranks)
+    // Sort by visibility score (higher is better) and assign ranks
+    const sortedByScore = [...filteredBrandMetrics].sort((a, b) => {
+      const scoreA = a.visibilityScore || 0;
+      const scoreB = b.visibilityScore || 0;
+      return scoreB - scoreA; // Descending: higher scores first
+    });
+
     const userBrand = filteredBrandMetrics.find(b => b.isOwner === true) || 
                       filteredBrandMetrics.find(b => b.brandName === userBrandName);
-    const yourRank = userBrand?.visibilityRank || 999;
+    // Calculate user's rank within this persona
+    const yourRank = userBrand ? sortedByScore.findIndex(b => b.brandName === userBrand.brandName) + 1 : 999;
     
     // Determine status
     let status, statusColor;
@@ -921,13 +1093,14 @@ async function formatPersonaRankings(personaMetrics, userBrandName, userId, urlA
       statusColor = 'red';
     }
     
-    const rankings = filteredBrandMetrics
-      .sort((a, b) => a.visibilityRank - b.visibilityRank)
-      .slice(0, 5)
-      .map(b => ({
-        rank: b.visibilityRank,
+    const rankings = sortedByScore
+      .slice(0, 5) // Show top 5
+      .map((b, index) => ({
+        rank: index + 1, // Re-assign rank based on sorted order within this persona
         name: b.brandName,
-        score: b.visibilityScore,
+        score: b.visibilityScore || 0,
+        // ✅ FIX: Include URL for favicon display
+        url: competitorUrlMap.get(b.brandName) || null,
         isOwner: b.isOwner !== undefined ? b.isOwner : (b.brandName === userBrandName)
       }));
 
@@ -1039,15 +1212,25 @@ function formatPerformanceInsights(metrics, userBrandName) {
 }
 
 /**
- * Helper function to fetch competitor URLs in batch
+ * Helper function to fetch competitor URLs in batch (including user's brand URL)
  * @param {string} userId - User ID
  * @param {string} urlAnalysisId - URL Analysis ID (optional)
  * @param {Array<string>} brandNames - Array of brand names to look up
+ * @param {string} userBrandName - User's brand name (optional)
+ * @param {string} userBrandUrl - User's brand URL from UrlAnalysis (optional)
  * @returns {Promise<Map<string, string>>} Map of brand name to URL
  */
-async function getCompetitorUrlMap(userId, urlAnalysisId, brandNames) {
+async function getCompetitorUrlMap(userId, urlAnalysisId, brandNames, userBrandName = null, userBrandUrl = null) {
+  const urlMap = new Map();
+  
+  // ✅ FIX: Add user's brand URL first (like prompts.js does)
+  if (userBrandName && userBrandUrl) {
+    urlMap.set(userBrandName, userBrandUrl);
+    console.log(`✅ [getCompetitorUrlMap] Added user's brand URL: ${userBrandName} -> ${userBrandUrl}`);
+  }
+
   if (!brandNames || brandNames.length === 0) {
-    return new Map();
+    return urlMap;
   }
 
   try {
@@ -1067,22 +1250,64 @@ async function getCompetitorUrlMap(userId, urlAnalysisId, brandNames) {
       userId,
       urlAnalysisId,
       brandNamesCount: brandNames.length,
+      brandNames: brandNames.slice(0, 5), // Log first 5 for debugging
       query
     });
     
     const competitors = await Competitor.find(query).select('name url').lean();
-    const urlMap = new Map();
+    
+    console.log(`🔍 [getCompetitorUrlMap] Found ${competitors.length} competitors in DB`);
     
     competitors.forEach(comp => {
       if (comp.url) {
         urlMap.set(comp.name, comp.url);
+        console.log(`✅ [getCompetitorUrlMap] Added competitor URL: ${comp.name} -> ${comp.url}`);
+      } else {
+        console.log(`⚠️ [getCompetitorUrlMap] Competitor ${comp.name} has no URL`);
       }
     });
 
+    // ✅ FIX: Also try fuzzy matching for brand names that don't match exactly
+    // This handles cases where brand names in metrics might be longer (e.g., "HDFC Bank Platinum Debit Card" vs "HDFC Bank")
+    const unmatchedBrands = brandNames.filter(brandName => !urlMap.has(brandName));
+    if (unmatchedBrands.length > 0) {
+      console.log(`🔍 [getCompetitorUrlMap] Trying fuzzy match for ${unmatchedBrands.length} unmatched brands:`, unmatchedBrands.slice(0, 5));
+      
+      // Try to find competitors where the brand name contains the competitor name or vice versa
+      for (const brandName of unmatchedBrands) {
+        // Try exact match first (case insensitive)
+        const exactMatch = competitors.find(c => 
+          c.name && brandName && 
+          c.name.toLowerCase() === brandName.toLowerCase()
+        );
+        if (exactMatch && exactMatch.url) {
+          urlMap.set(brandName, exactMatch.url);
+          console.log(`✅ [getCompetitorUrlMap] Fuzzy matched (exact): ${brandName} -> ${exactMatch.name} -> ${exactMatch.url}`);
+          continue;
+        }
+        
+        // Try partial match (brand name contains competitor name or vice versa)
+        const partialMatch = competitors.find(c => {
+          if (!c.name || !brandName || !c.url) return false;
+          const cNameLower = c.name.toLowerCase();
+          const brandNameLower = brandName.toLowerCase();
+          return brandNameLower.includes(cNameLower) || cNameLower.includes(brandNameLower);
+        });
+        if (partialMatch && partialMatch.url) {
+          urlMap.set(brandName, partialMatch.url);
+          console.log(`✅ [getCompetitorUrlMap] Fuzzy matched (partial): ${brandName} -> ${partialMatch.name} -> ${partialMatch.url}`);
+        } else {
+          console.log(`⚠️ [getCompetitorUrlMap] No match found for brand: ${brandName}`);
+        }
+      }
+    }
+
+    console.log(`✅ [getCompetitorUrlMap] Total URLs in map: ${urlMap.size} (requested ${brandNames.length} brands)`);
+    console.log(`📊 [getCompetitorUrlMap] URL map contents:`, Array.from(urlMap.entries()).slice(0, 5));
     return urlMap;
   } catch (error) {
     console.error('⚠️ [getCompetitorUrlMap] Error fetching competitor URLs:', error);
-    return new Map(); // Return empty map on error
+    return urlMap; // Return map with at least user's brand URL if available
   }
 }
 
@@ -1090,7 +1315,7 @@ async function getCompetitorUrlMap(userId, urlAnalysisId, brandNames) {
  * Format competitors data for frontend (matches Competitor interface)
  * Now includes URLs from Competitor model
  */
-async function formatCompetitorsData(metrics, userBrandName, userId, urlAnalysisId) {
+async function formatCompetitorsData(metrics, userBrandName, userId, urlAnalysisId, userBrandUrl = null) {
   if (!metrics || !metrics.brandMetrics || metrics.brandMetrics.length === 0) {
     console.log('⚠️ [formatCompetitorsData] No metrics or brand metrics found');
     return [];
@@ -1108,9 +1333,9 @@ async function formatCompetitorsData(metrics, userBrandName, userId, urlAnalysis
   const sortedBrands = filteredBrandMetrics
     .sort((a, b) => (a.visibilityRank || 0) - (b.visibilityRank || 0));
 
-  // Batch fetch competitor URLs to avoid N+1 queries (only for selected competitors)
+  // ✅ FIX: Batch fetch competitor URLs including user's brand URL (like prompts.js)
   const brandNames = sortedBrands.map(brand => brand.brandName || 'Unknown').filter(Boolean);
-  const competitorUrlMap = await getCompetitorUrlMap(userId, urlAnalysisId, brandNames);
+  const competitorUrlMap = await getCompetitorUrlMap(userId, urlAnalysisId, brandNames, userBrandName, userBrandUrl);
 
   const competitors = sortedBrands.map((brand, index) => ({
     id: brand.brandId || `brand-${index}`,
@@ -1147,7 +1372,7 @@ async function formatCompetitorsData(metrics, userBrandName, userId, urlAnalysis
  * Format competitors data specifically for Citations tab (matches citations frontend expectations)
  * Now includes URLs from Competitor model
  */
-async function formatCompetitorsByCitationData(metrics, userBrandName, userId, urlAnalysisId) {
+async function formatCompetitorsByCitationData(metrics, userBrandName, userId, urlAnalysisId, userBrandUrl = null) {
   if (!metrics || !metrics.brandMetrics || metrics.brandMetrics.length === 0) {
     console.log('⚠️ [formatCompetitorsByCitationData] No metrics or brand metrics found');
     return [];
@@ -1165,9 +1390,9 @@ async function formatCompetitorsByCitationData(metrics, userBrandName, userId, u
   const sortedBrands = filteredBrandMetrics
     .sort((a, b) => (a.citationShareRank || 0) - (b.citationShareRank || 0));
 
-  // Batch fetch competitor URLs to avoid N+1 queries
+  // ✅ FIX: Batch fetch competitor URLs including user's brand URL (like prompts.js)
   const brandNames = sortedBrands.map(brand => brand.brandName || 'Unknown').filter(Boolean);
-  const competitorUrlMap = await getCompetitorUrlMap(userId, urlAnalysisId, brandNames);
+  const competitorUrlMap = await getCompetitorUrlMap(userId, urlAnalysisId, brandNames, userBrandName, userBrandUrl);
 
   return sortedBrands.map((brand, index) => ({
     id: brand.brandId || `brand-${index}`,
@@ -1248,6 +1473,7 @@ async function aggregateFilteredMetrics(metrics, fallback, userBrandName, userId
         brandMap.set(key, {
           brandId: brand.brandId || key,
           brandName: brand.brandName,
+          isOwner: brand.isOwner !== undefined ? brand.isOwner : false, // Preserve isOwner flag
           visibilityScore: 0,
           visibilityRank: 0,
           totalMentions: 0,
@@ -1282,6 +1508,11 @@ async function aggregateFilteredMetrics(metrics, fallback, userBrandName, userId
 
       const existing = brandMap.get(key);
       
+      // Preserve isOwner flag if any occurrence has it set to true
+      if (brand.isOwner === true) {
+        existing.isOwner = true;
+      }
+      
       // Sum up all metrics (we'll average later)
       existing.visibilityScore += brand.visibilityScore || 0;
       existing.totalMentions += brand.totalMentions || 0;
@@ -1313,24 +1544,24 @@ async function aggregateFilteredMetrics(metrics, fallback, userBrandName, userId
   });
 
   // Convert map to array and calculate averages
-  const aggregatedBrandMetrics = Array.from(brandMap.values()).map((brand, index) => {
+  const aggregatedBrandMetrics = Array.from(brandMap.values()).map((brand) => {
     const count = brand._count;
     
     return {
       brandId: brand.brandId,
       brandName: brand.brandName,
       visibilityScore: count > 0 ? parseFloat((brand.visibilityScore / count).toFixed(2)) : 0,
-      visibilityRank: index + 1, // Recalculate rank based on aggregated data
+      visibilityRank: 0, // Will be calculated after sorting
       totalMentions: brand.totalMentions, // Sum, not average
-      mentionRank: index + 1,
+      mentionRank: 0, // Will be calculated after sorting
       shareOfVoice: count > 0 ? parseFloat((brand.shareOfVoice / count).toFixed(2)) : 0,
-      shareOfVoiceRank: index + 1,
+      shareOfVoiceRank: 0, // Will be calculated after sorting
       avgPosition: count > 0 ? parseFloat((brand.avgPosition / count).toFixed(2)) : 0,
-      avgPositionRank: index + 1,
+      avgPositionRank: 0, // Will be calculated after sorting
       depthOfMention: count > 0 ? parseFloat((brand.depthOfMention / count).toFixed(4)) : 0,
-      depthRank: index + 1,
+      depthRank: 0, // Will be calculated after sorting
       citationShare: count > 0 ? parseFloat((brand.citationShare / count).toFixed(2)) : 0,
-      citationShareRank: index + 1,
+      citationShareRank: 0, // Will be calculated after sorting
       brandCitationsTotal: brand.brandCitationsTotal, // Sum, not average
       earnedCitationsTotal: brand.earnedCitationsTotal, // Sum, not average
       socialCitationsTotal: brand.socialCitationsTotal, // Sum, not average
@@ -1346,15 +1577,40 @@ async function aggregateFilteredMetrics(metrics, fallback, userBrandName, userId
       count1st: brand.count1st, // Sum, not average
       count2nd: brand.count2nd, // Sum, not average
       count3rd: brand.count3rd, // Sum, not average
-      totalAppearances: brand.totalAppearances // Sum, not average
+      totalAppearances: brand.totalAppearances, // Sum, not average
+      isOwner: brand.isOwner // Preserve isOwner flag if it exists
     };
   });
 
-  // Sort by visibility score (descending) and update ranks
-  aggregatedBrandMetrics.sort((a, b) => b.visibilityScore - a.visibilityScore);
-  aggregatedBrandMetrics.forEach((brand, index) => {
-    brand.visibilityRank = index + 1;
-  });
+  // ✅ FIX: Calculate ranks properly for all metrics using the same logic as assignRanksByMetric
+  // Helper function to assign ranks with tie handling
+  const assignRanks = (brands, metricKey, rankKey, higherIsBetter) => {
+    const sorted = [...brands].sort((a, b) => {
+      const aVal = a[metricKey] || 0;
+      const bVal = b[metricKey] || 0;
+      return higherIsBetter ? bVal - aVal : aVal - bVal;
+    });
+
+    let currentRank = 1;
+    sorted.forEach((sortedBrand, index) => {
+      if (index > 0) {
+        const prevValue = sorted[index - 1][metricKey] || 0;
+        const currValue = sortedBrand[metricKey] || 0;
+        if (prevValue !== currValue) {
+          currentRank = index + 1;
+        }
+      }
+      sortedBrand[rankKey] = currentRank;
+    });
+  };
+
+  // Calculate ranks for all metrics
+  assignRanks(aggregatedBrandMetrics, 'visibilityScore', 'visibilityRank', true);
+  assignRanks(aggregatedBrandMetrics, 'totalMentions', 'mentionRank', true);
+  assignRanks(aggregatedBrandMetrics, 'shareOfVoice', 'shareOfVoiceRank', true);
+  assignRanks(aggregatedBrandMetrics, 'avgPosition', 'avgPositionRank', false); // Lower is better
+  assignRanks(aggregatedBrandMetrics, 'depthOfMention', 'depthRank', true);
+  assignRanks(aggregatedBrandMetrics, 'citationShare', 'citationShareRank', true);
 
   // Calculate total tests from all metrics
   const totalTests = metrics.reduce((sum, m) => sum + (m.totalResponses || m.totalTests || 0), 0);
@@ -1378,12 +1634,22 @@ async function aggregateFilteredMetrics(metrics, fallback, userBrandName, userId
 router.get('/citations/:brandName/:type', authenticateToken, async (req, res) => {
   try {
     const { brandName, type } = req.params;
+    const { urlAnalysisId } = req.query; // ✅ FIX: Get urlAnalysisId from query params
     const userId = req.userId;
 
     console.log(`📊 [CITATION DETAILS] Fetching real citations for ${brandName} - ${type}`);
 
-    // Find all prompt tests for the user
-    const promptTests = await PromptTest.find({ userId })
+    // ✅ FIX: Filter by urlAnalysisId if provided to ensure data isolation
+    const query = { userId };
+    if (urlAnalysisId) {
+      query.urlAnalysisId = urlAnalysisId;
+      console.log(`🔍 [CITATION DETAILS] Filtering by urlAnalysisId: ${urlAnalysisId}`);
+    } else {
+      console.warn('⚠️ [CITATION DETAILS] No urlAnalysisId provided, may mix data from multiple analyses');
+    }
+
+    // Find all prompt tests for the user (filtered by urlAnalysisId)
+    const promptTests = await PromptTest.find(query)
       .populate('promptId')
       .populate('topicId')
       .populate('personaId')

@@ -339,8 +339,8 @@ export function SentimentBreakdownSection({ filterContext, dashboardData }: Sent
                         {sortBy === 'topics' ? 'Topic' : 'User Persona'}
                       </div>
                     </TableHead>
-                    <TableHead className="text-left">
-                      <div className="flex items-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded">
+                    <TableHead className="text-center">
+                      <div className="flex items-center justify-center gap-2 cursor-pointer hover:bg-muted/50 p-2 rounded">
                         Sentiment Breakdown
                       </div>
                     </TableHead>
@@ -381,8 +381,8 @@ export function SentimentBreakdownSection({ filterContext, dashboardData }: Sent
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-left">
-                            <div className="flex items-center justify-between">
+                          <TableCell className="text-center">
+                            <div className="flex items-center justify-center gap-4">
                               <div className="w-48">
                                 <SentimentBar sentimentSplit={item.sentimentSplit} totalResponses={item.totalSentiment} />
                               </div>
@@ -411,9 +411,11 @@ export function SentimentBreakdownSection({ filterContext, dashboardData }: Sent
                             <TableCell className="text-muted-foreground text-left">
                               <span className="text-sm">{prompt.text}</span>
                             </TableCell>
-                            <TableCell className="text-left">
-                              <div className="w-48">
-                                <SentimentBar sentimentSplit={prompt.sentimentSplit} totalResponses={prompt.totalTests} />
+                            <TableCell className="text-center">
+                              <div className="flex items-center justify-center">
+                                <div className="w-48">
+                                  <SentimentBar sentimentSplit={prompt.sentimentSplit} totalResponses={prompt.totalTests} />
+                                </div>
                               </div>
                             </TableCell>
                           </TableRow>

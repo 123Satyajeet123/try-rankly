@@ -31,6 +31,9 @@ module.exports = {
       watch: false,
       max_restarts: 10,
       min_uptime: '10s',
+      kill_timeout: 30000, // 30 seconds - allow graceful shutdown for long-running operations
+      wait_ready: true, // Wait for app to signal ready
+      listen_timeout: 10000, // 10 seconds to start
       // Ensure .env file is found
       env_file: './backend/.env',
     },

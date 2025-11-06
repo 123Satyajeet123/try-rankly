@@ -715,11 +715,24 @@ class MetricsAggregationService {
         : aVal - bVal; // Ascending (lower is better)
     });
 
-    // Assign ranks directly to the brand objects via the map
+    // ✅ FIX: Assign ranks with proper tie handling (same value = same rank)
+    let currentRank = 1;
     sorted.forEach((sortedBrand, index) => {
       const brand = brandMap[sortedBrand.brandName];
       if (brand) {
-        brand[rankKey] = index + 1;
+        // If this is not the first item and the value differs from previous, update rank
+        if (index > 0) {
+          const prevValue = sorted[index - 1][metricKey] || 0;
+          const currValue = sortedBrand[metricKey] || 0;
+          
+          // If values are different, increment rank
+          if (prevValue !== currValue) {
+            currentRank = index + 1;
+          }
+          // If values are the same, keep the same rank (tie handling)
+        }
+        
+        brand[rankKey] = currentRank;
       }
     });
   }
