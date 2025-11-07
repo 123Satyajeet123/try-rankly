@@ -8,6 +8,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Filter, Globe, ChevronDown, Users, RefreshCw, Settings, Calendar } from 'lucide-react'
 import { useFilters } from '@/contexts/FilterContext'
+import { useAuth } from '@/contexts/AuthContext'
 import { useTheme } from 'next-themes'
 import { useRouter } from 'next/navigation'
 import apiService from '@/services/api'
@@ -46,6 +47,7 @@ export function TopNav({
     setSelectedTopics, 
     setSelectedPersonas 
   } = useFilters()
+  const { isAuthenticated, isLoading: isAuthLoading } = useAuth()
   const { theme } = useTheme()
   const router = useRouter()
   const [topicOptions, setTopicOptions] = useState<Array<{value: string, label: string}>>([
@@ -99,8 +101,18 @@ export function TopNav({
       }
     }
 
+    if (isAuthLoading) {
+      console.log('⏳ [TopNav] Waiting for auth initialization before fetching filters')
+      return
+    }
+
+    if (!isAuthenticated) {
+      console.log('⚠️ [TopNav] Skipping filter fetch because user is not authenticated')
+      return
+    }
+
     fetchFilterOptions()
-  }, [selectedAnalysisId]) // Re-run when selectedAnalysisId changes
+  }, [selectedAnalysisId, isAuthenticated, isAuthLoading]) // Re-run when selectedAnalysisId or auth state changes
 
   
   const tabs = isAgentAnalytics ? [

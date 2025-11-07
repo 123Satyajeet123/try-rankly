@@ -193,8 +193,7 @@ router.get('/pages', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req, 
         dateRanges: [{ startDate: platformStartDate, endDate: platformEndDate }],
         dimensions: [
           { name: 'sessionSource' },
-          { name: 'sessionMedium' },
-          { name: 'pageReferrer' }
+          { name: 'sessionMedium' }
         ],
         metrics: [
           { name: 'sessions' },
@@ -210,7 +209,27 @@ router.get('/pages', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req, 
         limit: 10000
       };
 
-      const platformSplitData = await runReport(accessToken, propertyId, platformSplitConfig);
+      const llmReferrerConfig = {
+        dateRanges: [{ startDate: platformStartDate, endDate: platformEndDate }],
+        dimensions: [{ name: 'pageReferrer' }],
+        metrics: [
+          { name: 'sessions' },
+          { name: 'engagementRate' },
+          { name: conversionMetric },
+          { name: 'bounceRate' },
+          { name: 'averageSessionDuration' },
+          { name: 'screenPageViewsPerSession' },
+          { name: 'newUsers' },
+          { name: 'totalUsers' }
+        ],
+        keepEmptyRows: false,
+        limit: 10000
+      };
+
+      const [platformSplitData, llmReferrerData] = await Promise.all([
+        runReport(accessToken, propertyId, platformSplitConfig),
+        runReport(accessToken, propertyId, llmReferrerConfig)
+      ]);
       
       // Fetch comparison data to match Platform Tab's behavior exactly
       const { comparisonStartDate, comparisonEndDate } = calculateComparisonDates(platformStartDate, platformEndDate);
@@ -218,10 +237,22 @@ router.get('/pages', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req, 
         ...platformSplitConfig,
         dateRanges: [{ startDate: comparisonStartDate, endDate: comparisonEndDate }]
       };
-      const comparisonData = await runReport(accessToken, propertyId, comparisonConfig);
+      const comparisonLlmRefConfig = {
+        ...llmReferrerConfig,
+        dateRanges: [{ startDate: comparisonStartDate, endDate: comparisonEndDate }]
+      };
+
+      const [comparisonData, comparisonLlmReferrerData] = await Promise.all([
+        runReport(accessToken, propertyId, comparisonConfig),
+        runReport(accessToken, propertyId, comparisonLlmRefConfig)
+      ]);
       
       // Use same transform logic as Platform Tab endpoint
-      const transformedPlatformSplit = transformToPlatformSplit(platformSplitData, comparisonData);
+      const transformedPlatformSplit = transformToPlatformSplit(platformSplitData, comparisonData, {
+        llmReferrerData,
+        llmComparisonData: comparisonLlmReferrerData,
+        conversionMetric
+      });
       
       // Extract LLM sessions total from platform split - use the aggregated 'LLMs' platform
       // This matches exactly what Platform Tab shows as "Total LLM Sessions"

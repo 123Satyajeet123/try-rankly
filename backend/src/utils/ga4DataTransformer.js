@@ -63,6 +63,101 @@ function detectPlatform(source, medium, referrer = null) {
 }
 
 /**
+ * Detect LLM platform from referrer value
+ */
+function detectLLMFromReferrer(referrer) {
+  if (!referrer) {
+    return null;
+  }
+
+  for (const [platform, pattern] of Object.entries(LLM_PATTERNS)) {
+    if (pattern.test(referrer)) {
+      return platform;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Aggregate LLM metrics using referrer-only GA4 response
+ */
+function aggregateLLMReferrerData(ga4Response, conversionMetricName = 'conversions') {
+  if (!ga4Response) {
+    return {
+      platformMap: new Map(),
+      totalSessions: 0
+    };
+  }
+
+  const rows = ga4Response.rows || [];
+  const metricHeaders = ga4Response.metricHeaders || [];
+  let conversionMetricIndex = 2;
+
+  if (metricHeaders.length > 0) {
+    const headerIndex = metricHeaders.findIndex(header => header.name === conversionMetricName);
+    if (headerIndex !== -1) {
+      conversionMetricIndex = headerIndex;
+    }
+  }
+
+  const platformMap = new Map();
+
+  for (const row of rows) {
+    const referrer = row.dimensionValues?.[0]?.value || '';
+    const platform = detectLLMFromReferrer(referrer);
+
+    if (!platform) {
+      continue;
+    }
+
+    const metrics = row.metricValues || [];
+    const rowSessions = parseFloat(metrics[0]?.value || '0');
+    if (rowSessions === 0) {
+      continue;
+    }
+
+    const rowEngagementRate = parseFloat(metrics[1]?.value || '0');
+    const rowConversions = parseFloat(metrics[conversionMetricIndex]?.value || '0');
+    const rowBounceRate = parseFloat(metrics[3]?.value || '0');
+    const rowAvgSessionDuration = parseFloat(metrics[4]?.value || '0');
+    const rowPagesPerSession = parseFloat(metrics[5]?.value || '0');
+    const rowNewUsers = parseFloat(metrics[6]?.value || '0');
+    const rowTotalUsers = parseFloat(metrics[7]?.value || '0');
+
+    const current = platformMap.get(platform) || {
+      sessions: 0,
+      engagementRate: 0,
+      conversions: 0,
+      bounceRate: 0,
+      avgSessionDuration: 0,
+      pagesPerSession: 0,
+      newUsers: 0,
+      totalUsers: 0,
+      count: 0
+    };
+
+    current.sessions += rowSessions;
+    current.engagementRate += rowEngagementRate * rowSessions;
+    current.conversions += rowConversions;
+    current.bounceRate += rowBounceRate * rowSessions;
+    current.avgSessionDuration += rowAvgSessionDuration * rowSessions;
+    current.pagesPerSession += rowPagesPerSession * rowSessions;
+    current.newUsers += rowNewUsers;
+    current.totalUsers += rowTotalUsers;
+    current.count += 1;
+
+    platformMap.set(platform, current);
+  }
+
+  const totalSessions = Array.from(platformMap.values()).reduce((sum, data) => sum + data.sessions, 0);
+
+  return {
+    platformMap,
+    totalSessions
+  };
+}
+/**
  * Calculate comparison date range for period-over-period analysis
  */
 function calculateComparisonDates(startDate, endDate) {
@@ -139,18 +234,28 @@ function calculateComparisonDates(startDate, endDate) {
 /**
  * Transform platform split data (similar to traffic-analytics)
  */
-function transformToPlatformSplit(ga4Response, comparisonResponse = null) {
+function transformToPlatformSplit(ga4Response, comparisonResponse = null, options = {}) {
+  const {
+    llmReferrerData = null,
+    llmComparisonData = null,
+    conversionMetric = 'conversions'
+  } = options;
+
   const rows = ga4Response.rows || [];
   const comparisonRows = comparisonResponse?.rows || [];
   
   // Determine conversion metric index from response headers
   // The conversion metric is always at index 2 (third metric: sessions, engagementRate, conversions, ...)
-  const conversionMetricIndex = 2; // Always index 2 based on our reportConfig structure
+  let conversionMetricIndex = 2; // Default to index 2 based on reportConfig structure
   
   // Verify by checking metric headers if available
   const metricHeaders = ga4Response.metricHeaders || [];
   if (metricHeaders.length > 0) {
-    const conversionMetricName = metricHeaders[conversionMetricIndex]?.name || 'conversions';
+    const headerIndex = metricHeaders.findIndex(header => header.name === conversionMetric);
+    if (headerIndex !== -1) {
+      conversionMetricIndex = headerIndex;
+    }
+    const conversionMetricName = metricHeaders[conversionMetricIndex]?.name || conversionMetric;
     console.log('🔍 [transformToPlatformSplit] Conversion metric verification:', {
       conversionMetricIndex,
       conversionMetricName,
@@ -181,7 +286,7 @@ function transformToPlatformSplit(ga4Response, comparisonResponse = null) {
   for (const row of comparisonRows) {
     const source = row.dimensionValues?.[0]?.value || '';
     const medium = row.dimensionValues?.[1]?.value || '';
-    const referrer = row.dimensionValues?.[2]?.value || ''; // Added referrer dimension
+    const referrer = row.dimensionValues?.[2]?.value || ''; // May be empty if referrer data fetched separately
     const metrics = row.metricValues || [];
     
     // Use same LLM detection logic as current period
@@ -357,24 +462,65 @@ function transformToPlatformSplit(ga4Response, comparisonResponse = null) {
   const llmPlatforms = Object.keys(LLM_PATTERNS);
   const llmPlatformData = [];
   
-  for (const platform of llmPlatforms) {
-    const data = platformMap.get(platform);
-    if (data) {
-      llmData.sessions += data.sessions;
-      llmData.engagementRate += data.engagementRate;
-      llmData.conversions += data.conversions;
-      llmData.bounceRate += data.bounceRate;
-      llmData.avgSessionDuration += data.avgSessionDuration;
-      llmData.pagesPerSession += data.pagesPerSession;
-      llmData.newUsers += data.newUsers;
-      llmData.totalUsers += data.totalUsers;
-      llmData.count += data.count;
-      
-      // Store individual LLM platform data
-      llmPlatformData.push({ platform, data });
-      
-      platformMap.delete(platform);
+  const llmReferrerAggregate = aggregateLLMReferrerData(llmReferrerData, conversionMetric);
+  const llmReferrerComparisonAggregate = aggregateLLMReferrerData(llmComparisonData, conversionMetric);
+
+  // Override comparison map with referrer-based LLM sessions if available
+  if (llmReferrerComparisonAggregate.platformMap.size > 0) {
+    const comparisonLLMData = {
+      sessions: 0,
+      engagementRate: 0,
+      conversions: 0,
+      bounceRate: 0,
+      avgSessionDuration: 0,
+      pagesPerSession: 0,
+      newUsers: 0,
+      totalUsers: 0,
+      count: 0
+    };
+
+    for (const platform of llmPlatforms) {
+      const comparisonRefData = llmReferrerComparisonAggregate.platformMap.get(platform);
+      if (comparisonRefData) {
+        comparisonMap.set(platform, comparisonRefData);
+        comparisonLLMData.sessions += comparisonRefData.sessions;
+        comparisonLLMData.engagementRate += comparisonRefData.engagementRate;
+        comparisonLLMData.conversions += comparisonRefData.conversions;
+        comparisonLLMData.bounceRate += comparisonRefData.bounceRate;
+        comparisonLLMData.avgSessionDuration += comparisonRefData.avgSessionDuration;
+        comparisonLLMData.pagesPerSession += comparisonRefData.pagesPerSession;
+        comparisonLLMData.newUsers += comparisonRefData.newUsers;
+        comparisonLLMData.totalUsers += comparisonRefData.totalUsers;
+        comparisonLLMData.count += comparisonRefData.count;
+      }
     }
+    if (comparisonLLMData.sessions > 0) {
+      comparisonMap.set('LLMs', comparisonLLMData);
+    }
+  }
+
+  for (const platform of llmPlatforms) {
+    const referrerData = llmReferrerAggregate.platformMap.get(platform);
+    const data = referrerData || platformMap.get(platform);
+
+    if (!data) {
+      continue;
+    }
+
+    llmData.sessions += data.sessions;
+    llmData.engagementRate += data.engagementRate;
+    llmData.conversions += data.conversions;
+    llmData.bounceRate += data.bounceRate;
+    llmData.avgSessionDuration += data.avgSessionDuration;
+    llmData.pagesPerSession += data.pagesPerSession;
+    llmData.newUsers += data.newUsers;
+    llmData.totalUsers += data.totalUsers;
+    llmData.count += data.count;
+    
+    // Store individual LLM platform data
+    llmPlatformData.push({ platform, data });
+    
+    platformMap.delete(platform);
   }
   
   // Add aggregated LLM data - calculate weighted averages
@@ -391,6 +537,16 @@ function transformToPlatformSplit(ga4Response, comparisonResponse = null) {
     platform,
     sessions: data.sessions
   }));
+  
+  // If referrer aggregation exists but individual breakdown is empty, populate from referrer map
+  if (llmBreakdown.length === 0 && llmReferrerAggregate.platformMap.size > 0) {
+    llmReferrerAggregate.platformMap.forEach((data, platform) => {
+      llmBreakdown.push({
+        platform,
+        sessions: data.sessions
+      });
+    });
+  }
   
   // Calculate averages and format final platform data
   const finalPlatformData = [];
@@ -609,18 +765,23 @@ function transformToPlatformSplit(ga4Response, comparisonResponse = null) {
 /**
  * Transform LLM platforms data (similar to traffic-analytics)
  */
-function transformToLLMPlatforms(ga4Response, comparisonResponse = null) {
+function transformToLLMPlatforms(ga4Response, comparisonResponse = null, options = {}) {
+  const { conversionMetric = 'conversions' } = options;
   const rows = ga4Response.rows || [];
   const comparisonRows = comparisonResponse?.rows || [];
   
   // Determine conversion metric index from response headers
   // The conversion metric is always at index 2 (third metric: sessions, engagementRate, conversions, ...)
-  const conversionMetricIndex = 2; // Always index 2 based on our reportConfig structure
+  let conversionMetricIndex = 2; // Default index based on reportConfig structure
   
   // Verify by checking metric headers if available
   const metricHeaders = ga4Response.metricHeaders || [];
   if (metricHeaders.length > 0) {
-    const conversionMetricName = metricHeaders[conversionMetricIndex]?.name || 'conversions';
+    const headerIndex = metricHeaders.findIndex(header => header.name === conversionMetric);
+    if (headerIndex !== -1) {
+      conversionMetricIndex = headerIndex;
+    }
+    const conversionMetricName = metricHeaders[conversionMetricIndex]?.name || conversionMetric;
     console.log('🔍 [transformToLLMPlatforms] Conversion metric verification:', {
       conversionMetricIndex,
       conversionMetricName,
@@ -640,9 +801,21 @@ function transformToLLMPlatforms(ga4Response, comparisonResponse = null) {
   const comparisonMap = new Map();
   let comparisonLLMCount = 0;
   for (const row of comparisonRows) {
-    const source = row.dimensionValues?.[0]?.value || '';
-    const medium = row.dimensionValues?.[1]?.value || '';
-    const referrer = row.dimensionValues?.[2]?.value || '';
+    const dimensionValues = row.dimensionValues || [];
+    let source = '';
+    let medium = '';
+    let referrer = '';
+
+    if (dimensionValues.length >= 3) {
+      source = dimensionValues[0]?.value || '';
+      medium = dimensionValues[1]?.value || '';
+      referrer = dimensionValues[2]?.value || '';
+    } else if (dimensionValues.length === 2) {
+      source = dimensionValues[0]?.value || '';
+      referrer = dimensionValues[1]?.value || '';
+    } else if (dimensionValues.length === 1) {
+      referrer = dimensionValues[0]?.value || '';
+    }
     
     // Use same LLM detection logic as platform-split
     let detectedLLM = null;
@@ -686,9 +859,21 @@ function transformToLLMPlatforms(ga4Response, comparisonResponse = null) {
   let currentLLMCount = 0;
   
   for (const row of rows) {
-    const source = row.dimensionValues?.[0]?.value || '';
-    const medium = row.dimensionValues?.[1]?.value || '';
-    const referrer = row.dimensionValues?.[2]?.value || '';
+    const dimensionValues = row.dimensionValues || [];
+    let source = '';
+    let medium = '';
+    let referrer = '';
+
+    if (dimensionValues.length >= 3) {
+      source = dimensionValues[0]?.value || '';
+      medium = dimensionValues[1]?.value || '';
+      referrer = dimensionValues[2]?.value || '';
+    } else if (dimensionValues.length === 2) {
+      source = dimensionValues[0]?.value || '';
+      referrer = dimensionValues[1]?.value || '';
+    } else if (dimensionValues.length === 1) {
+      referrer = dimensionValues[0]?.value || '';
+    }
     const metrics = row.metricValues || [];
     
     // Use same LLM detection logic as platform-split

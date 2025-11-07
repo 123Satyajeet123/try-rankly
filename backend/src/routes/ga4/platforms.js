@@ -48,12 +48,9 @@ router.get('/llm-platforms', ga4SessionMiddleware, ga4ConnectionMiddleware, asyn
     const conversionMetric = getConversionEventMetric(conversionEvent);
     console.log('🎯 [llm-platforms] Using conversion event:', { conversionEvent, conversionMetric });
 
-    // Use same dimensions as platform-split to catch all LLM traffic
-    // Query all traffic, then detect LLMs from source/medium/referrer (not just referrer)
     const reportConfig = {
       dateRanges: [{ startDate: finalStartDate, endDate: finalEndDate }],
-      dimensions: [{ name: 'sessionSource' }, { name: 'sessionMedium' }, { name: 'pageReferrer' }],
-      // Remove dimension filter - we'll detect LLMs in the transformer
+      dimensions: [{ name: 'pageReferrer' }],
       metrics: [
         { name: 'sessions' },
         { name: 'engagementRate' },
@@ -84,18 +81,14 @@ router.get('/llm-platforms', ga4SessionMiddleware, ga4ConnectionMiddleware, asyn
     }
     
     // Log conversion data from sample rows to debug zero conversions
-    const sampleRowsWithConversions = (currentData.rows || []).slice(0, 5).map(row => {
-      const allMetrics = row.metricValues?.map((m, idx) => ({
+    const sampleRowsWithConversions = (currentData.rows || []).slice(0, 5).map(row => ({
+      pageReferrer: row.dimensionValues?.[0]?.value || '',
+      metrics: row.metricValues?.map((m, idx) => ({
         index: idx,
         value: m?.value || '0',
         name: reportConfig.metrics[idx]?.name || 'unknown'
-      })) || [];
-      return {
-        dimensions: row.dimensionValues?.map(d => d.value) || [],
-        allMetrics: allMetrics,
-        conversionMetricValue: allMetrics.find(m => m.name === conversionMetric)?.value || '0'
-      };
-    });
+      })) || []
+    }));
     
     // Find the index of the conversion metric in the metrics array
     const conversionMetricIndex = reportConfig.metrics.findIndex(m => m.name === conversionMetric);
@@ -114,38 +107,20 @@ router.get('/llm-platforms', ga4SessionMiddleware, ga4ConnectionMiddleware, asyn
       : 0;
     
     // Find all rows with conversions to see where they came from
+    const llmReferrerPattern = new RegExp(getLLMFilterRegex(), 'i');
+
     const rowsWithConversions = conversionMetricIndex !== -1
       ? (currentData.rows || [])
           .filter(row => parseFloat(row.metricValues?.[conversionMetricIndex]?.value || '0') > 0)
           .map(row => ({
-            source: row.dimensionValues?.[0]?.value || '',
-            medium: row.dimensionValues?.[1]?.value || '',
-            referrer: row.dimensionValues?.[2]?.value?.substring(0, 80) || '',
+            referrer: row.dimensionValues?.[0]?.value?.substring(0, 80) || '',
             sessions: row.metricValues?.[0]?.value || '0',
             conversions: row.metricValues?.[conversionMetricIndex]?.value || '0',
             conversionMetricIndex: conversionMetricIndex
           }))
       : [];
     
-    // Check if any conversions are from LLM platforms
-    const LLM_PATTERNS = {
-      'ChatGPT': /chatgpt|openai/i,
-      'Claude': /claude|anthropic/i,
-      'Gemini': /gemini|bard/i,
-      'Perplexity': /perplexity/i,
-      'Poe': /poe/i
-    };
-    
-    const llmRowsWithConversions = rowsWithConversions.filter(row => {
-      const referrer = row.referrer.toLowerCase();
-      const source = row.source.toLowerCase();
-      for (const [platform, pattern] of Object.entries(LLM_PATTERNS)) {
-        if (pattern.test(referrer) || pattern.test(source)) {
-          return true;
-        }
-      }
-      return false;
-    });
+    const llmRowsWithConversions = rowsWithConversions.filter(row => row.referrer && llmReferrerPattern.test(row.referrer));
     
     // Log detailed metric information
     const firstRowMetrics = currentData.rows?.[0]?.metricValues?.map((m, idx) => ({
@@ -231,7 +206,9 @@ router.get('/llm-platforms', ga4SessionMiddleware, ga4ConnectionMiddleware, asyn
     }
     
     // Transform with comparison
-    const platforms = transformToLLMPlatforms(currentData, comparisonData);
+    const platforms = transformToLLMPlatforms(currentData, comparisonData, {
+      conversionMetric
+    });
 
     // Save to cache
     await setCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate, platforms, CACHE_DURATION_MINUTES);
@@ -333,7 +310,7 @@ router.get('/platform-split', ga4SessionMiddleware, ga4ConnectionMiddleware, asy
 
     const reportConfig = {
       dateRanges: [{ startDate: finalStartDate, endDate: finalEndDate }],
-      dimensions: [{ name: 'sessionSource' }, { name: 'sessionMedium' }, { name: 'pageReferrer' }],
+      dimensions: [{ name: 'sessionSource' }, { name: 'sessionMedium' }],
       metrics: [
         { name: 'sessions' },
         { name: 'engagementRate' },
@@ -348,9 +325,28 @@ router.get('/platform-split', ga4SessionMiddleware, ga4ConnectionMiddleware, asy
       limit: 10000
     };
 
+    const llmReferrerConfig = {
+      dateRanges: [{ startDate: finalStartDate, endDate: finalEndDate }],
+      dimensions: [{ name: 'pageReferrer' }],
+      metrics: [
+        { name: 'sessions' },
+        { name: 'engagementRate' },
+        { name: conversionMetric },
+        { name: 'bounceRate' },
+        { name: 'averageSessionDuration' },
+        { name: 'screenPageViewsPerSession' },
+        { name: 'newUsers' },
+        { name: 'totalUsers' }
+      ],
+      keepEmptyRows: false,
+      limit: 10000
+    };
+
     let currentData;
+    let llmReferrerData;
     try {
       currentData = await runReport(accessToken, propertyId, reportConfig);
+      llmReferrerData = await runReport(accessToken, propertyId, llmReferrerConfig);
     } catch (apiError) {
       console.error('❌ [platform-split] GA4 API call failed:', {
         error: apiError.message,
@@ -358,6 +354,10 @@ router.get('/platform-split', ga4SessionMiddleware, ga4ConnectionMiddleware, asy
         reportConfig: {
           metrics: reportConfig.metrics.map(m => m.name),
           dimensions: reportConfig.dimensions.map(d => d.name)
+        },
+        llmReferrerConfig: {
+          metrics: llmReferrerConfig.metrics.map(m => m.name),
+          dimensions: llmReferrerConfig.dimensions.map(d => d.name)
         }
       });
       throw apiError;
@@ -425,8 +425,19 @@ router.get('/platform-split', ga4SessionMiddleware, ga4ConnectionMiddleware, asy
       ...reportConfig,
       dateRanges: [{ startDate: comparisonStartDate, endDate: comparisonEndDate }]
     };
-    
-    const comparisonData = await runReport(accessToken, propertyId, comparisonConfig);
+
+    const comparisonLlmReferrerConfig = {
+      ...llmReferrerConfig,
+      dateRanges: [{ startDate: comparisonStartDate, endDate: comparisonEndDate }]
+    };
+
+    const comparisonDataPromise = runReport(accessToken, propertyId, comparisonConfig);
+    const comparisonLlmDataPromise = runReport(accessToken, propertyId, comparisonLlmReferrerConfig);
+
+    const [comparisonData, comparisonLlmReferrerData] = await Promise.all([
+      comparisonDataPromise,
+      comparisonLlmDataPromise
+    ]);
     console.log('📊 [platform-split] Comparison data fetched:', {
       rowCount: comparisonData.rows?.length || 0,
       hasData: (comparisonData.rows?.length || 0) > 0,
@@ -435,7 +446,11 @@ router.get('/platform-split', ga4SessionMiddleware, ga4ConnectionMiddleware, asy
     });
     
     // Transform with comparison
-    const transformed = transformToPlatformSplit(currentData, comparisonData);
+    const transformed = transformToPlatformSplit(currentData, comparisonData, {
+      llmReferrerData,
+      llmComparisonData: comparisonLlmReferrerData,
+      conversionMetric
+    });
     console.log('📊 [platform-split] Transformation complete:', {
       platformCount: transformed.rankings?.length || 0,
       sampleRanking: transformed.rankings?.[0] || null,
@@ -443,28 +458,14 @@ router.get('/platform-split', ga4SessionMiddleware, ga4ConnectionMiddleware, asy
     });
 
     // Validate LLM sessions match llm-platforms endpoint
-    // Fetch LLM platforms data for validation
     try {
-      const llmPlatformsConfig = {
-        dateRanges: [{ startDate: finalStartDate, endDate: finalEndDate }],
-        dimensions: [{ name: 'pageReferrer' }],
-        dimensionFilter: {
-          filter: {
-            fieldName: 'pageReferrer',
-            stringFilter: {
-              matchType: 'PARTIAL_REGEXP',
-              value: getLLMFilterRegex(),
-              caseSensitive: false
-            }
-          }
-        },
-        metrics: [{ name: 'sessions' }],
-        keepEmptyRows: false,
-        limit: 10000
-      };
-      
-      const llmValidationData = await runReport(accessToken, propertyId, llmPlatformsConfig);
-      const llmPlatformsSessions = (llmValidationData.rows || []).reduce((sum, row) => {
+      const llmFilterPattern = llmReferrerPattern;
+      const llmPlatformsSessions = (llmReferrerData.rows || [])
+        .filter(row => {
+          const referrer = row.dimensionValues?.[0]?.value || '';
+          return llmFilterPattern.test(referrer);
+        })
+        .reduce((sum, row) => {
         return sum + parseFloat(row.metricValues?.[0]?.value || '0');
       }, 0);
       
