@@ -119,3 +119,4 @@ The `brand`, `social`, `earned` fields in `getChartDataFromDashboard` are being 
 | **Citation Share by Type** | What % of all [type] citations belong to this brand? | (Brand's [type] citations / All [type] citations) × 100 | Citation Share (filtered) |
 | **Citation Types** | What % of this brand's citations are [type]? | (Brand's [type] citations / Brand's total citations) × 100 | Citation Types |
 
+

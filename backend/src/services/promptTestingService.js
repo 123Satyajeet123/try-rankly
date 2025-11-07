@@ -21,11 +21,14 @@ class PromptTestingService {
     }
 
     // Default LLM models configuration - Low-cost models for testing
+    // ✅ FIX: Enable web search (:online) for better citation accuracy with real-time URLs
+    // Web search allows models to access real-time web data and provide more accurate, specific URLs
+    // instead of just domain names from training data
     this.llmModels = options.models || {
-      openai: 'openai/gpt-4o-mini', // Already low-cost
-      gemini: 'google/gemini-2.0-flash-001', // Low-cost Flash model
-      claude: 'anthropic/claude-3-5-haiku', // Low-cost Haiku model
-      perplexity: 'perplexity/sonar' // Low-cost Sonar Reasoning
+      openai: 'openai/gpt-4o-mini:online', // Enabled web search for real-time URLs
+      gemini: 'google/gemini-2.0-flash-001:online', // Enabled web search for real-time URLs
+      claude: 'anthropic/claude-3-5-haiku:online', // Enabled web search for real-time URLs
+      perplexity: 'perplexity/sonar' // Perplexity already has web search built-in
     };
 
     // PHASE 1 OPTIMIZATION: Default prompt testing configuration

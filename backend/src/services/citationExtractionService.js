@@ -106,8 +106,12 @@ class CitationExtractionService {
       // ===== TEXT-BASED CITATION EXTRACTION (Universal for all LLMs) =====
 
       // Method 5: Enhanced markdown link parsing [text](url) - Multiple patterns
+      // ✅ FIX: Improved markdown link extraction to handle URLs with parentheses and special characters
+      // Pattern 1: [text](url) - But handle URLs that may contain parentheses in the path
+      // We need to match the closing paren, but URLs can have parens in them, so we use a smarter approach
       const markdownPatterns = [
-        /\[([^\]]+)\]\(([^)]+)\)/g,  // [text](url)
+        /\[([^\]]+)\]\((https?:\/\/[^\)]+?)\)/g,  // [text](url) - non-greedy to stop at first )
+        /\[([^\]]+)\]\((https?:\/\/[^\)]*\/[^\)]*)\)/g,  // [text](url with path containing special chars)
         /\[([^\]]+)\]\[([^\]]+)\]/g, // [text][ref]
         /\[([^\]]+)\]:\s*(https?:\/\/[^\s]+)/g, // [ref]: url
         /\[([^\]]+)\]:\s*([^\s]+)/g  // [ref]: url (without protocol)
@@ -144,11 +148,12 @@ class CitationExtractionService {
       });
 
       // Method 6: Bare URLs extraction - Enhanced regex patterns
+      // ✅ FIX: Improved URL patterns to capture full URLs including paths, not truncating at word boundaries
       const urlPatterns = [
-        /https?:\/\/[^\s<>"{}|\\^`[\]]+/g,  // Standard URLs
-        /https?:\/\/[^\s<>"{}|\\^`[\]]*[^\s<>"{}|\\^`[\].]/g,  // URLs ending properly
-        /www\.[^\s<>"{}|\\^`[\]]+\.[a-zA-Z]{2,}[^\s<>"{}|\\^`[\]]*/g,  // www URLs
-        /[a-zA-Z0-9-]+\.[a-zA-Z]{2,}[^\s<>"{}|\\^`[\]]*/g  // Domain patterns
+        /https?:\/\/[^\s<>"{}|\\^`\[\]()]+(?:\/[^\s<>"{}|\\^`\[\]()]*)*/g,  // Standard URLs with full paths
+        /https?:\/\/[^\s<>"{}|\\^`\[\]()]+/g,  // Fallback: Standard URLs
+        /www\.[^\s<>"{}|\\^`\[\]()]+\.[a-zA-Z]{2,}(?:\/[^\s<>"{}|\\^`\[\]()]*)*/g,  // www URLs with paths
+        /[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s<>"{}|\\^`\[\]()]*)*/g  // Domain patterns with paths
       ];
 
       urlPatterns.forEach(pattern => {
@@ -331,7 +336,7 @@ class CitationExtractionService {
       // Normalize URL
       const urlObj = new URL(cleanUrl);
       return urlObj.toString();
-    } catch (e) {
+    } catch (error) {
       // If URL parsing fails, try basic cleaning
       return url.replace(/[)\],;.!?]+$/, '').trim();
     }

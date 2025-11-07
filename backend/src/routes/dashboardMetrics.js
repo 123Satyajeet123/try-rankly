@@ -1658,11 +1658,17 @@ router.get('/citations/:brandName/:type', authenticateToken, async (req, res) =>
     const citationMap = new Map();
 
     // Helper function to extract URLs from raw response
+    // ✅ FIX: Improved URL regex that captures full URLs including paths, not truncating
     const extractUrlsFromResponse = (rawResponse) => {
-      const urlRegex = /https?:\/\/[^\s\)\]\}]+/g;
+      // Pattern: http(s):// followed by non-whitespace characters, stopping at whitespace, closing parens/brackets
+      // Captures full URLs including paths with special characters
+      const urlRegex = /https?:\/\/[^\s\)\]\}]+(?:\/[^\s\)\]\}]*)*/g;
       const urls = rawResponse.match(urlRegex) || [];
-      // Clean up URLs by removing trailing punctuation
-      return urls.map(url => url.replace(/[\)\]\}]+$/, ''));
+      // Clean up URLs by removing trailing punctuation that may have been captured
+      return urls.map(url => {
+        // Remove trailing punctuation: ), ], }, ., ,, ;, !, ? but preserve URL structure
+        return url.replace(/[)\],;.!?]+$/, '').trim();
+      }).filter(url => url.length > 0);
     };
 
     // Helper function to map citation references to URLs

@@ -324,10 +324,16 @@ class CitationClassificationService {
         }
         
         // Strategy 4: Check for brand name patterns in domain (fuzzy matching)
+        // ✅ FIX: Only match on domain base (first part before TLD), not full domain
+        // This prevents false positives where domain contains brand name as substring
+        // e.g., "crunchbase.com" should NOT match "ycombinator" even if URL path mentions it
+        const domainBase = domain.split('.')[0]; // Get just the domain name without TLD
         const brandPatterns = brandPatternService.generateBrandPatterns(brandName);
         for (const pattern of brandPatterns) {
           const normalizedPattern = pattern.toLowerCase().replace(/\s+/g, '');
-          if (domain.includes(normalizedPattern)) {
+          // Only match if domain base starts with or equals the pattern (stricter matching)
+          // Avoid substring matching that could cause false positives
+          if (domainBase === normalizedPattern || domainBase.startsWith(normalizedPattern)) {
             return { 
               type: 'brand', 
               brand: brandName, 

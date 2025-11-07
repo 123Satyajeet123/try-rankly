@@ -282,3 +282,4 @@ class BrandPatternService {
 
 module.exports = new BrandPatternService();
 
+

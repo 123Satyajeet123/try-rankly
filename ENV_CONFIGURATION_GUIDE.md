@@ -4,8 +4,14 @@ Complete guide for configuring environment variables for production deployment.
 
 ## Quick Start
 
-1. **Backend**: Copy `backend/.env.production.example` to `backend/.env` and update values
-2. **Frontend**: Copy `.env.production.local.example` to `.env.production.local` and update values
+1. **Backend**: Copy `backend/env.example.txt` to `backend/.env` and update values
+2. **Frontend**: Copy `env.production.local.example.txt` to `.env.production.local` and update values
+
+## 🚀 New Google Cloud Project Setup
+
+**If you're setting up a new Google Cloud project for production**, see the comprehensive guide:
+- **[GOOGLE_CLOUD_PRODUCTION_SETUP.md](./GOOGLE_CLOUD_PRODUCTION_SETUP.md)** - Complete step-by-step guide
+- **[PRODUCTION_SETUP_CHECKLIST.md](./PRODUCTION_SETUP_CHECKLIST.md)** - Quick checklist
 
 ---
 

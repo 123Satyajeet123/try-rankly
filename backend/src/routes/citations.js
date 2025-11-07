@@ -326,8 +326,19 @@ router.get('/:brandName/:type', authenticateToken, async (req, res) => {
     
     // Helper function to extract URLs from raw response
     const extractUrlsFromResponse = (rawResponse) => {
-      const urlRegex = /https?:\/\/[^\s\)\]\}]+\b/g;
-      return rawResponse.match(urlRegex) || [];
+      // ✅ FIX: Improved URL regex that doesn't truncate URLs at word boundaries
+      // Removed \b word boundary which was causing URL truncation
+      // Now captures full URLs including paths with special characters
+      // Pattern: http(s):// followed by non-whitespace characters, stopping at whitespace, closing parens/brackets
+      // But NOT stopping at word boundaries which can truncate URLs with paths
+      const urlRegex = /https?:\/\/[^\s\)\]\}]+(?:\/[^\s\)\]\}]*)*/g;
+      const urls = rawResponse.match(urlRegex) || [];
+      
+      // Clean up URLs: remove trailing punctuation that may have been captured
+      return urls.map(url => {
+        // Remove trailing punctuation: ), ], }, ., ,, ;, !, ? but preserve URL structure
+        return url.replace(/[)\],;.!?]+$/, '').trim();
+      }).filter(url => url.length > 0);
     };
 
     // Helper function to map citation references to URLs
