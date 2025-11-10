@@ -325,8 +325,31 @@ router.post('/analyze-website', authenticateToken, async (req, res) => {
     // Import website analysis service
     const websiteAnalysisService = require('../services/websiteAnalysisService');
     
-    // Perform comprehensive website analysis
-    const analysisResults = await websiteAnalysisService.analyzeWebsite(url);
+    // Perform comprehensive website analysis with error handling
+    let analysisResults;
+    try {
+      console.log('🔍 Starting AI analysis...');
+      analysisResults = await websiteAnalysisService.analyzeWebsite(url);
+      console.log('✅ AI analysis completed');
+      console.log('   Analysis level:', analysisResults.analysisLevel || 'company');
+      console.log('   Competitors:', analysisResults.competitors?.length || 0);
+      console.log('   Topics:', analysisResults.topics?.length || 0);
+      console.log('   Personas:', analysisResults.personas?.length || 0);
+    } catch (analysisError) {
+      console.error('❌ AI analysis failed:', analysisError.message);
+      console.error('   Analysis error stack:', analysisError.stack);
+      throw new Error(`AI analysis failed: ${analysisError.message}`);
+    }
+    
+    // Ensure analysisResults has required structure
+    if (!analysisResults) {
+      throw new Error('Analysis service returned no results');
+    }
+    
+    // Ensure arrays exist even if empty
+    analysisResults.competitors = analysisResults.competitors || [];
+    analysisResults.topics = analysisResults.topics || [];
+    analysisResults.personas = analysisResults.personas || [];
     
     // Save complete analysis results to UrlAnalysis collection
     const urlAnalysisData = {
@@ -379,77 +402,172 @@ router.post('/analyze-website', authenticateToken, async (req, res) => {
     // Save individual items to respective collections for user selection
     // Note: Cleanup was already handled above by the URL cleanup service
     
-    console.log('🔍 [DEBUG] Starting individual document creation...');
-    console.log('🔍 [DEBUG] Analysis results:', {
-      competitors: analysisResults.competitors?.length || 0,
-      topics: analysisResults.topics?.length || 0,
-      personas: analysisResults.personas?.length || 0
-    });
-    
-    // Save competitors
-    console.log('🔍 [DEBUG] Checking competitors:', analysisResults.competitors?.length || 0);
+    // Save competitors with error handling
     if (analysisResults.competitors && analysisResults.competitors.length > 0) {
-      console.log('🔍 [DEBUG] Creating competitors with urlAnalysisId:', urlAnalysis._id);
-      try {
-        const competitorPromises = analysisResults.competitors.map(comp => {
-          return new Competitor({
+      console.log(`💾 Saving ${analysisResults.competitors.length} competitors...`);
+      const competitorPromises = analysisResults.competitors.map(async (comp, index) => {
+        try {
+          // Validate and clean competitor data
+          const name = (comp.name || `Competitor ${index + 1}`).trim();
+          const url = (comp.url || '').trim();
+          
+          if (!name || name.length === 0) {
+            console.warn(`⚠️ Competitor ${index + 1} has empty name, skipping`);
+            return null;
+          }
+          
+          const competitorDoc = new Competitor({
             userId: req.userId,
-            name: comp.name,
-            url: comp.url,
-            reason: comp.reason,
-            similarity: comp.similarity,
+            name: name,
+            url: url || undefined,
+            reason: comp.reason || 'Similar business',
+            similarity: comp.similarity || 0.5,
             source: 'ai',
             selected: false,
-            urlAnalysisId: urlAnalysis._id // ✅ FIX: Set urlAnalysisId
-          }).save();
-        });
-        await Promise.all(competitorPromises);
-        console.log('✅ [DEBUG] Competitors created successfully');
-      } catch (error) {
-        console.error('❌ [DEBUG] Error creating competitors:', error);
-      }
-    } else {
-      console.log('⚠️ [DEBUG] No competitors to create');
+            urlAnalysisId: urlAnalysis._id
+          });
+          
+          const saved = await competitorDoc.save();
+          console.log(`✅ Saved competitor: ${name}`);
+          return saved;
+        } catch (compError) {
+          console.error(`❌ Error saving competitor ${index + 1}:`, compError.message);
+          console.error('   Competitor data:', JSON.stringify(comp, null, 2));
+          return null;
+        }
+      });
+      
+      const savedCompetitors = await Promise.all(competitorPromises);
+      const successfulSaves = savedCompetitors.filter(c => c !== null).length;
+      console.log(`✅ Successfully saved ${successfulSaves}/${analysisResults.competitors.length} competitors`);
     }
     
-    // Save topics
+    // Save topics with error handling
     if (analysisResults.topics && analysisResults.topics.length > 0) {
-      const topicPromises = analysisResults.topics.map(topic => {
-        // Defensive: Remove any unwanted branding info from topic object (futureproof)
-        const sanitizedTopic = {
-          userId: req.userId,
-          name: topic.name,
-          description: topic.description,
-          keywords: topic.keywords || [],
-          priority: topic.priority,
-          source: 'ai',
-          selected: false,
-          urlAnalysisId: urlAnalysis._id // ✅ FIX: Set urlAnalysisId
-        };
-        // Remove any accidental brand/brandContext fields (not present today, but defensive)
-        delete sanitizedTopic.brand;
-        delete sanitizedTopic.brandContext;
-        return new Topic(sanitizedTopic).save();
+      console.log(`💾 Saving ${analysisResults.topics.length} topics...`);
+      const topicPromises = analysisResults.topics.map(async (topic, index) => {
+        try {
+          // Validate and clean topic data
+          const name = (topic.name || `Topic ${index + 1}`).trim();
+          const description = (topic.description || '').trim();
+          
+          if (!name || name.length === 0) {
+            console.warn(`⚠️ Topic ${index + 1} has empty name, skipping`);
+            return null;
+          }
+          
+          // Ensure keywords is an array of strings
+          const keywords = Array.isArray(topic.keywords)
+            ? topic.keywords.filter(k => k && typeof k === 'string' && k.trim().length > 0).map(k => k.trim())
+            : [];
+          
+          // Validate priority if provided
+          const priority = topic.priority && typeof topic.priority === 'number' 
+            ? Math.max(1, Math.min(10, topic.priority)) // Clamp between 1-10
+            : 5; // Default priority
+          
+          const sanitizedTopic = {
+            userId: req.userId,
+            name: name,
+            description: description || '',
+            keywords: keywords,
+            priority: priority,
+            source: 'ai',
+            selected: false,
+            urlAnalysisId: urlAnalysis._id
+          };
+          
+          // Remove any accidental brand/brandContext fields (defensive)
+          delete sanitizedTopic.brand;
+          delete sanitizedTopic.brandContext;
+          
+          const topicDoc = new Topic(sanitizedTopic);
+          const saved = await topicDoc.save();
+          console.log(`✅ Saved topic: ${name}`);
+          return saved;
+        } catch (topicError) {
+          console.error(`❌ Error saving topic ${index + 1}:`, topicError.message);
+          console.error('   Topic data:', JSON.stringify(topic, null, 2));
+          return null;
+        }
       });
-      await Promise.all(topicPromises);
+      
+      const savedTopics = await Promise.all(topicPromises);
+      const successfulSaves = savedTopics.filter(t => t !== null).length;
+      console.log(`✅ Successfully saved ${successfulSaves}/${analysisResults.topics.length} topics`);
     }
     
-    // Save personas
+    // Save personas with validation and error handling
     if (analysisResults.personas && analysisResults.personas.length > 0) {
-      const personaPromises = analysisResults.personas.map(persona => {
-        return new Persona({
-          userId: req.userId,
-          type: persona.type,
-          description: persona.description,
-          painPoints: persona.painPoints || [],
-          goals: persona.goals || [],
-          relevance: persona.relevance,
-          source: 'ai',
-          selected: false,
-          urlAnalysisId: urlAnalysis._id // ✅ FIX: Set urlAnalysisId
-        }).save();
+      console.log(`💾 Saving ${analysisResults.personas.length} personas...`);
+      const personaPromises = analysisResults.personas.map(async (persona, index) => {
+        try {
+          // Validate and clean persona data
+          const type = (persona.type || `Persona ${index + 1}`).trim();
+          const description = (persona.description || 'Target customer persona').trim();
+          
+          // Ensure relevance is one of the valid enum values
+          const validRelevance = ['High', 'Medium', 'Low'];
+          let relevance = persona.relevance || 'Medium';
+          if (typeof relevance === 'string') {
+            relevance = relevance.trim();
+            // Normalize common variations
+            if (relevance.toLowerCase() === 'high') relevance = 'High';
+            else if (relevance.toLowerCase() === 'low') relevance = 'Low';
+            else if (relevance.toLowerCase() === 'medium') relevance = 'Medium';
+            else relevance = 'Medium'; // Default if not valid
+          } else {
+            relevance = 'Medium';
+          }
+          
+          // Validate required fields
+          if (!type || type.length === 0) {
+            console.warn(`⚠️ Persona ${index + 1} has empty type, skipping`);
+            return null;
+          }
+          if (!description || description.length === 0) {
+            console.warn(`⚠️ Persona ${index + 1} has empty description, skipping`);
+            return null;
+          }
+          
+          // Ensure arrays are arrays and filter out invalid values
+          const painPoints = Array.isArray(persona.painPoints) 
+            ? persona.painPoints.filter(p => p && typeof p === 'string' && p.trim().length > 0).map(p => p.trim())
+            : [];
+          const goals = Array.isArray(persona.goals)
+            ? persona.goals.filter(g => g && typeof g === 'string' && g.trim().length > 0).map(g => g.trim())
+            : [];
+          
+          const personaDoc = new Persona({
+            userId: req.userId,
+            type: type,
+            description: description,
+            painPoints: painPoints,
+            goals: goals,
+            relevance: relevance,
+            source: 'ai',
+            selected: false,
+            urlAnalysisId: urlAnalysis._id
+          });
+          
+          const saved = await personaDoc.save();
+          console.log(`✅ Saved persona: ${type}`);
+          return saved;
+        } catch (personaError) {
+          console.error(`❌ Error saving persona ${index + 1}:`, personaError.message);
+          console.error('   Persona data:', JSON.stringify(persona, null, 2));
+          // Don't throw - continue with other personas
+          return null;
+        }
       });
-      await Promise.all(personaPromises);
+      
+      const savedPersonas = await Promise.all(personaPromises);
+      const successfulSaves = savedPersonas.filter(p => p !== null).length;
+      console.log(`✅ Successfully saved ${successfulSaves}/${analysisResults.personas.length} personas`);
+      
+      if (successfulSaves === 0 && analysisResults.personas.length > 0) {
+        console.warn('⚠️ No personas were saved successfully, but continuing with analysis');
+      }
     }
     
     console.log('✅ Website analysis completed and saved to database successfully');
@@ -474,11 +592,26 @@ router.post('/analyze-website', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Website analysis error:', error);
+    console.error('❌ Website analysis error:', error);
+    console.error('   Error stack:', error.stack);
+    console.error('   Error name:', error.name);
+    console.error('   Error message:', error.message);
+    
+    // Log additional context if available
+    if (error.response) {
+      console.error('   API response status:', error.response.status);
+      console.error('   API response data:', JSON.stringify(error.response.data, null, 2));
+    }
+    
+    // Provide more detailed error message in development
+    const errorMessage = process.env.NODE_ENV === 'development' 
+      ? `${error.message}${error.stack ? `\n\nStack: ${error.stack}` : ''}`
+      : 'Analysis service temporarily unavailable. Please try again.';
+    
     res.status(500).json({
       success: false,
       message: 'Website analysis failed',
-      error: process.env.NODE_ENV === 'development' ? error.message : 'Analysis service temporarily unavailable'
+      error: errorMessage
     });
   }
 });
