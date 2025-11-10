@@ -1148,8 +1148,10 @@ export function PageList({
       return []
     }
 
-    return actionablePages.map((row) => {
+    const mapped = actionablePages.map((row) => {
       const sessions = row.traffic?.sessions ?? 0
+      const suggestedAction: PageData['suggestedAction'] =
+        row.recommendedAction === 'create-content' ? 'Create New Content' : 'Regenerate Content'
 
       return {
         id: row.id,
@@ -1164,7 +1166,7 @@ export function PageList({
         timeOnPage: row.traffic?.timeOnPage,
         llmJourney: row.llmJourney,
         hasCitation: row.citations.totalCitations > 0,
-        suggestedAction: row.recommendedAction === 'create-content' ? 'Create New Content' : 'Regenerate Content',
+        suggestedAction,
         platformSessions: row.platformSessions,
         citations: row.citations,
         actionableReason: row.actionableReason,
@@ -1174,6 +1176,7 @@ export function PageList({
         trafficBand: deriveTrafficBand(sessions, threshold),
       }
     })
+    return mapped.sort((a, b) => (b.sessions || 0) - (a.sessions || 0))
   }, [actionablePages, threshold])
 
   const showEmptyState = !isLoading && pagesData.length === 0
@@ -1706,7 +1709,7 @@ This showcase demonstrates the **complete range** of text formats supported by o
 
                   {/* Table Body */}
                       <TableBody>
-                        {pagesData.slice(0, 20).map((page: PageData, index: number) => (
+                        {pagesData.map((page: PageData, index: number) => (
                       <TableRow key={index} className="hover:bg-muted/50 transition-colors">
                         <TableCell className="w-[35%] text-left align-middle">
                           <div className="space-y-0.5">

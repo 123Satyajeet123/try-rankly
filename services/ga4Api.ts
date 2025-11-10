@@ -245,10 +245,7 @@ export const getPages = async (
   const response = await fetchWithCredentials(
     `${API_BASE_URL}/ga4/pages?startDate=${startDate}&endDate=${endDate}&limit=${limit}${dateRangeParam}${conversionEventParam}${disableCacheParam}${cacheBustParam}`,
     {
-      headers: {
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
-      },
+      cache: 'no-store',
     },
   );
   return response.json()

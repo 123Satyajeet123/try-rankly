@@ -155,6 +155,14 @@ export async function fetchActionablePages(options: FetchActionablesOptions = {}
   const displayThreshold = targetThreshold >= 1 ? Number(targetThreshold.toFixed(2)) : targetThreshold
 
   if (process.env.NODE_ENV !== 'production') {
+    const pagesBySessions = uniqueGa4Pages
+      .map((page) => ({
+        title: page.title || page.pageTitle || page.url || 'Untitled Page',
+        url: page.url || page.pagePath || '',
+        sessions: Number(page.sessions) || 0,
+      }))
+      .sort((a, b) => b.sessions - a.sessions)
+
     console.log('[ActionablesService] GA4 summary', {
       startDate,
       endDate,
@@ -166,6 +174,9 @@ export async function fetchActionablePages(options: FetchActionablesOptions = {}
       displayThreshold,
       warnings,
     })
+    console.log('[ActionablesService] GA4 sessions (top 15)', pagesBySessions.slice(0, 15))
+    console.log('[ActionablesService] GA4 sessions (bottom 15)', pagesBySessions.slice(-15))
+
     const sampleSessions = uniqueGa4Pages
       .map((page) => Number(page.sessions) || 0)
       .sort((a, b) => a - b)
@@ -184,11 +195,17 @@ export async function fetchActionablePages(options: FetchActionablesOptions = {}
       filteredCount: filteredPages.length,
       highestSessions,
       targetThreshold,
-      sample: filteredPages.slice(0, 5).map((page) => ({
-        url: page.url || page.pagePath,
-        sessions: Number(page.sessions) || 0,
-      })),
     })
+    console.log(
+      '[ActionablesService] Filtered pages detail',
+      filteredPages.map((page) => ({
+        title: page.title || page.pageTitle || page.url || 'Untitled Page',
+        url: page.url || page.pagePath || '',
+        sessions: Number(page.sessions) || 0,
+        threshold: targetThreshold,
+        highestSessions,
+      })),
+    )
   }
 
   const enrichedRows: ActionablePageRow[] = filteredPages
