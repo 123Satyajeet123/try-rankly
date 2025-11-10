@@ -192,6 +192,23 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
       <ChevronUp className="w-3 h-3" />
   }
 
+  const isMetricNumber = (value: unknown): value is number =>
+    typeof value === 'number' && !Number.isNaN(value)
+
+  const formatPercentage = (value: number | null | undefined, digits = 0) => {
+    if (!isMetricNumber(value)) {
+      return '-'
+    }
+    return `${digits > 0 ? value.toFixed(digits) : value.toFixed(0)}%`
+  }
+
+  const formatRank = (value: number | null | undefined) => {
+    if (!isMetricNumber(value)) {
+      return '-'
+    }
+    return `#${value}`
+  }
+
   // Fetch prompt details from backend
   const fetchPromptDetails = async (promptId: string) => {
     try {
@@ -715,8 +732,8 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
         prompts: item.prompts.map(prompt => ({
           id: prompt.id,
           prompt: prompt.text,
-          topic: item.type === 'topic' ? item.name : 'N/A',
-          persona: item.type === 'persona' ? item.name : 'N/A',
+          topic: item.type === 'topic' ? item.name : '-',
+          persona: item.type === 'persona' ? item.name : '-',
           platforms: ["ChatGPT", "Perplexity", "Gemini", "Claude"],
           updatedAt: "Recent",
           createdAt: "Recent",
@@ -738,14 +755,14 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
           // Pass through competitor data from backend
           mentionedCompetitors: (prompt as any).mentionedCompetitors || []
         })),
-        visibilityRank: `#${item.metrics.visibilityRank}`,
-        visibilityScore: `${item.metrics.visibilityScore}%`,
-        averagePosition: item.metrics.avgPosition.toFixed(2),
-        citationShare: `${item.metrics.citationShare || 0}%`,
-        citationRank: `#${item.metrics.citationShareRank || 'N/A'}`,
-        depthOfMention: `${item.metrics.depthOfMention.toFixed(1)}%`,
-        depthOfMentionRank: `#${item.metrics.depthRank}`,
-        averagePositionRank: `#${item.metrics.avgPositionRank}`,
+        visibilityRank: item.metrics.visibilityRank != null ? `#${item.metrics.visibilityRank}` : '-',
+        visibilityScore: isMetricNumber(item.metrics.visibilityScore) ? `${item.metrics.visibilityScore}%` : '-',
+        averagePosition: isMetricNumber(item.metrics.avgPosition) ? item.metrics.avgPosition.toFixed(2) : '-',
+        citationShare: isMetricNumber(item.metrics.citationShare) ? `${item.metrics.citationShare}%` : '-',
+        citationRank: item.metrics.citationShareRank != null ? `#${item.metrics.citationShareRank}` : '-',
+        depthOfMention: isMetricNumber(item.metrics.depthOfMention) ? `${item.metrics.depthOfMention.toFixed(1)}%` : '-',
+        depthOfMentionRank: item.metrics.depthRank != null ? `#${item.metrics.depthRank}` : '-',
+        averagePositionRank: item.metrics.avgPositionRank != null ? `#${item.metrics.avgPositionRank}` : '-',
         wordCount: `${item.metrics.depthOfMention.toFixed(1)}%`,
         subjectiveImpression: 'Positive',
         subjectiveMetrics: {
@@ -826,16 +843,16 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
           groupLabel: groupValue.includes('Manager') || groupValue.includes('Hacker') ? 'Persona' : 'Topic',
           groupValue,
           prompts: groupPrompts,
-          visibilityRank: topicData?.visibilityRank || `#${Math.floor(Math.random() * 10) + 1}`,
-          visibilityScore: topicData?.visibilityScore || `${Math.floor(Math.random() * 40) + 60}%`,
-          averagePosition: topicData?.averagePosition || `${(Math.random() * 3 + 1).toFixed(1)}`,
-          citationShare: topicData?.citationShare || `${(Math.random() * 20 + 5).toFixed(1)}%`,
-          citationRank: topicData?.citationRank || `#${Math.floor(Math.random() * 10) + 1}`,
-          wordCount: `${(Math.random() * 15 + 5).toFixed(1)}%`,
-          depthOfMention: topicData?.depthOfMention || `${(Math.random() * 20 + 15).toFixed(1)}%`,
-          depthOfMentionRank: `#${Math.floor(Math.random() * 5) + 1}`,
-          averagePositionRank: `#${Math.floor(Math.random() * 5) + 1}`,
-          subjectiveImpression: topicData?.subjectiveImpression || 'Positive'
+          visibilityRank: topicData?.visibilityRank != null ? `#${topicData.visibilityRank}` : '-',
+          visibilityScore: isMetricNumber(topicData?.visibilityScore) ? `${topicData.visibilityScore}%` : '-',
+          averagePosition: isMetricNumber(topicData?.averagePosition) ? topicData.averagePosition.toFixed(2) : '-',
+          citationShare: isMetricNumber(topicData?.citationShare) ? `${topicData.citationShare}%` : '-',
+          citationRank: topicData?.citationRank != null ? `#${topicData.citationRank}` : '-',
+          wordCount: isMetricNumber((topicData as any)?.wordCount) ? `${(topicData as any).wordCount}%` : '-',
+          depthOfMention: isMetricNumber(topicData?.depthOfMention) ? `${topicData.depthOfMention.toFixed(1)}%` : '-',
+          depthOfMentionRank: topicData?.depthOfMentionRank != null ? `#${topicData.depthOfMentionRank}` : '-',
+          averagePositionRank: topicData?.averagePositionRank != null ? `#${topicData.averagePositionRank}` : '-',
+          subjectiveImpression: topicData?.subjectiveImpression ?? '-'
         }
       })
     }
@@ -882,41 +899,41 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
         groupLabel,
         groupValue,
         prompts: groupPrompts,
-        visibilityRank: topicData?.visibilityRank || `#${Math.floor(Math.random() * 10) + 1}`,
-        visibilityScore: topicData?.visibilityScore || `${Math.floor(Math.random() * 40) + 60}%`,
-        averagePosition: topicData?.averagePosition || `${(Math.random() * 3 + 1).toFixed(1)}`,
-        citationShare: topicData?.citationShare || `${(Math.random() * 20 + 5).toFixed(1)}%`,
-        citationRank: topicData?.citationRank || `#${Math.floor(Math.random() * 8) + 1}`,
-        executions: topicData?.executions || groupPrompts.length * (Math.floor(Math.random() * 50) + 10),
-        depthOfMention: topicData?.depthOfMention || `${(Math.random() * 20 + 15).toFixed(1)}%`,
-        depthOfMentionRank: `#${Math.floor(Math.random() * 5) + 1}`,
-        averagePositionRank: `#${Math.floor(Math.random() * 5) + 1}`,
-        wordCount: `${Math.floor(Math.random() * 40) + 60}%`,
-        subjectiveImpression: topicData?.subjectiveImpression || (Math.random() > 0.5 ? "Positive" : "Neutral"),
+        visibilityRank: topicData?.visibilityRank != null ? `#${topicData.visibilityRank}` : '-',
+        visibilityScore: isMetricNumber(topicData?.visibilityScore) ? `${topicData.visibilityScore}%` : '-',
+        averagePosition: isMetricNumber(topicData?.averagePosition) ? topicData.averagePosition.toFixed(2) : '-',
+        citationShare: isMetricNumber(topicData?.citationShare) ? `${topicData.citationShare}%` : '-',
+        citationRank: topicData?.citationRank != null ? `#${topicData.citationRank}` : '-',
+        executions: topicData?.executions ?? groupPrompts.length,
+        depthOfMention: isMetricNumber(topicData?.depthOfMention) ? `${topicData.depthOfMention.toFixed(1)}%` : '-',
+        depthOfMentionRank: topicData?.depthOfMentionRank != null ? `#${topicData.depthOfMentionRank}` : '-',
+        averagePositionRank: topicData?.averagePositionRank != null ? `#${topicData.averagePositionRank}` : '-',
+        wordCount: isMetricNumber((topicData as any)?.wordCount) ? `${(topicData as any).wordCount}%` : '-',
+        subjectiveImpression: topicData?.subjectiveImpression ?? '-',
         subjectiveMetrics: topicData?.subjectiveMetrics || {
           relevance: {
-            score: Math.floor(Math.random() * 6), // 0-5
-            summary: 'Detailed relevance analysis for this topic.'
+            score: 0,
+            summary: 'Not enough data yet.'
           },
           influence: {
-            score: Math.floor(Math.random() * 6),
-            summary: 'Impact assessment on user decision-making.'
+            score: 0,
+            summary: 'Not enough data yet.'
           },
           uniqueness: {
-            score: Math.floor(Math.random() * 6),
-            summary: 'Evaluation of content uniqueness and differentiation.'
+            score: 0,
+            summary: 'Not enough data yet.'
           },
           position: {
-            score: Math.floor(Math.random() * 6),
-            summary: 'Analysis of content positioning and visibility.'
+            score: 0,
+            summary: 'Not enough data yet.'
           },
           clickProbability: {
-            score: Math.floor(Math.random() * 6),
-            summary: 'Assessment of user engagement likelihood.'
+            score: 0,
+            summary: 'Not enough data yet.'
           },
           diversity: {
-            score: Math.floor(Math.random() * 6),
-            summary: 'Evaluation of content diversity and perspective variety.'
+            score: 0,
+            summary: 'Not enough data yet.'
           }
         },
         platformAnswers: groupValue === 'Personalization' ? {
@@ -1764,18 +1781,28 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                             )}
                           </TableCell>
                           <TableCell className="text-center">
-                            <span>{group.visibilityScore}</span>
+                          <span>{group.visibilityScore === '-' ? '-' : group.visibilityScore}</span>
                           </TableCell>
-                          <TableCell className="font-mono text-center">{group.visibilityRank} -</TableCell>
+                        <TableCell className="font-mono text-center">
+                          {group.visibilityRank === '-' ? '-' : `${group.visibilityRank} -`}
+                        </TableCell>
                           <TableCell className="text-center">
                             <Badge variant="default" className="text-xs">
-                              {group.depthOfMention}
+                            {group.depthOfMention === '-' ? '-' : group.depthOfMention}
                             </Badge>
                           </TableCell>
-                          <TableCell className="font-mono text-center">{group.depthOfMentionRank || '#3'} -</TableCell>
-                          <TableCell className="font-mono text-center">{group.averagePositionRank || '#2'} -</TableCell>
-                          <TableCell className="text-center">{group.citationShare} -</TableCell>
-                          <TableCell className="font-mono text-center">{group.citationRank} -</TableCell>
+                        <TableCell className="font-mono text-center">
+                          {group.depthOfMentionRank === '-' ? '-' : `${group.depthOfMentionRank} -`}
+                        </TableCell>
+                        <TableCell className="font-mono text-center">
+                          {group.averagePositionRank === '-' ? '-' : `${group.averagePositionRank} -`}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          {group.citationShare === '-' ? '-' : `${group.citationShare} -`}
+                        </TableCell>
+                        <TableCell className="font-mono text-center">
+                          {group.citationRank === '-' ? '-' : `${group.citationRank} -`}
+                        </TableCell>
                           <TableCell className="text-center">
                             <Button 
                               variant="ghost" 
@@ -1786,7 +1813,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                                 if (firstPrompt?.id) {
                                   setSelectedPrompt({
                                     ...group,
-                                    promptPreview: (firstPrompt as any).text || firstPrompt.prompt || 'N/A',
+                                    promptPreview: (firstPrompt as any).text || firstPrompt.prompt || '-',
                                     promptId: firstPrompt.id
                                   })
                                   fetchPromptDetails(firstPrompt.id)
@@ -1855,33 +1882,39 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                               })()}
                             </TableCell>
                             <TableCell className="text-sm text-center">
-                              {prompt.promptMetrics && prompt.promptMetrics.visibilityScore > 0 
-                                ? `${prompt.promptMetrics.visibilityScore}%` 
-                                : `${Math.round(Math.random() * 30 + 70)}%`}
+                          {formatPercentage(prompt.promptMetrics?.visibilityScore, 0)}
                             </TableCell>
                             <TableCell className="font-mono text-sm text-center">
-                              #{prompt.promptMetrics?.visibilityRank || 'N/A'} -
+                          {(() => {
+                            const rank = formatRank(prompt.promptMetrics?.visibilityRank)
+                            return rank === '-' ? '-' : `${rank} -`
+                          })()}
                             </TableCell>
                             <TableCell className="text-sm text-center">
                               <Badge variant="default" className="text-xs">
-                                {prompt.promptMetrics && prompt.promptMetrics.depthOfMention > 0 
-                                  ? `${prompt.promptMetrics.depthOfMention.toFixed(1)}%` 
-                                  : `${(Math.random() * 20 + 15).toFixed(1)}%`}
+                            {formatPercentage(prompt.promptMetrics?.depthOfMention, 1)}
                             </Badge>
                       </TableCell>
                             <TableCell className="font-mono text-sm text-center">
-                              #{prompt.promptMetrics?.depthRank || 'N/A'} -
+                          {(() => {
+                            const rank = formatRank(prompt.promptMetrics?.depthRank)
+                            return rank === '-' ? '-' : `${rank} -`
+                          })()}
                             </TableCell>
                             <TableCell className="font-mono text-sm text-center">
-                              #{prompt.promptMetrics?.avgPositionRank || 'N/A'} -
+                          {(() => {
+                            const rank = formatRank(prompt.promptMetrics?.avgPositionRank)
+                            return rank === '-' ? '-' : `${rank} -`
+                          })()}
                             </TableCell>
                             <TableCell className="text-sm text-center">
-                              {prompt.promptMetrics && prompt.promptMetrics.citationShare > 0 
-                                ? `${prompt.promptMetrics.citationShare}%` 
-                                : `${Math.round(Math.random() * 30 + 70)}%`}
+                          {formatPercentage(prompt.promptMetrics?.citationShare, 0)}
                             </TableCell>
                             <TableCell className="font-mono text-sm text-center">
-                              #{prompt.promptMetrics?.citationShareRank || 'N/A'} -
+                          {(() => {
+                            const rank = formatRank(prompt.promptMetrics?.citationShareRank)
+                            return rank === '-' ? '-' : `${rank} -`
+                          })()}
                             </TableCell>
                             <TableCell className="text-sm text-center">
                             <Button 
@@ -1892,7 +1925,7 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                                 if (prompt.id) {
                                   setSelectedPrompt({
                                     ...group,
-                                    promptPreview: prompt.text || prompt.prompt || 'N/A',
+                                    promptPreview: prompt.text || prompt.prompt || '-',
                                     promptId: prompt.id
                                   })
                                   fetchPromptDetails(prompt.id)

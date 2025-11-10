@@ -24,10 +24,20 @@ export interface PlatformData {
 }
 
 export interface PageData {
-  pagePath: string
-  pageTitle: string
+  pagePath?: string
+  pageTitle?: string
+  title?: string
+  url?: string
   sessions: number
-  pageViews: number
+  pageViews?: number
+  sqs?: number
+  conversionRate?: number
+  bounce?: number
+  timeOnPage?: number
+  contentGroup?: string
+  llmJourney?: string
+  provider?: string
+  platformSessions?: Record<string, number>
 }
 
 export interface GeoData {

@@ -30,6 +30,8 @@ router.get('/pages', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req, 
   try {
     ({ propertyId, accessToken } = req.ga4Connection);
     ({ startDate, endDate, limit = 10, dateRange, conversionEvent = 'conversions' } = req.query);
+    const disableCache = req.query.disableCache === 'true';
+    const cacheBust = req.query.cacheBust || null;
     const userId = req.session.userId;
 
     // Normalize date range consistently (always uses 'today' as endDate)
@@ -38,20 +40,25 @@ router.get('/pages', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req, 
     // Convert conversion event to valid GA4 metric name
     conversionMetric = getConversionEventMetric(conversionEvent);
 
-    // Check cache first
     const cacheKey = `pages-${conversionEvent}`;
-    const cachedData = await getCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate);
-    
-    if (cachedData) {
-      console.log('✅ [pages] Returning cached data');
-      return res.json({
-        success: true,
-        data: cachedData,
-        cached: true
+    if (!disableCache) {
+      const cachedData = await getCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate);
+      
+      if (cachedData) {
+        console.log('✅ [pages] Returning cached data');
+        return res.json({
+          success: true,
+          data: cachedData,
+          cached: true
+        });
+      }
+      console.log('🔄 [pages] No cache found, fetching fresh data for conversion metric:', conversionMetric);
+    } else {
+      console.log('🚫 [pages] Cache bypass requested. disableCache=true', {
+        conversionEvent,
+        cacheBust,
       });
     }
-    
-    console.log('🔄 [pages] No cache found, fetching fresh data for conversion metric:', conversionMetric);
 
     reportConfig = {
       dateRanges: [{ startDate: finalStartDate, endDate: finalEndDate }],
@@ -295,9 +302,12 @@ router.get('/pages', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req, 
       });
     }
 
-    // Save to cache
-    await setCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate, pagesData, CACHE_DURATION_MINUTES);
-    console.log('💾 [pages] Data cached');
+    if (!disableCache) {
+      await setCachedData(userId, propertyId, cacheKey, finalStartDate, finalEndDate, pagesData, CACHE_DURATION_MINUTES);
+      console.log('💾 [pages] Data cached');
+    } else {
+      console.log('🚫 [pages] Cache bypass active - response not cached');
+    }
 
     console.log('✅ Pages response:', {
       pagesCount: pagesData.pages?.length || 0,
@@ -341,9 +351,13 @@ router.get('/pages', ga4SessionMiddleware, ga4ConnectionMiddleware, async (req, 
           const fallbackData = await runReport(accessToken, propertyId, fallbackConfig);
           const fallbackPagesData = transformPagesData(fallbackData);
           
-          // Cache disabled - don't save to cache
-          // const fallbackCacheKey = `pages-conversions`;
-          // await setCachedData(userId, propertyId, fallbackCacheKey, finalStartDate, finalEndDate, fallbackPagesData);
+          // Respect disableCache flag even for fallback responses to avoid serving stale data
+          if (!disableCache) {
+            const fallbackCacheKey = `pages-conversions`;
+            await setCachedData(userId, propertyId, fallbackCacheKey, finalStartDate, finalEndDate, fallbackPagesData, CACHE_DURATION_MINUTES);
+          } else {
+            console.log('🚫 [pages] Cache bypass active - fallback response not cached');
+          }
           
           return res.json({
             success: true,

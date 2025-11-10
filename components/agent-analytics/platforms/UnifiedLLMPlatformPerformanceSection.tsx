@@ -12,6 +12,7 @@ import { Info, TrendingUp, TrendingDown } from 'lucide-react'
 import { ModernTrendUp, ModernTrendDown } from '@/components/ui/modern-arrows'
 import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
 import { getConversionEvents } from '@/services/ga4Api'
+import { calculateEngagementScore, calculateSessionQualityScore } from '@/lib/analytics/trafficMetrics'
 
 // Function to get the domain for each LLM platform for favicon fetching
 // Uses Google favicon service which automatically resolves domains for new platforms
@@ -141,8 +142,13 @@ function UnifiedLLMPlatformPerformanceSection({
     name: platform.name,
     sessions: platform.sessions || 0,
     share: platform.percentage || 0,
-    sessionQualityScore: calculateSessionQualityScore(platform),
-    engagementScore: calculateEngagementScore(platform),
+    sessionQualityScore: calculateSessionQualityScore({
+      engagementRate: platform.engagementRate,
+      conversionRate: platform.conversionRate,
+      pagesPerSession: platform.pagesPerSession,
+      avgSessionDurationSeconds: platform.avgSessionDuration,
+    }),
+    engagementScore: calculateEngagementScore(platform.engagementRate),
     conversionRate: platform.conversionRate || 0,
     bounceRate: platform.bounceRate || 0,
     avgSessionDuration: platform.avgSessionDuration || 0,
@@ -211,46 +217,6 @@ function UnifiedLLMPlatformPerformanceSection({
   })
 
   // Helper functions
-  function calculateSessionQualityScore(platform: any): number {
-    // SQS formula as per tooltip (matching Traffic Performance section):
-    // Engagement Rate (40%) + Conversion Rate (30%) + Pages per Session (20%) + Session Duration (10%)
-    // Cap values to ensure score stays within 0-100 range
-    const engagementRate = platform.engagementRate || 0 // Already in percentage (0-100)
-    const conversionRate = platform.conversionRate || 0 // Already in percentage (0-100)
-    const pagesPerSession = platform.pagesPerSession || 0 // Number, typically 1-10+
-    const avgSessionDuration = platform.avgSessionDuration || 0 // In seconds
-    
-    // Pages component: Cap at 5 pages, then scale to contribute up to 20% (max 20 points)
-    // If 5 pages = 20 points, then 1 page = 4 points
-    const pagesComponent = Math.min(pagesPerSession, 5) * 4 // Max 20 points
-    
-    // Duration component: Convert seconds to minutes, cap at 5 minutes, scale to contribute up to 10% (max 10 points)
-    // If 5 minutes = 10 points, then 1 minute = 2 points
-    const durationMinutes = avgSessionDuration / 60
-    const durationComponent = Math.min(durationMinutes, 5) * 2 // Max 10 points
-    
-    // Engagement component: 40% weight (max 40 points)
-    const engagementComponent = engagementRate * 0.4
-    
-    // Conversion component: 30% weight (max 30 points)
-    const conversionComponent = conversionRate * 0.3
-    
-    // Total SQS (capped at 100)
-    const sqs = Math.min(100, Math.max(0,
-      engagementComponent +
-      conversionComponent +
-      pagesComponent +
-      durationComponent
-    ))
-    
-    return Math.round(sqs * 100) / 100
-  }
-
-  function calculateEngagementScore(platform: any): number {
-    // Engagement Score = Engagement Rate from GA4 (already in percentage)
-    return Math.min(platform.engagementRate || 0, 100)
-  }
-
   function getLLMPlatformColor(platformName: string): string {
     const colors: Record<string, string> = {
       'ChatGPT': '#00a67e',

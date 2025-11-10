@@ -133,6 +133,131 @@ class WebsiteAnalysisService {
           return meta ? meta.content : '';
         };
         
+        const BLOCK_SELECTOR = [
+          'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+          'p', 'li', 'blockquote'
+        ].join(', ');
+
+        const BLOCKED_ANCESTOR_SELECTOR = [
+          'header',
+          'nav',
+          'footer',
+          'aside',
+          '[role="navigation"]',
+          '.navbar',
+          '.nav',
+          '.top-nav',
+          '.sidebar',
+          '.site-header',
+          '.site-footer',
+          '.breadcrumb',
+          '.breadcrumbs',
+          '[class*="footer"]',
+          '[id*="footer"]',
+          '[class*="nav"]',
+          '[id*="nav"]',
+          '[class*="menu"]',
+          '[id*="menu"]',
+        ].join(', ');
+
+        const getContentRoot = () => {
+          return (
+            document.querySelector('article') ||
+            document.querySelector('main') ||
+            document.querySelector('[role="main"]') ||
+            document.body
+          );
+        };
+
+        const shouldSkipElement = (element) => {
+          if (!element) {
+            return true;
+          }
+          if (element.closest(BLOCKED_ANCESTOR_SELECTOR)) {
+            return true;
+          }
+          return false;
+        };
+
+        const hasMeaningfulText = (text, tag = '') => {
+          if (!text) {
+            return false;
+          }
+          const wordCount = text.split(/\s+/).filter(Boolean).length;
+          const length = text.length;
+          const containsPunctuation = /[.?!]/.test(text);
+
+          if (tag.startsWith('h')) {
+            if (wordCount < 2) return false;
+            if (length < 8) return false;
+            return true;
+          }
+
+          if (tag === 'li' || tag === 'p' || tag === 'blockquote') {
+            if (wordCount >= 4) return true;
+            if (length >= 30) return true;
+            if (containsPunctuation) return true;
+            return false;
+          }
+
+          return wordCount > 1 && length >= 6;
+        };
+
+        const buildContentBlocks = () => {
+          const container = getContentRoot();
+          if (!container) {
+            return [];
+          }
+
+          const elements = Array.from(container.querySelectorAll(BLOCK_SELECTOR));
+
+          return elements
+            .map((element) => {
+              if (shouldSkipElement(element)) {
+                return null;
+              }
+
+              const text = element.innerText.trim().replace(/\s+/g, ' ');
+              if (!text) {
+                return null;
+              }
+              if (!hasMeaningfulText(text, tag)) {
+                return null;
+              }
+
+              const tag = element.tagName.toLowerCase();
+
+              let listType = null;
+              if (tag === 'li') {
+                const parentTag = element.parentElement?.tagName.toLowerCase();
+                if (parentTag === 'ol') {
+                  listType = 'ordered';
+                } else if (parentTag === 'ul') {
+                  listType = 'unordered';
+                }
+              }
+
+              return {
+                type: tag,
+                text,
+                listType,
+              };
+            })
+            .filter(Boolean);
+        };
+
+        const collectParagraphs = () => {
+          const container = getContentRoot();
+          if (!container) {
+            return [];
+          }
+
+          return Array.from(container.querySelectorAll('p'))
+            .filter((p) => !shouldSkipElement(p))
+            .map(p => p.innerText.trim())
+            .filter((text) => hasMeaningfulText(text, 'p'));
+        };
+
         return {
           // Basic page info
           title: document.title,
@@ -147,10 +272,9 @@ class WebsiteAnalysisService {
             h3: Array.from(document.querySelectorAll('h3')).map(h => h.innerText.trim())
           },
           
-          // Main content
-          paragraphs: Array.from(document.querySelectorAll('p'))
-            .map(p => p.innerText.trim())
-            .filter(text => text.length > 50),
+          // Main content ordered blocks
+          contentBlocks: buildContentBlocks(),
+          paragraphs: collectParagraphs(),
           
           // Navigation
           navigation: Array.from(document.querySelectorAll('nav a')).map(a => ({
@@ -199,6 +323,117 @@ class WebsiteAnalysisService {
 
         const $ = cheerio.load(response.data);
 
+        const BLOCKED_ANCESTOR_SELECTOR = 'header, nav, footer, aside, [role="navigation"], .navbar, .nav, .top-nav, .sidebar, .site-header, .site-footer, .breadcrumb, .breadcrumbs, [class*="footer"], [id*="footer"], [class*="nav"], [id*="nav"], [class*="menu"], [id*="menu"]';
+
+        const getContentRoot = () => {
+          if ($('article').length) return $('article');
+          if ($('main').length) return $('main');
+          if ($('[role="main"]').length) return $('[role="main"]');
+          return $('body');
+        };
+
+        const shouldSkipElement = (element) => {
+          if (!element) {
+            return true;
+          }
+          return $(element).closest(BLOCKED_ANCESTOR_SELECTOR).length > 0;
+        };
+
+        const hasMeaningfulText = (text, tag = '') => {
+          if (!text) {
+            return false;
+          }
+          const wordCount = text.split(/\s+/).filter(Boolean).length;
+          const length = text.length;
+          const containsPunctuation = /[.?!]/.test(text);
+
+          if (tag.startsWith('h')) {
+            if (wordCount < 2) return false;
+            if (length < 8) return false;
+            return true;
+          }
+
+          if (tag === 'li' || tag === 'p' || tag === 'blockquote') {
+            if (wordCount >= 4) return true;
+            if (length >= 30) return true;
+            if (containsPunctuation) return true;
+            return false;
+          }
+
+          return wordCount > 1 && length >= 6;
+        };
+
+        const buildContentBlocks = () => {
+          const container = getContentRoot();
+          if (!container || !container.length) {
+            return [];
+          }
+
+          const blockElements = container.find('h1, h2, h3, h4, h5, h6, p, li, blockquote');
+
+          const blocks = [];
+          blockElements.each((_, element) => {
+            if (shouldSkipElement(element)) {
+              return;
+            }
+
+            const rawTag = element.tagName || element.name;
+            const tag = rawTag ? rawTag.toLowerCase() : null;
+            if (!tag) {
+              return;
+            }
+            const text = $(element).text().trim().replace(/\s+/g, ' ');
+            if (!text) {
+              return;
+            }
+            if (!hasMeaningfulText(text, tag)) {
+              return;
+            }
+
+            let listType = null;
+            if (tag === 'li') {
+              const parentElement = element.parent || element.parentNode;
+              if (shouldSkipElement(parentElement)) {
+                return;
+              }
+              const rawParentTag = parentElement && (parentElement.tagName || parentElement.name);
+              const parentTag = rawParentTag ? rawParentTag.toLowerCase() : null;
+              if (parentTag === 'ol') {
+                listType = 'ordered';
+              } else if (parentTag === 'ul') {
+                listType = 'unordered';
+              }
+            }
+
+            blocks.push({
+              type: tag,
+              text,
+              listType,
+            });
+          });
+
+          return blocks;
+        };
+
+        const collectParagraphs = () => {
+          const paragraphs = [];
+          const container = getContentRoot();
+          if (!container || !container.length) {
+            return paragraphs;
+          }
+
+          container.find('p').each((_, el) => {
+            if (shouldSkipElement(el)) {
+              return;
+            }
+            const text = $(el).text().trim();
+            if (hasMeaningfulText(text, 'p')) {
+              paragraphs.push(text);
+            }
+          });
+          return paragraphs;
+        };
+
         const fallbackData = {
           title: $('title').text() || '',
           url: url,
@@ -209,7 +444,8 @@ class WebsiteAnalysisService {
             h2: $('h2').map((i, el) => $(el).text().trim()).get(),
             h3: $('h3').map((i, el) => $(el).text().trim()).get()
           },
-          paragraphs: $('p').map((i, el) => $(el).text().trim()).get().filter(text => text.length > 50),
+          contentBlocks: buildContentBlocks(),
+          paragraphs: collectParagraphs(),
           navigation: [],
           contactInfo: { emails: [], phones: [], addresses: [] },
           socialLinks: [],

@@ -34,6 +34,7 @@ export function GA4AgentAnalyticsTab({
   const [realDeviceData, setRealDeviceData] = useState<any>(null)
   const [isLoadingData, setIsLoadingData] = useState(false)
   const [selectedDateRange, setSelectedDateRange] = useState(externalDateRange)
+  const [selectedConversionEvent, setSelectedConversionEvent] = useState('conversions')
 
   // Sync external activeTab with internal state
   useEffect(() => {
@@ -55,7 +56,7 @@ export function GA4AgentAnalyticsTab({
     if (isConnected) {
       fetchGA4Data()
     }
-  }, [isConnected, activeTab, selectedDateRange])
+  }, [isConnected, activeTab, selectedDateRange, selectedConversionEvent])
 
   // Fetch fresh data when refresh trigger changes (sync now button)
   useEffect(() => {
@@ -153,7 +154,7 @@ export function GA4AgentAnalyticsTab({
       }
 
       if (activeTab === 'pages') {
-        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange)
+        const pagesResponse = await getPages(startDate, endDate, 500, selectedDateRange, selectedConversionEvent)
         console.log('📄 Pages data received:', pagesResponse)
         if (pagesResponse.success) {
           setRealPagesData(pagesResponse)
@@ -176,7 +177,7 @@ export function GA4AgentAnalyticsTab({
       }
 
       if (activeTab === 'journey') {
-        const pagesResponse = await getPages(startDate, endDate, 100, selectedDateRange)
+        const pagesResponse = await getPages(startDate, endDate, 500, selectedDateRange, selectedConversionEvent)
         if (pagesResponse.success) {
           setRealPagesData(pagesResponse)
         }
@@ -237,6 +238,12 @@ export function GA4AgentAnalyticsTab({
             realPagesData={realPagesData}
             dateRange={selectedDateRange}
             isLoading={isLoadingData}
+            selectedConversionEvent={selectedConversionEvent}
+            onConversionEventChange={(event) => {
+              if (event !== selectedConversionEvent) {
+                setSelectedConversionEvent(event)
+              }
+            }}
           />
         )
       case 'journey':

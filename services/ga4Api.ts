@@ -231,10 +231,26 @@ export const getPlatformSplit = async (startDate: string, endDate: string, dateR
   }
 }
 
-export const getPages = async (startDate: string, endDate: string, limit: number = 10, dateRange?: string, conversionEvent: string = 'conversions'): Promise<GA4ApiResponse<PagesResponse>> => {
+export const getPages = async (
+  startDate: string,
+  endDate: string,
+  limit: number = 10,
+  dateRange?: string,
+  conversionEvent: string = 'conversions',
+): Promise<GA4ApiResponse<PagesResponse>> => {
   const dateRangeParam = dateRange ? `&dateRange=${encodeURIComponent(dateRange)}` : '';
   const conversionEventParam = conversionEvent ? `&conversionEvent=${encodeURIComponent(conversionEvent)}` : '';
-  const response = await fetchWithCredentials(`${API_BASE_URL}/ga4/pages?startDate=${startDate}&endDate=${endDate}&limit=${limit}${dateRangeParam}${conversionEventParam}`)
+  const disableCacheParam = '&disableCache=true';
+  const cacheBustParam = `&cacheBust=${Date.now()}`;
+  const response = await fetchWithCredentials(
+    `${API_BASE_URL}/ga4/pages?startDate=${startDate}&endDate=${endDate}&limit=${limit}${dateRangeParam}${conversionEventParam}${disableCacheParam}${cacheBustParam}`,
+    {
+      headers: {
+        'Cache-Control': 'no-cache',
+        Pragma: 'no-cache',
+      },
+    },
+  );
   return response.json()
 }
 

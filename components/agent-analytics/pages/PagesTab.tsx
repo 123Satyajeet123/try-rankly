@@ -566,7 +566,7 @@ export function PagesTab({
 
                   {/* Table Body */}
                       <TableBody>
-                        {pages.slice(0, 20).map((page: any, index: number) => (
+                        {pages.map((page: any, index: number) => (
                       <TableRow key={index} className="hover:bg-muted/50 transition-colors">
                         <TableCell className="w-[320px] text-left align-middle">
                           <div className="space-y-0.5">

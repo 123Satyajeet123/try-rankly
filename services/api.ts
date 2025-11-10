@@ -1,4 +1,10 @@
 import { classifyError, isRetryableError, getUserFriendlyMessage, sleep, getRetryDelay, type ApiError } from '@/lib/utils/errorUtils'
+import type {
+  ActionablePageContentRequest,
+  ActionablePageContentResponse,
+  ActionableRegenerateContentRequest,
+  ActionableRegenerateContentResponse,
+} from '@/types/actionables'
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'
 const DEFAULT_TIMEOUT = 120000 // 120 seconds (2 minutes) - increased for long-running operations
@@ -366,6 +372,23 @@ class ApiService {
       method: 'POST',
       timeout: 600000, // 10 minutes to match Nginx proxy_read_timeout (can involve multiple AI calls)
     })
+  }
+
+  // Actionables endpoints
+  async loadActionablePageContent(payload: ActionablePageContentRequest) {
+    return this.request('/actionables/page-content', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      timeout: 180000, // Scraping can take time depending on the page
+    }) as Promise<{ success: boolean; data: ActionablePageContentResponse }>
+  }
+
+  async regenerateActionableContent(payload: ActionableRegenerateContentRequest) {
+    return this.request('/actionables/regenerate-content', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      timeout: 240000, // Regeneration may involve multiple LLM calls
+    }) as Promise<{ success: boolean; data: ActionableRegenerateContentResponse }>
   }
 
   // Calculate metrics from test results

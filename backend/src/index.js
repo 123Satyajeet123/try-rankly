@@ -325,6 +325,7 @@ const subjectiveMetricsRoutes = require('./routes/subjectiveMetrics');
 const citationsRoutes = require('./routes/citations');
 const insightsRoutes = require('./routes/insights');
 const sentimentBreakdownRoutes = require('./routes/sentimentBreakdown');
+const actionablesRoutes = require('./routes/actionables');
 
 // Import error handler
 const { errorHandler, notFoundHandler } = require('./middleware/errorHandler');
@@ -348,6 +349,7 @@ app.use('/api/subjective-metrics', subjectiveMetricsRoutes);
 app.use('/api/dashboard/citations', citationsRoutes);
 app.use('/api/insights', insightsRoutes);
 app.use('/api/sentiment', sentimentBreakdownRoutes);
+app.use('/api/actionables', actionablesRoutes);
 
 // 404 handler (must be before error handler)
 app.use(notFoundHandler);

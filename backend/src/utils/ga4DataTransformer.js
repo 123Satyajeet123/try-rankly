@@ -1730,7 +1730,7 @@ function transformPagesData(ga4Response, defaultUri = null) {
           reason: 'Platform not in LLM_PLATFORMS list'
         });
       }
-      return; // Continue to next row without adding to pageMap
+      continue; // Continue to next row without adding to pageMap
     }
 
     // Track sessions by unique (sessionSource, sessionMedium, pageReferrer) combination
