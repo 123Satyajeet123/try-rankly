@@ -200,18 +200,31 @@ class DashboardService {
       console.log('📊 [DashboardService] Dashboard response:', {
         success: dashboardResponse.success,
         hasData: !!dashboardResponse.data,
+        hasOverall: !!dashboardResponse.data?.overall,
+        hasPlatformMetrics: (dashboardResponse.data?.platformMetrics?.length || 0) > 0,
         topicRankings: dashboardResponse.data?.metrics?.topicRankings?.length || 0,
         personaRankings: dashboardResponse.data?.metrics?.personaRankings?.length || 0
       })
 
-      // If dashboard/all fails, check if it's because metrics don't exist yet
-      if (!dashboardResponse.success || !dashboardResponse.data) {
+      // ✅ FIX: Check if data is actually empty (not just if response failed)
+      // The backend might return success:true with empty data when metrics don't exist
+      let hasEmptyData = dashboardResponse.success && dashboardResponse.data && (
+        !dashboardResponse.data.overall && 
+        (!dashboardResponse.data.platformMetrics || dashboardResponse.data.platformMetrics.length === 0) &&
+        (!dashboardResponse.data.topics || dashboardResponse.data.topics.length === 0) &&
+        (!dashboardResponse.data.personas || dashboardResponse.data.personas.length === 0)
+      )
+
+      // If dashboard/all fails OR returns empty data, check if it's because metrics don't exist yet
+      if (!dashboardResponse.success || !dashboardResponse.data || hasEmptyData) {
         const responseErrorMessage = errorMessage || (dashboardResponse as any).message || ''
         const isMetricsNotFound = 
+          hasEmptyData ||
           responseErrorMessage.includes('No metrics') || 
           responseErrorMessage.includes('not found') || 
           responseErrorMessage.includes('Please run calculations') ||
-          responseErrorMessage.includes('run calculations first')
+          responseErrorMessage.includes('run calculations first') ||
+          responseErrorMessage.includes('Please complete the onboarding flow')
         
         // If metrics don't exist, try to calculate them automatically
         if (isMetricsNotFound && urlAnalysisId) {
@@ -259,6 +272,9 @@ class DashboardService {
                   console.log('✅ [DashboardService] Dashboard data fetched successfully after metrics calculation')
                   // Use the retry response data
                   dashboardResponse = retryResponse
+                  // ✅ FIX: Update hasEmptyData to false since we now have data
+                  // This prevents fallback logic from running when we have valid data
+                  hasEmptyData = false
                 } else {
                   console.warn('⚠️ [DashboardService] DEBUG - Retry response had no data:', {
                     success: retryResponse.success,
@@ -274,17 +290,31 @@ class DashboardService {
                 // Continue with fallback logic
               }
             } else {
+              const calcMessage = (calculateResponse as any).message || ''
               console.warn('⚠️ [DashboardService] Metrics calculation returned success:false', {
-                message: (calculateResponse as any).message,
+                message: calcMessage,
                 response: calculateResponse
               })
+              
+              // If calculation failed because no tests exist, provide helpful error
+              if (calcMessage.includes('No tests') || calcMessage.includes('No completed tests')) {
+                console.log('ℹ️ [DashboardService] No prompt tests found - user needs to complete prompt testing first')
+                // Don't throw error here, let it fall through to show appropriate message
+              }
             }
           } catch (calcError) {
+            const calcErrorMessage = calcError instanceof Error ? calcError.message : String(calcError)
             console.error('❌ [DashboardService] DEBUG - Calculate metrics exception:', {
               error: calcError,
-              message: calcError instanceof Error ? calcError.message : String(calcError),
+              message: calcErrorMessage,
               stack: calcError instanceof Error ? calcError.stack : undefined
             })
+            
+            // If calculation failed because no tests exist, provide helpful error
+            if (calcErrorMessage.includes('No tests') || calcErrorMessage.includes('No completed tests')) {
+              console.log('ℹ️ [DashboardService] No prompt tests found - user needs to complete prompt testing first')
+              // Don't throw error here, let it fall through to show appropriate message
+            }
             // Continue with fallback logic below
           }
         } else {
@@ -296,8 +326,17 @@ class DashboardService {
         }
         
         // If still no data, fallback to individual endpoints
-        if (!dashboardResponse.success || !dashboardResponse.data) {
-          console.log('⚠️ [DashboardService] dashboard/all failed, falling back to individual endpoints')
+        // ✅ FIX: Only fallback if we still don't have data after calculation attempts
+        // Check if data is actually empty (recalculate in case retry succeeded)
+        const stillHasEmptyData = dashboardResponse.success && dashboardResponse.data && (
+          !dashboardResponse.data.overall && 
+          (!dashboardResponse.data.platformMetrics || dashboardResponse.data.platformMetrics.length === 0) &&
+          (!dashboardResponse.data.topics || dashboardResponse.data.topics.length === 0) &&
+          (!dashboardResponse.data.personas || dashboardResponse.data.personas.length === 0)
+        )
+        
+        if (!dashboardResponse.success || !dashboardResponse.data || stillHasEmptyData) {
+          console.log('⚠️ [DashboardService] dashboard/all failed or returned empty data, falling back to individual endpoints')
           
           // Convert null to undefined for fallback API calls as well
           const fallbackUrlAnalysisId = filters.selectedAnalysisId || filters.urlAnalysisId || undefined
@@ -500,7 +539,26 @@ class DashboardService {
             competitors: competitors,
             urlAnalysisId: urlAnalysisId
           })
-          throw new Error('No data available. Please complete the onboarding flow first.')
+          
+          // ✅ FIX: Provide more helpful error message based on what's missing
+          // Check if prompt tests exist to give better guidance
+          let errorMessage = 'No data available. Please complete the onboarding flow first.'
+          if (urlAnalysisId) {
+            try {
+              const testsResponse = await apiService.getAllTests({ urlAnalysisId })
+              const testCount = testsResponse.data?.length || 0
+              if (testCount === 0) {
+                errorMessage = 'No prompt tests found. Please complete prompt testing in the onboarding flow first.'
+              } else {
+                errorMessage = 'Metrics not calculated yet. Please wait a moment and refresh, or contact support if the issue persists.'
+              }
+            } catch (err) {
+              // If we can't check tests, use default message
+              console.log('Could not check prompt tests status:', err)
+            }
+          }
+          
+          throw new Error(errorMessage)
         }
       }
 

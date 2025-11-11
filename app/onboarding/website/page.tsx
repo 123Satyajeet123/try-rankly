@@ -46,13 +46,78 @@ export default function WebsitePage() {
         const existingAnalysis = await apiService.findUrlAnalysisByUrl(url)
         
         if (existingAnalysis?.success && existingAnalysis?.data?.id) {
-          console.log('✅ URL already analyzed, found analysis ID:', existingAnalysis.data.id)
+          const analysisId = existingAnalysis.data.id
+          console.log('✅ URL already analyzed, found analysis ID:', analysisId)
           
-          // Redirect to dashboard with existing analysis
-          console.log('🔄 Redirecting to dashboard with existing analysis...')
-          setIsAnalyzing(false)
-          router.push(`/dashboard?analysisId=${existingAnalysis.data.id}`)
-          return
+          // ✅ FIX: Check if metrics exist before redirecting to dashboard
+          // If metrics don't exist, check if prompt tests exist (which can be used to calculate metrics)
+          try {
+            console.log('🔍 Checking if metrics exist for this analysis...')
+            const metricsResponse = await apiService.getUrlMetrics(analysisId)
+            
+            // Check if we have actual metrics data
+            const hasMetrics = metricsResponse?.success && metricsResponse?.data && (
+              metricsResponse.data.overall || 
+              (metricsResponse.data.platforms && metricsResponse.data.platforms.length > 0) ||
+              (metricsResponse.data.topics && metricsResponse.data.topics.length > 0) ||
+              (metricsResponse.data.personas && metricsResponse.data.personas.length > 0)
+            )
+            
+            if (hasMetrics) {
+              console.log('✅ Metrics exist, redirecting to dashboard...')
+              setIsAnalyzing(false)
+              router.push(`/dashboard?analysisId=${analysisId}`)
+              return
+            } else {
+              console.log('⚠️ Metrics not found, checking for prompt tests...')
+              
+              // Check if prompt tests exist (which can be used to calculate metrics)
+              try {
+                const testsResponse = await apiService.getAllTests({ urlAnalysisId: analysisId })
+                const hasTests = testsResponse?.success && testsResponse?.data && testsResponse.data.length > 0
+                
+                if (hasTests) {
+                  console.log('✅ Prompt tests exist, redirecting to dashboard (metrics will be calculated automatically)...')
+                  setIsAnalyzing(false)
+                  router.push(`/dashboard?analysisId=${analysisId}`)
+                  return
+                } else {
+                  console.log('ℹ️ No prompt tests found, continuing with onboarding flow...')
+                  // Continue with onboarding - user needs to complete prompt testing
+                }
+              } catch (testError) {
+                console.warn('⚠️ Error checking prompt tests, continuing with onboarding:', testError)
+                // Continue with onboarding on error
+              }
+            }
+          } catch (metricsError: any) {
+            // If metrics check fails, check for prompt tests as fallback
+            const errorMessage = metricsError?.message || ''
+            if (errorMessage.includes('not found') || errorMessage.includes('404')) {
+              console.log('ℹ️ Metrics not found, checking for prompt tests...')
+              
+              try {
+                const testsResponse = await apiService.getAllTests({ urlAnalysisId: analysisId })
+                const hasTests = testsResponse?.success && testsResponse?.data && testsResponse.data.length > 0
+                
+                if (hasTests) {
+                  console.log('✅ Prompt tests exist, redirecting to dashboard (metrics will be calculated automatically)...')
+                  setIsAnalyzing(false)
+                  router.push(`/dashboard?analysisId=${analysisId}`)
+                  return
+                } else {
+                  console.log('ℹ️ No prompt tests found, continuing with onboarding flow...')
+                  // Continue with onboarding
+                }
+              } catch (testError) {
+                console.warn('⚠️ Error checking prompt tests, continuing with onboarding:', testError)
+                // Continue with onboarding on error
+              }
+            } else {
+              console.warn('⚠️ Error checking metrics, continuing with onboarding:', metricsError)
+              // Continue with onboarding on error
+            }
+          }
         }
       } catch (error: any) {
         // If URL not found, that's fine - we'll proceed with new analysis

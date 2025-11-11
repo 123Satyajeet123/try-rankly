@@ -21,6 +21,7 @@ import { SkeletonWrapper } from '@/components/ui/skeleton-wrapper'
 import { UnifiedCardSkeleton } from '@/components/ui/unified-card-skeleton'
 import { useTheme } from 'next-themes'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { getDynamicFaviconUrl, handleFaviconError } from '@/lib/faviconUtils'
 import { 
   ChevronDown, 
@@ -1804,26 +1805,8 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                           {group.citationRank === '-' ? '-' : `${group.citationRank} -`}
                         </TableCell>
                           <TableCell className="text-center">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              className="h-6 px-2 text-xs text-[#2563EB] hover:text-[#2563EB] hover:bg-[#2563EB]/10"
-                              onClick={() => {
-                                const firstPrompt = group.prompts[0]
-                                if (firstPrompt?.id) {
-                                  setSelectedPrompt({
-                                    ...group,
-                                    promptPreview: (firstPrompt as any).text || firstPrompt.prompt || '-',
-                                    promptId: firstPrompt.id
-                                  })
-                                  fetchPromptDetails(firstPrompt.id)
-                                  setIsSheetOpen(true)
-                                }
-                              }}
-                            >
-                              View
-                              <ExternalLink className="w-3 h-3 ml-1" />
-                            </Button>
+                            {/* ✅ FIX: Remove View button from aggregate topic/persona level - only show at prompt level */}
+                            <span className="text-muted-foreground text-xs">-</span>
                           </TableCell>
                         </TableRow>
 
@@ -2083,7 +2066,97 @@ function PromptsSection({ onToggleFullScreen, filterContext, dashboardData }: Pr
                                           {platformResponse ? (
                                             <div className="space-y-2">
                                               <div className="text-sm text-muted-foreground prose prose-sm max-w-none">
-                                                <ReactMarkdown>
+                                                <ReactMarkdown
+                                                  remarkPlugins={[remarkGfm]}
+                                                  components={{
+                                                    table: ({ children }) => (
+                                                      <div className="overflow-x-auto my-4">
+                                                        <table className="min-w-full border-collapse border border-border">
+                                                          {children}
+                                                        </table>
+                                                      </div>
+                                                    ),
+                                                    thead: ({ children }) => (
+                                                      <thead className="bg-muted">{children}</thead>
+                                                    ),
+                                                    tbody: ({ children }) => (
+                                                      <tbody>{children}</tbody>
+                                                    ),
+                                                    tr: ({ children }) => (
+                                                      <tr className="border-b border-border hover:bg-muted/50">
+                                                        {children}
+                                                      </tr>
+                                                    ),
+                                                    th: ({ children }) => (
+                                                      <th className="border border-border px-3 py-2 text-left font-semibold text-sm">
+                                                        {children}
+                                                      </th>
+                                                    ),
+                                                    td: ({ children }) => (
+                                                      <td className="border border-border px-3 py-2 text-sm">
+                                                        {children}
+                                                      </td>
+                                                    ),
+                                                    p: ({ children }) => (
+                                                      <p className="mb-3">{children}</p>
+                                                    ),
+                                                    ul: ({ children }) => (
+                                                      <ul className="list-disc list-inside mb-3 space-y-1">
+                                                        {children}
+                                                      </ul>
+                                                    ),
+                                                    ol: ({ children }) => (
+                                                      <ol className="list-decimal list-inside mb-3 space-y-1">
+                                                        {children}
+                                                      </ol>
+                                                    ),
+                                                    li: ({ children }) => (
+                                                      <li className="ml-4">{children}</li>
+                                                    ),
+                                                    code: ({ children, className }) => {
+                                                      const isInline = !className
+                                                      return isInline ? (
+                                                        <code className="bg-muted px-1.5 py-0.5 rounded text-xs font-mono">
+                                                          {children}
+                                                        </code>
+                                                      ) : (
+                                                        <code className={className}>{children}</code>
+                                                      )
+                                                    },
+                                                    pre: ({ children }) => (
+                                                      <pre className="bg-muted p-3 rounded-lg overflow-x-auto mb-3">
+                                                        {children}
+                                                      </pre>
+                                                    ),
+                                                    blockquote: ({ children }) => (
+                                                      <blockquote className="border-l-4 border-primary pl-4 italic my-3 text-muted-foreground">
+                                                        {children}
+                                                      </blockquote>
+                                                    ),
+                                                    h1: ({ children }) => (
+                                                      <h1 className="text-2xl font-bold mb-3 mt-4">{children}</h1>
+                                                    ),
+                                                    h2: ({ children }) => (
+                                                      <h2 className="text-xl font-bold mb-2 mt-4">{children}</h2>
+                                                    ),
+                                                    h3: ({ children }) => (
+                                                      <h3 className="text-lg font-semibold mb-2 mt-3">{children}</h3>
+                                                    ),
+                                                    h4: ({ children }) => (
+                                                      <h4 className="text-base font-semibold mb-2 mt-3">{children}</h4>
+                                                    ),
+                                                    a: ({ children, href }) => (
+                                                      <a
+                                                        href={href}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="text-primary hover:underline"
+                                                      >
+                                                        {children}
+                                                      </a>
+                                                    ),
+                                                  }}
+                                                >
                                                   {platformResponse.response}
                                                 </ReactMarkdown>
                                               </div>
